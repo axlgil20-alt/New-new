@@ -1,0 +1,8 @@
+{
+  "name": "Quetzi",
+  "description": "App de finanzas personales y presupuesto familiar para Guatemala con Quetzi, calculadoras de Aguinaldo e ISR, control de despensa y metas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

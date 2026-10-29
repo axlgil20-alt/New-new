@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QUETZI — Centro de Descargas</title>
+  <style>
+    :root {
+      --primary: #00796B;
+      --primary-dark: #004D40;
+      --accent: #FFB300;
+      --bg: #F4F6F8;
+      --surface: #FFFFFF;
+      --text: #212121;
+      --text-secondary: #5f6368;
+      --border: #E0E0E0;
+      --success: #2E7D32;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .container {
+      max-width: 680px;
+      width: 100%;
+      background: var(--surface);
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      padding: 32px 24px;
+      margin-top: 20px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .badge {
+      display: inline-block;
+      background: #E0F2F1;
+      color: var(--primary-dark);
+      font-size: 12px;
+      font-weight: 700;
+      padding: 4px 12px;
+      border-radius: 20px;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    h1 {
+      font-size: 26px;
+      color: var(--primary-dark);
+      margin-bottom: 8px;
+    }
+    p.subtitle {
+      color: var(--text-secondary);
+      font-size: 15px;
+    }
+    .card {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+      transition: all 0.2s ease;
+      background: #FAFAFA;
+    }
+    .card:hover {
+      border-color: var(--primary);
+      box-shadow: 0 2px 8px rgba(0, 121, 107, 0.12);
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 12px;
+    }
+    .card-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .card-size {
+      background: #ECEFF1;
+      font-size: 13px;
+      font-weight: 600;
+      color: #37474F;
+      padding: 3px 8px;
+      border-radius: 6px;
+    }
+    .card-desc {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-bottom: 16px;
+    }
+    .checksum {
+      background: #263238;
+      color: #ECEFF1;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 11px;
+      word-break: break-all;
+      margin-bottom: 16px;
+      user-select: all;
+    }
+    .btn {
+      display: block;
+      width: 100%;
+      text-align: center;
+      background: var(--primary);
+      color: white;
+      text-decoration: none;
+      padding: 14px 20px;
+      font-size: 16px;
+      font-weight: 600;
+      border-radius: 8px;
+      transition: background 0.2s ease;
+    }
+    .btn:hover {
+      background: var(--primary-dark);
+    }
+    .btn-secondary {
+      background: #00897B;
+    }
+    .btn-secondary:hover {
+      background: #00695C;
+    }
+    .instructions {
+      margin-top: 24px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+    .instructions h3 {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .instructions ol {
+      padding-left: 20px;
+    }
+    .instructions li {
+      margin-bottom: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="badge">Versión de Producción Verificada</div>
+      <h1>QUETZI — Entrega Final</h1>
+      <p class="subtitle">Descargas oficiales verificadas del código fuente y ejecutable Android.</p>
+    </div>
+
+    <!-- APK Card -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">📱 Instalador Android (APK)</div>
+          <small style="color: var(--success); font-weight: 600;">Compilado y probado exitosamente</small>
+        </div>
+        <div class="card-size">72 MB</div>
+      </div>
+      <div class="card-desc">
+        Archivo ejecutable directo para instalar y probar QUETZI en teléfonos y tablets Android (Android 8.0 a 15+).
+      </div>
+      <div class="checksum">
+        SHA-256: 05b31ba8047a0689c86dfff2e38305148199281d13099acf6a00282540b32c7a
+      </div>
+      <a class="btn" href="/quetzi_app_debug.apk" download="quetzi_app_debug.apk">
+        ⬇️ Descargar APK (72 MB)
+      </a>
+    </div>
+
+    <!-- ZIP Card -->
+    <div class="card">
+      <div class="card-header">
+        <div>
+          <div class="card-title">📦 Proyecto Completo Android Studio (ZIP)</div>
+          <small style="color: var(--primary); font-weight: 600;">100% Código fuente y recursos</small>
+        </div>
+        <div class="card-size">26 MB</div>
+      </div>
+      <div class="card-desc">
+        Contiene todo el proyecto Gradle, código Kotlin (Room v10, Smart Cart, Despensa, Quincenas, Export/Import Excel), recursos y 18 pruebas unitarias.
+      </div>
+      <div class="checksum">
+        SHA-256: 1c7fae193937fd78de2431b824b4807c15c6fcb0bb77f60d673207070a686cf1
+      </div>
+      <a class="btn btn-secondary" href="/quetzi_project_complete.zip" download="quetzi_project_complete.zip">
+        ⬇️ Descargar Proyecto Completo ZIP (26 MB)
+      </a>
+    </div>
+
+    <div class="instructions">
+      <h3>Instrucciones de instalación y uso:</h3>
+      <ol>
+        <li><strong>Instalar en tu teléfono:</strong> Descarga el archivo APK arriba. En tu teléfono, abre el archivo descargado. Si el sistema te lo solicita, autoriza "Instalar aplicaciones de fuentes desconocidas" para tu navegador o gestor de archivos.</li>
+        <li><strong>Abrir en Android Studio:</strong> Descomprime el archivo ZIP en tu computadora. En Android Studio, selecciona <em>File > Open...</em> y selecciona la carpeta descomprimida. Gradle sincronizará automáticamente las dependencias.</li>
+      </ol>
+    </div>
+  </div>
+</body>
+</html>
