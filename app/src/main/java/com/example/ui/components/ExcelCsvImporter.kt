@@ -73,6 +73,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.EmeraldGreen
+import com.example.ui.theme.ExpenseRed
+import com.example.ui.theme.IncomeGreen
 import kotlinx.coroutines.launch
 import java.io.BufferedReader
 import java.io.InputStreamReader
@@ -114,9 +116,11 @@ fun ExcelCsvImporter(
     var exportPreview by remember { mutableStateOf("") }
     var isGenerating by remember { mutableStateOf(false) }
 
-    // Selector de archivo nativo del teléfono
+    var isConfirming by remember { mutableStateOf(false) }
+
+    // Selector de archivo nativo del teléfono (SAF: ACTION_OPEN_DOCUMENT)
     val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         uri?.let {
             try {
@@ -142,9 +146,21 @@ fun ExcelCsvImporter(
         }
     }
 
-    // Análisis automático y vista previa de transacciones detectadas
-    val previewRows = remember(textToImport) {
-        parsePreviewTransactions(textToImport)
+    // Análisis automático y vista previa de transacciones detectadas (Etapa A y B)
+    val analysisResult = remember(textToImport) {
+        if (textToImport.isBlank()) null
+        else com.example.ui.util.ExcelXlsxReader.analyzeTransactionsFromText(textToImport)
+    }
+    val previewRows = remember(analysisResult) {
+        analysisResult?.validTransactions?.map {
+            PreviewTransaction(
+                title = it.title,
+                amount = it.amount,
+                type = if (it.type == com.example.data.model.TransactionType.INCOME || it.type.equals("Ingreso", true)) "Ingreso" else "Gasto",
+                category = it.category,
+                date = it.dateStr
+            )
+        } ?: emptyList()
     }
 
     BasicAlertDialog(onDismissRequest = onDismiss) {
@@ -283,7 +299,18 @@ fun ExcelCsvImporter(
                                 Spacer(modifier = Modifier.height(14.dp))
 
                                 Button(
-                                    onClick = { filePickerLauncher.launch("*/*") },
+                                    onClick = {
+                                        filePickerLauncher.launch(
+                                            arrayOf(
+                                                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                                "application/vnd.ms-excel",
+                                                "text/comma-separated-values",
+                                                "text/csv",
+                                                "text/plain",
+                                                "*/*"
+                                            )
+                                        )
+                                    },
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .height(46.dp)
@@ -381,13 +408,15 @@ fun ExcelCsvImporter(
                             )
                         )
 
-                        // 3. VISTA PREVIA AUTOMÁTICA DE FILAS DETECTADAS
-                        if (previewRows.isNotEmpty()) {
+                        // 3. VISTA PREVIA AUTOMÁTICA DE FILAS DETECTADAS (Etapa B)
+                        if (analysisResult != null && previewRows.isNotEmpty()) {
                             Card(
                                 shape = RoundedCornerShape(16.dp),
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                                 border = BorderStroke(1.5.dp, EmeraldGreen.copy(alpha = 0.6f)),
-                                modifier = Modifier.fillMaxWidth()
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("import_preview_card")
                             ) {
                                 Column(modifier = Modifier.padding(14.dp)) {
                                     Row(
@@ -404,18 +433,71 @@ fun ExcelCsvImporter(
                                             )
                                             Spacer(modifier = Modifier.width(6.dp))
                                             Text(
-                                                text = "Vista Previa (${previewRows.size} detectadas)",
+                                                text = "Vista Previa: ${previewRows.size} movimientos válidos",
                                                 style = MaterialTheme.typography.titleSmall,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.primary
                                             )
                                         }
-                                        Text(
-                                            text = "Total: Q ${"%.2f".format(previewRows.sumOf { it.amount })}",
-                                            style = MaterialTheme.typography.labelMedium,
-                                            fontWeight = FontWeight.ExtraBold,
-                                            color = EmeraldGreen
-                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.height(8.dp))
+
+                                    // Resumen Financiero de la Vista Previa (Ingresos vs Gastos)
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(10.dp))
+                                            .background(Color(0xFFF8FAFC))
+                                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column {
+                                            Text("Ingresos detectados", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                                            Text(
+                                                text = "+Q ${"%,.2f".format(analysisResult.totalIncome)}",
+                                                fontWeight = FontWeight.Bold,
+                                                color = IncomeGreen,
+                                                style = MaterialTheme.typography.labelLarge
+                                            )
+                                        }
+                                        Column(horizontalAlignment = Alignment.End) {
+                                            Text("Gastos detectados", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                                            Text(
+                                                text = "-Q ${"%,.2f".format(analysisResult.totalExpense)}",
+                                                fontWeight = FontWeight.Bold,
+                                                color = ExpenseRed,
+                                                style = MaterialTheme.typography.labelLarge
+                                            )
+                                        }
+                                    }
+
+                                    // Desglose de filas descartadas con motivo
+                                    if (analysisResult.discardedRowsCount > 0) {
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Surface(
+                                            shape = RoundedCornerShape(8.dp),
+                                            color = Color(0xFFFEF3C7),
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Check,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFFB45309),
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = "${analysisResult.discardedRowsCount} fila(s) no contables excluidas con éxito (encabezados, saldos arrastrados o balances para proteger tu saldo real)",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = Color(0xFF92400E)
+                                                )
+                                            }
+                                        }
                                     }
 
                                     Spacer(modifier = Modifier.height(10.dp))
@@ -434,8 +516,8 @@ fun ExcelCsvImporter(
 
                                     Spacer(modifier = Modifier.height(4.dp))
 
-                                    // Muestra las primeras 5 filas detectadas
-                                    previewRows.take(5).forEach { row ->
+                                    // Muestra las primeras 6 filas detectadas
+                                    previewRows.take(6).forEach { row ->
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
@@ -455,7 +537,7 @@ fun ExcelCsvImporter(
                                                     text = row.category,
                                                     fontSize = 10.sp,
                                                     fontWeight = FontWeight.Medium,
-                                                    color = if (row.type == "Ingreso") Color(0xFF16A34A) else Color(0xFFDC2626),
+                                                    color = if (row.type == "Ingreso") IncomeGreen else ExpenseRed,
                                                     modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                                     maxLines = 1
                                                 )
@@ -465,16 +547,16 @@ fun ExcelCsvImporter(
                                                 modifier = Modifier.weight(1.2f),
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 12.sp,
-                                                color = if (row.type == "Ingreso") Color(0xFF16A34A) else Color(0xFFDC2626),
+                                                color = if (row.type == "Ingreso") IncomeGreen else ExpenseRed,
                                                 textAlign = TextAlign.End
                                             )
                                         }
                                         HorizontalDivider(color = Color(0xFFF1F5F9))
                                     }
 
-                                    if (previewRows.size > 5) {
+                                    if (previewRows.size > 6) {
                                         Text(
-                                            text = "+ ${previewRows.size - 5} transacciones adicionales detectadas",
+                                            text = "+ ${previewRows.size - 6} transacciones adicionales listas para importar",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = Color.Gray,
                                             modifier = Modifier.padding(top = 4.dp, start = 8.dp)
@@ -484,15 +566,16 @@ fun ExcelCsvImporter(
                             }
                         }
 
-                        // Botón de Confirmación
+                        // Botón de Confirmación (Etapa C con protección anti doble toque)
                         Button(
                             onClick = {
-                                if (textToImport.isNotBlank()) {
+                                if (textToImport.isNotBlank() && !isConfirming) {
+                                    isConfirming = true
                                     onImportText(textToImport)
                                     onDismiss()
                                 }
                             },
-                            enabled = previewRows.isNotEmpty(),
+                            enabled = previewRows.isNotEmpty() && !isConfirming,
                             shape = RoundedCornerShape(12.dp),
                             colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen),
                             modifier = Modifier
@@ -501,7 +584,7 @@ fun ExcelCsvImporter(
                                 .testTag("confirm_import_button")
                         ) {
                             Text(
-                                text = if (previewRows.isNotEmpty()) "Guardar ${previewRows.size} Registros en mi Presupuesto" else "Selecciona o pega filas para importar",
+                                text = if (previewRows.isNotEmpty()) "Confirmar e Importar ${previewRows.size} Registros" else "Selecciona o pega filas para importar",
                                 fontWeight = FontWeight.Bold
                             )
                         }

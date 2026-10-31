@@ -225,6 +225,7 @@ class PantrySmartCartIntegrationTest {
         override suspend fun updateTransaction(tx: TransactionEntity) {}
         override suspend fun deleteTransaction(tx: TransactionEntity) { transactions.remove(tx) }
         override suspend fun deleteById(id: Long) { transactions.removeAll { it.id == id } }
+        override suspend fun deleteByIds(ids: List<Long>) { transactions.removeAll { it.id in ids } }
         override suspend fun clearAll() { transactions.clear() }
     }
 

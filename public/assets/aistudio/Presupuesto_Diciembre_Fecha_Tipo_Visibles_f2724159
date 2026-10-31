@@ -1,0 +1,62 @@
+,,,,,,,,,,
+,,,,,,,,,,
+,,,,,,,,,,
+REGISTRADORA DE PRESUPUESTO,,,,,,,,,,
+Ingreso total,Gasto total,Saldo final,Pendiente,Edita Gasto o Ingreso en las celdas de color,,,,,,
+"Q 29,823.00","Q 23,665.00",#REF!,#REF!,Pendiente aparece en rojo cuando el saldo de la fila es negativo.,,,,,,
+Fecha,Tipo,Concepto / beneficiario,Categoría,Notas,Gasto,Ingreso,Saldo anterior,Saldo,Mes,Pendiente
+30-sep-26,Ingreso,Salario del 30 de septiembre,Ingreso,Ingreso confirmado,Q -,"Q 4,200.00",Q -,"Q 4,200.00",sep,Q -
+30-sep-26,Gasto,Primo,Gastos septiembre,Gasto del periodo,"Q 1,100.00",Q -,"Q 4,200.00","Q 3,100.00",sep,Q -
+30-sep-26,Gasto,Esposa septiembre,Gastos septiembre,Gasto del periodo,Q 700.00,Q -,"Q 3,100.00","Q 2,400.00",sep,Q -
+30-sep-26,Gasto,Colegio,Gastos septiembre,Gasto del periodo,Q 660.00,Q -,"Q 2,400.00","Q 1,740.00",sep,Q -
+30-sep-26,Gasto,Doctor,Gastos septiembre,Gasto del periodo,Q 350.00,Q -,"Q 1,740.00","Q 1,390.00",sep,Q -
+30-sep-26,Gasto,Internet,Gastos septiembre,Gasto del periodo,Q 260.00,Q -,"Q 1,390.00","Q 1,130.00",sep,Q -
+30-sep-26,Gasto,Consulta + mototaxi,Gastos septiembre,Gasto del periodo,Q 60.00,Q -,"Q 1,130.00","Q 1,070.00",sep,Q -
+30-sep-26,Gasto,Axl + Mia,Gastos septiembre,Gasto del periodo,Q 200.00,Q -,"Q 1,070.00",Q 870.00,sep,Q -
+30-sep-26,Gasto,Pasajes septiembre,Gastos septiembre,Gasto del periodo,Q 300.00,Q -,Q 870.00,Q 570.00,sep,Q -
+30-sep-26,Gasto,Electricidad,Gastos septiembre,Servicio de casa,Q 80.00,Q -,Q 570.00,Q 490.00,sep,Q -
+15-oct-26,Saldo anterior,Saldo anterior,Saldo quincenal,Saldo de quincena,Q -,Q 490.00,Q -,Q 490.00,oct,Q -
+15-oct-26,Ingreso,Bonos del 15 de octubre,Ingreso,Ingreso confirmado,Q -,"Q 2,000.00",Q 490.00,"Q 2,490.00",oct,Q -
+15-oct-26,Gasto,Esposa desde octubre,Gastos octubre,Gasto del periodo,"Q 1,000.00",Q -,"Q 2,490.00","Q 1,490.00",oct,Q -
+15-oct-26,Gasto,Pantalón,Gastos octubre,Gasto del periodo,Q 200.00,Q -,"Q 1,490.00","Q 1,290.00",oct,Q -
+15-oct-26,Gasto,Zapatos,Gastos octubre,Gasto del periodo,Q 200.00,Q -,"Q 1,290.00","Q 1,090.00",oct,Q -
+15-oct-26,Gasto,Comida rápida,Gastos octubre,Gasto del periodo,Q 150.00,Q -,"Q 1,090.00",Q 940.00,oct,Q -
+15-oct-26,Gasto,Pasajes,Gastos octubre,Pasajes,Q 350.00,Q -,Q 940.00,Q 590.00,oct,Q -
+15-oct-26,Gasto,Ofrendas y pasajes de la iglesia,Gastos octubre,Gasto de iglesia,Q 287.50,Q -,Q 590.00,Q 302.50,oct,Q -
+15-oct-26,Gasto,Inscripción Axl,Gastos octubre,Pago escolar,Q 100.00,Q -,Q 302.50,Q 202.50,oct,Q -
+15-oct-26,Gasto,Seguro inscripción Axl,Gastos octubre,Pago escolar,Q 100.00,Q -,Q 202.50,Q 102.50,oct,Q -
+31-oct-26,Ingreso,Salario del 31 de octubre,Ingreso,Ingreso confirmado,Q -,"Q 4,996.00",Q 102.50,"Q 5,098.50",oct,Q -
+31-oct-26,Gasto,Esposa desde octubre,Gastos octubre,Gasto del periodo,"Q 1,000.00",Q -,"Q 5,098.50","Q 4,098.50",oct,Q -
+31-oct-26,Gasto,Comida rápida,Gastos octubre,Gasto del periodo,Q 150.00,Q -,"Q 4,098.50","Q 3,948.50",oct,Q -
+31-oct-26,Gasto,Pasajes,Gastos octubre,Pasajes,Q 350.00,Q -,"Q 3,948.50","Q 3,598.50",oct,Q -
+31-oct-26,Gasto,Ofrendas y pasajes de la iglesia,Gastos octubre,Gasto de iglesia,Q 287.50,Q -,"Q 3,598.50","Q 3,311.00",oct,Q -
+15-nov-26,Saldo anterior,Saldo anterior,Saldo quincenal,Saldo de quincena,Q -,"Q 3,311.00",Q -,"Q 3,311.00",nov,Q -
+15-nov-26,Ingreso,Bonos del 15 de noviembre,Ingreso,Ingreso confirmado,Q -,"Q 2,000.00","Q 3,311.00","Q 5,311.00",nov,Q -
+15-nov-26,Gasto,Esposa desde octubre,Gastos noviembre,Gasto del periodo,"Q 1,000.00",Q -,"Q 5,311.00","Q 4,311.00",nov,Q -
+15-nov-26,Gasto,Comida rápida,Gastos noviembre,Gasto del periodo,Q 150.00,Q -,"Q 4,311.00","Q 4,161.00",nov,Q -
+15-nov-26,Gasto,Pasajes,Gastos noviembre,Pasajes,Q 350.00,Q -,"Q 4,161.00","Q 3,811.00",nov,Q -
+15-nov-26,Gasto,Ofrendas y pasajes de la iglesia,Gastos noviembre,Gasto de iglesia,Q 287.50,Q -,"Q 3,811.00","Q 3,523.50",nov,Q -
+15-nov-26,Gasto,Inscripción Mia,Gastos noviembre,Pago escolar,Q 350.00,Q -,"Q 3,523.50","Q 3,173.50",nov,Q -
+30-nov-26,Ingreso,Salario del 30 de noviembre,Ingreso,Ingreso confirmado,Q -,"Q 4,996.00","Q 3,173.50","Q 8,169.50",nov,Q -
+30-nov-26,Gasto,Esposa desde octubre,Gastos noviembre,Gasto del periodo,"Q 1,000.00",Q -,"Q 8,169.50","Q 7,169.50",nov,Q -
+30-nov-26,Gasto,Comida rápida,Gastos noviembre,Gasto del periodo,Q 150.00,Q -,"Q 7,169.50","Q 7,019.50",nov,Q -
+30-nov-26,Gasto,Pasajes,Gastos noviembre,Pasajes,Q 350.00,Q -,"Q 7,019.50","Q 6,669.50",nov,Q -
+30-nov-26,Gasto,Ofrendas y pasajes de la iglesia,Gastos noviembre,Gasto de iglesia,Q 287.50,Q -,"Q 6,669.50","Q 6,382.00",nov,Q -
+30-nov-26,Gasto,Renta apartamento,Gastos mudanza noviembre,Pago de mudanza,"Q 2,000.00",Q -,"Q 6,382.00","Q 4,382.00",nov,Q -
+15-dic-26,Ingreso,Bonos del 15 de diciembre,Ingreso,Ingreso confirmado,Q -,"Q 2,000.00",#REF!,#REF!,dic,#REF!
+15-dic-26,Ingreso,Aguinaldo proporcional,Ingreso,Ingreso confirmado,Q -,Q 834.00,#REF!,#REF!,dic,#REF!
+15-dic-26,Gasto,TV esposa,Navidad,Gasto de Navidad,"Q 2,000.00",Q -,#REF!,#REF!,dic,#REF!
+15-dic-26,Gasto,Regalo hijo,Navidad,Gasto de Navidad,Q 300.00,Q -,#REF!,#REF!,dic,#REF!
+15-dic-26,Gasto,Regalo hija,Navidad,Gasto de Navidad,Q 300.00,Q -,#REF!,#REF!,dic,#REF!
+15-dic-26,Gasto,Estrenos de los 4,Navidad,Gasto de Navidad,"Q 2,000.00",Q -,#REF!,#REF!,dic,#REF!
+15-dic-26,Gasto,Comida,Gastos diciembre,Gasto del periodo,"Q 1,000.00",Q -,#REF!,#REF!,dic,#REF!
+15-dic-26,Gasto,Esposa desde octubre,Gastos diciembre,Gasto del periodo,"Q 1,000.00",Q -,#REF!,#REF!,dic,#REF!
+15-dic-26,Gasto,Comida rápida,Gastos diciembre,Gasto del periodo,Q 150.00,Q -,#REF!,#REF!,dic,#REF!
+15-dic-26,Gasto,Pasajes,Gastos diciembre,Pasajes,Q 190.00,Q -,#REF!,#REF!,dic,#REF!
+15-dic-26,Gasto,Ofrendas y pasajes de la iglesia,Iglesia,Gasto de iglesia,Q 287.50,Q -,#REF!,#REF!,dic,#REF!
+31-dic-26,Ingreso,Salario del 31 de diciembre,Ingreso,Ingreso confirmado,Q -,"Q 4,996.00",#REF!,#REF!,dic,#REF!
+31-dic-26,Gasto,Comida,Gastos diciembre,Gasto del periodo,"Q 1,000.00",Q -,#REF!,#REF!,dic,#REF!
+31-dic-26,Gasto,Esposa desde octubre,Gastos diciembre,Gasto del periodo,"Q 1,000.00",Q -,#REF!,#REF!,dic,#REF!
+31-dic-26,Gasto,Comida rápida,Gastos diciembre,Gasto del periodo,Q 150.00,Q -,#REF!,#REF!,dic,#REF!
+31-dic-26,Gasto,Pasajes,Gastos diciembre,Pasajes,Q 190.00,Q -,#REF!,#REF!,dic,#REF!
+31-dic-26,Gasto,Ofrendas y pasajes de la iglesia,Gastos diciembre,Gasto de iglesia,Q 287.50,Q -,#REF!,#REF!,dic,#REF!

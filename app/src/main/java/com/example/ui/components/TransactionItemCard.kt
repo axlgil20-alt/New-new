@@ -20,23 +20,27 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.FormatColorFill
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.ThumbUp
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,18 +52,24 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.DefaultData
-import com.example.data.model.HighlightColorOption
 import com.example.data.model.TransactionEntity
+import com.example.data.model.TransactionSource
+import com.example.data.model.TransactionStatus
 import com.example.data.model.TransactionType
+import com.example.data.model.isGastoReal
+import com.example.data.model.isGastoSupuesto
+import com.example.data.model.source
+import com.example.data.model.status
 import com.example.ui.theme.EmeraldGreen
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
-import com.example.ui.theme.TentativeIndigo
 import com.example.ui.theme.TentativePurple
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -75,6 +85,11 @@ fun TransactionItemCard(
     onToggleVerify: () -> Unit,
     onDecideTentative: (String) -> Unit,
     isDiscreetMode: Boolean = false,
+    isSelectionMode: Boolean = false,
+    isSelected: Boolean = false,
+    onToggleSelect: () -> Unit = {},
+    onMarkAsLegitimate: (() -> Unit)? = null,
+    onToggleGastoSupuesto: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     var showColorPicker by remember { mutableStateOf(false) }
@@ -83,12 +98,14 @@ fun TransactionItemCard(
     val isTentative = transaction.isTentative
     val decision = transaction.tentativeDecision
     val isDiscarded = isTentative && decision == "DISCARDED"
-    val isPendingTentative = isTentative && (decision.isBlank() || decision == "PENDING")
+    val isPendingTentative = transaction.isGastoSupuesto
 
-    // Colores según estado
+    // Colores según estado y selección
     val baseCardColor = when {
-        isDiscarded -> Color(0xFFF0FDF4) // Verde muy claro de dinero ahorrado
-        isPendingTentative -> Color(0xFFFAF5FF) // Púrpura/Lavanda claro
+        isSelected -> Color(0xFFE0F2FE) // Azul suave de selección
+        isDiscarded -> Color(0xFFF0FDF4)
+        isPendingTentative -> Color(0xFFFAF5FF)
+        transaction.isSuspectedDuplicate -> Color(0xFFFFFBEB) // Fondo advertencia suave para duplicados
         transaction.highlightColorHex != 0L -> Color(transaction.highlightColorHex).copy(alpha = 0.35f)
         else -> MaterialTheme.colorScheme.surface
     }
@@ -96,6 +113,8 @@ fun TransactionItemCard(
     val animatedCardColor by animateColorAsState(targetValue = baseCardColor, label = "cardColor")
 
     val borderColor = when {
+        isSelected -> Color(0xFF0284C7)
+        transaction.isSuspectedDuplicate -> Color(0xFFF59E0B) // Borde ámbar para duplicado
         isDiscarded -> Color(0xFF86EFAC)
         isPendingTentative -> TentativePurple
         transaction.isVerified -> Color(0xFF93C5FD)
@@ -103,7 +122,7 @@ fun TransactionItemCard(
     }
 
     val amountColor = when {
-        isDiscarded -> IncomeGreen // El dinero no gastado es ahorro positivo
+        isDiscarded -> IncomeGreen
         isPendingTentative -> TentativePurple
         isIncome -> IncomeGreen
         else -> ExpenseRed
@@ -123,16 +142,18 @@ fun TransactionItemCard(
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 5.dp)
             .border(
-                width = if (isPendingTentative) 1.5.dp else 1.dp,
+                width = if (isSelected || transaction.isSuspectedDuplicate || isPendingTentative) 1.5.dp else 1.dp,
                 color = borderColor,
                 shape = RoundedCornerShape(18.dp)
-            ),
+            )
+            .clickable(enabled = isSelectionMode) { onToggleSelect() }
+            .testTag("transaction_item_${transaction.id}"),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = animatedCardColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isPendingTentative) 3.dp else 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isPendingTentative || isSelected) 3.dp else 1.dp)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            // Fila superior: Categoría, Badges (Supuesto, Hormiga, Verificado) y Acciones
+            // Fila superior: Checkbox (modo selección), Categoría, Badges y Acciones
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -140,18 +161,33 @@ fun TransactionItemCard(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.weight(1f)
                 ) {
+                    if (isSelectionMode) {
+                        Checkbox(
+                            checked = isSelected,
+                            onCheckedChange = { onToggleSelect() },
+                            colors = CheckboxDefaults.colors(
+                                checkedColor = EmeraldGreen,
+                                uncheckedColor = Color.Gray
+                            ),
+                            modifier = Modifier.size(36.dp)
+                        )
+                        Spacer(modifier = Modifier.width(2.dp))
+                    }
+
                     val icon = CategoryIconHelper.getIconForCategory(transaction.category)
                     Box(
                         modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
+                            .size(32.dp)
+                            .clip(RoundedCornerShape(8.dp))
                             .background(
                                 when {
                                     isDiscarded -> Color(0xFFDCFCE7)
                                     isPendingTentative -> Color(0xFFEDE9FE)
                                     isIncome -> Color(0xFFD1FAE5)
+                                    transaction.isSuspectedDuplicate -> Color(0xFFFEF3C7)
                                     else -> Color(0xFFFEE2E2)
                                 }
                             ),
@@ -160,78 +196,26 @@ fun TransactionItemCard(
                         Icon(
                             imageVector = icon,
                             contentDescription = transaction.category,
-                            modifier = Modifier.size(16.dp),
+                            modifier = Modifier.size(18.dp),
                             tint = when {
                                 isDiscarded -> IncomeGreen
                                 isPendingTentative -> TentativePurple
                                 isIncome -> IncomeGreen
+                                transaction.isSuspectedDuplicate -> Color(0xFFD97706)
                                 else -> ExpenseRed
                             }
                         )
                     }
 
-                    Text(
-                        text = transaction.category,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-
-                    // Badge de Gasto Supuesto
-                    if (isPendingTentative) {
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = TentativePurple
-                        ) {
-                            Text(
-                                text = "¿Compro o No?",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White,
-                                fontWeight = FontWeight.ExtraBold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-
-                    if (isDiscarded) {
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = EmeraldGreen
-                        ) {
-                            Text(
-                                text = "Ahorrado (+)",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-
-                    if (transaction.isAntExpense) {
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = Color(0xFFFFEDD5)
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.BugReport,
-                                    contentDescription = "Gasto Hormiga",
-                                    tint = Color(0xFFC2410C),
-                                    modifier = Modifier.size(12.dp)
-                                )
-                                Spacer(modifier = Modifier.width(2.dp))
-                                Text(
-                                    text = "Hormiga",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = Color(0xFFC2410C),
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
+                    Column {
+                        Text(
+                            text = transaction.category,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
 
@@ -240,13 +224,13 @@ fun TransactionItemCard(
                     // Checkbox de conciliado
                     IconButton(
                         onClick = onToggleVerify,
-                        modifier = Modifier.size(32.dp)
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
                             imageVector = if (transaction.isVerified) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                             contentDescription = if (transaction.isVerified) "Verificado" else "Marcar Revisado",
                             tint = if (transaction.isVerified) Color(0xFF2563EB) else Color.LightGray,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(19.dp)
                         )
                     }
 
@@ -254,13 +238,13 @@ fun TransactionItemCard(
                     Box {
                         IconButton(
                             onClick = { showColorPicker = true },
-                            modifier = Modifier.size(32.dp)
+                            modifier = Modifier.size(36.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.FormatColorFill,
                                 contentDescription = "Resaltar con color",
                                 tint = if (transaction.highlightColorHex != 0L) Color(transaction.highlightColorHex) else Color.Gray,
-                                modifier = Modifier.size(18.dp)
+                                modifier = Modifier.size(19.dp)
                             )
                         }
 
@@ -291,21 +275,35 @@ fun TransactionItemCard(
                         }
                     }
 
-                    IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
+                    if (transaction.type == TransactionType.EXPENSE && onToggleGastoSupuesto != null) {
+                        IconButton(
+                            onClick = onToggleGastoSupuesto,
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (isPendingTentative) Icons.Default.CheckCircle else Icons.Default.HelpOutline,
+                                contentDescription = if (isPendingTentative) "Confirmar como real" else "Marcar como supuesto",
+                                tint = if (isPendingTentative) TentativePurple else Color.Gray,
+                                modifier = Modifier.size(19.dp)
+                            )
+                        }
+                    }
+
+                    IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
                         Icon(
                             imageVector = Icons.Default.Edit,
                             contentDescription = "Editar",
                             tint = Color.Gray,
-                            modifier = Modifier.size(17.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
 
-                    IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+                    IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Eliminar",
-                            tint = Color(0xFFEF4444).copy(alpha = 0.7f),
-                            modifier = Modifier.size(17.dp)
+                            tint = Color(0xFFEF4444).copy(alpha = 0.8f),
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 }
@@ -313,7 +311,7 @@ fun TransactionItemCard(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // Título y Monto Principal
+            // Título / Establecimiento y Monto Principal (Estilo Simplifi)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
@@ -328,17 +326,19 @@ fun TransactionItemCard(
                         textDecoration = if (isDiscarded) TextDecoration.LineThrough else TextDecoration.None
                     )
                     Text(
-                        text = "$dateText • ${transaction.familyMember}",
+                        text = "$dateText • ${transaction.familyMember} • ${transaction.paymentMethod}",
                         style = MaterialTheme.typography.bodySmall,
                         color = Color.Gray
                     )
                 }
 
+                Spacer(modifier = Modifier.width(8.dp))
+
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         text = if (isDiscreetMode) "Q ****.**" else "$amountPrefix${"%,.2f".format(transaction.amount)}",
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.ExtraBold,
+                        fontWeight = FontWeight.Black,
                         color = amountColor
                     )
                     if (isPendingTentative) {
@@ -348,6 +348,156 @@ fun TransactionItemCard(
                             color = TentativePurple,
                             fontWeight = FontWeight.SemiBold
                         )
+                    }
+                }
+            }
+
+            // Fila de Badges y Metadatos (Origen, Estado, Duplicado, Hormiga)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 6.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Badge de Origen (Excel vs Manual)
+                if (transaction.source == TransactionSource.IMPORTED) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFFD1FAE5)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.TableChart,
+                                contentDescription = null,
+                                tint = EmeraldGreen,
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "Excel",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = EmeraldGreen,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                // Badge de Estado Contable
+                when (transaction.status) {
+                    TransactionStatus.PROJECTED -> {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Color(0xFFEDE9FE)
+                        ) {
+                            Text(
+                                text = "Proyectado",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TentativePurple,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                    TransactionStatus.PENDING -> {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Color(0xFFFEF3C7)
+                        ) {
+                            Text(
+                                text = "Pendiente",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFFB45309),
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                    else -> {}
+                }
+
+                // Alerta de Posible Duplicado con resolución directa
+                if (transaction.isSuspectedDuplicate) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFFFEE2E2)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = Color(0xFFDC2626),
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "Posible Duplicado",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFFDC2626),
+                                fontWeight = FontWeight.ExtraBold
+                            )
+                        }
+                    }
+
+                    if (onMarkAsLegitimate != null) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = Color(0xFFD1FAE5),
+                            modifier = Modifier.clickable { onMarkAsLegitimate() }
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Confirmar como legítimo",
+                                    tint = EmeraldGreen,
+                                    modifier = Modifier.size(12.dp)
+                                )
+                                Spacer(modifier = Modifier.width(3.dp))
+                                Text(
+                                    text = "Es legítimo",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = EmeraldGreen,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // Badge Hormiga
+                if (transaction.isAntExpense) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = Color(0xFFFFEDD5)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.BugReport,
+                                contentDescription = "Gasto Hormiga",
+                                tint = Color(0xFFC2410C),
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(2.dp))
+                            Text(
+                                text = "Hormiga",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Color(0xFFC2410C),
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
                 }
             }
@@ -363,47 +513,57 @@ fun TransactionItemCard(
                 )
             }
 
-            // BOTONES DE DECISIÓN PARA GASTOS SUPUESTOS (Solicitud directa del usuario)
+            // BOTONES DE DECISIÓN PARA GASTOS SUPUESTOS
             if (isPendingTentative) {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
                 Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = Color(0xFFEDE9FE)
+                    shape = RoundedCornerShape(14.dp),
+                    color = Color(0xFFFAF5FF),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, TentativePurple.copy(alpha = 0.5f))
                 ) {
-                    Column(modifier = Modifier.padding(10.dp)) {
-                        Text(
-                            text = "¿Vas a realizar este gasto de $currencySymbol${"%,.2f".format(transaction.amount)}?",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF4C1D95)
-                        )
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.HelpOutline,
+                                contentDescription = null,
+                                tint = TentativePurple,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = "Gasto Supuesto: ¿Aprobar débito de $currencySymbol${"%,.2f".format(transaction.amount)}?",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF581C87)
+                            )
+                        }
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // Opción 1: Confirmar compra (Resta del presupuesto)
                             Button(
                                 onClick = { onDecideTentative("CONFIRM") },
                                 colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed),
-                                shape = RoundedCornerShape(8.dp),
+                                shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Comprar (Resta)", style = MaterialTheme.typography.labelSmall)
+                                Text("Aprobar Gasto Real", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                             }
 
-                            // Opción 2: Descartar / No comprar (Suma como dinero no gastado / ahorro)
                             Button(
                                 onClick = { onDecideTentative("DISCARD") },
                                 colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen),
-                                shape = RoundedCornerShape(8.dp),
+                                shape = RoundedCornerShape(10.dp),
                                 modifier = Modifier.weight(1f)
                             ) {
                                 Icon(Icons.Default.ThumbUp, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Ahorrar (+ Suma)", style = MaterialTheme.typography.labelSmall)
+                                Text("Ahorrar / Descartar", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
                             }
                         }
                     }

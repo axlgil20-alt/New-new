@@ -23,6 +23,17 @@ data class ParsedTransaction(
     val externalId: String? = null
 )
 
+data class ImportAnalysisResult(
+    val validTransactions: List<ParsedTransaction>,
+    val discardedRowsCount: Int,
+    val discardedSummaryRowsCount: Int,
+    val discardedHeaderRowsCount: Int,
+    val discardedInvalidRowsCount: Int,
+    val totalIncome: Double,
+    val totalExpense: Double,
+    val discardedDetails: List<String>
+)
+
 private data class SheetMeta(
     val name: String,
     val sheetId: String,
@@ -52,6 +63,52 @@ object ExcelXlsxReader {
         SimpleDateFormat("yyyy/MM/dd", Locale.US),
         SimpleDateFormat("dd.MM.yyyy", Locale.US)
     )
+
+    private val SPANISH_MONTHS = mapOf(
+        "ene" to 0, "enero" to 0, "jan" to 0,
+        "feb" to 1, "febrero" to 1,
+        "mar" to 2, "marzo" to 2,
+        "abr" to 3, "abril" to 3, "apr" to 3,
+        "may" to 4, "mayo" to 4,
+        "jun" to 5, "junio" to 5,
+        "jul" to 6, "julio" to 6,
+        "ago" to 7, "agosto" to 7, "aug" to 7,
+        "sep" to 8, "sept" to 8, "set" to 8, "septiembre" to 8, "setiembre" to 8,
+        "oct" to 9, "octubre" to 9,
+        "nov" to 10, "noviembre" to 10,
+        "dic" to 11, "diciembre" to 11, "dec" to 11
+    )
+
+    private val SPANISH_DATE_REGEX = Regex("""^(\d{1,2})[-/ .]([a-zA-Z]{3,12})[-/ .](\d{2,4})$""")
+
+    fun parseDateRobustly(rawDate: String): Date? {
+        val clean = rawDate.trim()
+        if (clean.isBlank()) return null
+
+        val match = SPANISH_DATE_REGEX.find(clean)
+        if (match != null) {
+            val day = match.groupValues[1].toIntOrNull() ?: 1
+            val monthToken = match.groupValues[2].lowercase(Locale.ROOT)
+            val monthIdx = SPANISH_MONTHS[monthToken]
+            val yearRaw = match.groupValues[3].toIntOrNull() ?: 2026
+            val year = if (yearRaw < 100) 2000 + yearRaw else yearRaw
+
+            if (monthIdx != null) {
+                val cal = java.util.Calendar.getInstance()
+                cal.clear()
+                cal.set(year, monthIdx, day, 12, 0, 0)
+                return cal.time
+            }
+        }
+
+        for (fmt in DATE_FORMATS) {
+            try {
+                val d = fmt.parse(clean)
+                if (d != null) return d
+            } catch (_: Exception) {}
+        }
+        return null
+    }
 
     /**
      * Lee un Uri (que puede ser .xlsx, .xls, .csv, .tsv, etc.) y devuelve el contenido normalizado como CSV/texto.
@@ -135,7 +192,19 @@ object ExcelXlsxReader {
         }
 
         val dataSheets = sheetList.filter { !isInstructionalSheet(it.name) }
-        val candidateSheets = if (dataSheets.isNotEmpty()) dataSheets else sheetList
+        // Si el libro contiene la hoja 'Registradora' o 'Registros', se prioriza como fuente primaria absoluta,
+        // ignorando vistas mensuales o pestañas vinculadas redundantes (ej. Enero, Febrero, Mensual) para evitar duplicación
+        val registradoraSheet = dataSheets.find {
+            val n = it.name.trim().lowercase(Locale.ROOT)
+            n == "registradora" || n == "registros" || n == "registro" || n.contains("registradora")
+        }
+        val candidateSheets = if (registradoraSheet != null) {
+            listOf(registradoraSheet)
+        } else if (dataSheets.isNotEmpty()) {
+            dataSheets
+        } else {
+            sheetList
+        }
 
         val allowedSheetFileNames = candidateSheets.map { sheet ->
             val relTarget = relsMap[sheet.rId] ?: "worksheets/sheet${sheet.sheetId}.xml"
@@ -437,6 +506,10 @@ object ExcelXlsxReader {
                t.contains("como usar") ||
                t.contains("leer y editar") ||
                t.contains("plantilla") ||
+               t.contains("registradora") ||
+               t.contains("edita gasto") ||
+               t.contains("pendiente aparece") ||
+               t.contains("#ref!") ||
                t.contains("notas de versión") ||
                t.contains("notas de version") ||
                t.contains("guía rápida") ||
@@ -459,17 +532,38 @@ object ExcelXlsxReader {
                t == "totales" ||
                t.startsWith("total ") ||
                t.startsWith("totales ") ||
-               t.startsWith("subtotal") ||
+               t.endsWith(" total") ||
+               t.contains(" total ") ||
+               t.contains("gasto total") ||
+               t.contains("ingreso total") ||
+               t.contains("total general") ||
+               t.contains("subtotal") ||
                t == "suma" ||
                t.startsWith("suma ") ||
                t == "saldo" ||
                t.startsWith("saldo ") ||
+               t.contains("saldo anterior") ||
+               t.contains("saldo arrastrado") ||
+               t.contains("saldo inicial") ||
+               t.contains("saldo acumulado") ||
+               t.contains("saldo final") ||
+               t.contains("saldo quincenal") ||
+               t.contains("saldo de quincena") ||
+               t.contains("arrastre") ||
                t == "balance" ||
                t.startsWith("balance ") ||
+               t.contains("balance inicial") ||
+               t.contains("balance proyectado") ||
+               t.contains("proyeccion") ||
+               t.contains("proyección") ||
+               t == "proyectado" ||
+               t.startsWith("proyectado ") ||
                t == "diferencia" ||
                t.startsWith("diferencia ") ||
                t == "resumen" ||
-               t.startsWith("resumen ")
+               t.startsWith("resumen ") ||
+               t.contains("cierre de mes") ||
+               t.contains("cierre mensual")
     }
 
     fun isHeaderRow(parts: List<String>): Boolean {
@@ -488,13 +582,16 @@ object ExcelXlsxReader {
 
     private fun cleanAmount(raw: String?): Double? {
         if (raw == null) return null
-        val cleaned = raw.replace("Q", "")
+        val trimmed = raw.trim()
+        if (trimmed == "-" || trimmed == "Q -" || trimmed == "Q-" || trimmed == "$ -" || trimmed == "€ -") return 0.0
+        val cleaned = trimmed.replace("Q", "")
             .replace("$", "")
             .replace("€", "")
             .replace(",", "")
             .replace("\"", "")
             .replace(" ", "")
             .trim()
+        if (cleaned == "-" || cleaned.isBlank()) return 0.0
         return cleaned.toDoubleOrNull()
     }
 
@@ -503,10 +600,31 @@ object ExcelXlsxReader {
      * Descarta filas informativas, de resumen y cabeceras, garantizando coherencia absoluta entre
      * la vista previa y la persistencia final en la base de datos Room.
      */
-    fun parseTransactionsFromText(raw: String): List<ParsedTransaction> {
-        if (raw.isBlank()) return emptyList()
+    /**
+     * Analiza el texto (CSV, TSV o filas extraídas de Excel) produciendo un resultado estructurado
+     * con transacciones válidas, conteo de filas descartadas por categoría (encabezados, saldos arrastrados, etc.)
+     * y totales desglosados de ingresos y gastos para la Etapa B de Vista Previa.
+     */
+    fun analyzeTransactionsFromText(raw: String): ImportAnalysisResult {
+        if (raw.isBlank()) {
+            return ImportAnalysisResult(
+                validTransactions = emptyList(),
+                discardedRowsCount = 0,
+                discardedSummaryRowsCount = 0,
+                discardedHeaderRowsCount = 0,
+                discardedInvalidRowsCount = 0,
+                totalIncome = 0.0,
+                totalExpense = 0.0,
+                discardedDetails = emptyList()
+            )
+        }
+
         val lines = raw.lines().filter { it.isNotBlank() }
         val result = mutableListOf<ParsedTransaction>()
+        var headerCount = 0
+        var summaryCount = 0
+        var invalidCount = 0
+        val discardedDetails = mutableListOf<String>()
 
         var colDate = -1
         var colType = -1
@@ -521,11 +639,15 @@ object ExcelXlsxReader {
 
         for (line in lines) {
             val parts = parseCsvLine(line)
-            if (parts.size < 2) continue
+            if (parts.size < 2) {
+                invalidCount++
+                continue
+            }
 
             // 1. Detección y mapeo de fila de encabezados
             if (isHeaderRow(parts)) {
                 hasDetectedHeader = true
+                headerCount++
                 colDate = -1
                 colType = -1
                 colTitle = -1
@@ -542,11 +664,17 @@ object ExcelXlsxReader {
                         c.contains("fecha") || c.contains("date") -> colDate = idx
                         c.contains("tipo") || c.contains("type") -> colType = idx
                         c.contains("concepto") || c.contains("título") || c.contains("titulo") || c.contains("title") || c.contains("nombre") -> colTitle = idx
+                        c.contains("beneficiario") || c.contains("establecimiento") || c.contains("comercio") -> {
+                            colTitle = idx
+                        }
                         c.contains("categoría") || c.contains("categoria") || c.contains("category") || c.contains("rubro") -> colCategory = idx
                         c.contains("gasto") || c.contains("egreso") || c.contains("débito") || c.contains("debito") -> colExpense = idx
                         c.contains("ingreso") || c.contains("crédito") || c.contains("credito") || c.contains("abono") -> colIncome = idx
                         c.contains("monto") || c.contains("amount") || c.contains("importe") || c.contains("cantidad") || c.contains("valor") -> colAmount = idx
-                        c.contains("descrip") || c.contains("nota") || c.contains("detalle") || c.contains("observac") -> colNotes = idx
+                        c.contains("descrip") -> {
+                            if (colTitle == -1) colTitle = idx else if (colNotes == -1) colNotes = idx
+                        }
+                        c.contains("nota") || c.contains("detalle") || c.contains("observac") -> colNotes = idx
                         c.contains("id") || c.contains("ref") || c.contains("folio") || c.contains("uuid") || c.contains("hash") || c.contains("código") || c.contains("codigo") || c == "no." || c == "no" || c == "#" -> colExternalId = idx
                     }
                 }
@@ -557,6 +685,8 @@ object ExcelXlsxReader {
             val firstToken = parts[0].trim()
             val secondToken = parts.getOrNull(1)?.trim() ?: ""
             if (isInstructionOrMetaText(firstToken) || isInstructionOrMetaText(secondToken)) {
+                summaryCount++
+                discardedDetails.add("Metadato/Instrucción ignorada: '$firstToken'")
                 continue
             }
 
@@ -610,7 +740,6 @@ object ExcelXlsxReader {
                 }
             } else {
                 // Heurística de columnas sin cabecera explícita
-                // Formato Usuario 7+ columnas: Fecha | Tipo | Concepto | Categoría | Descripción | Monto Gasto | Monto Ingreso
                 if (effectiveParts.size >= 7 && (effectiveParts[1].equals("Gasto", true) || effectiveParts[1].equals("Ingreso", true))) {
                     val rawType = effectiveParts[1].trim()
                     title = effectiveParts[2].trim()
@@ -629,7 +758,6 @@ object ExcelXlsxReader {
                         amount = expVal
                     }
                 } else if (effectiveParts.size >= 4 && (effectiveParts[1].equals("Gasto", true) || effectiveParts[1].equals("Ingreso", true))) {
-                    // Formato 4-5 columnas con tipo en col 1: Fecha | Tipo | Concepto | Categoría | Monto
                     val rawType = effectiveParts[1].trim()
                     type = if (rawType.equals("Ingreso", true)) TransactionType.INCOME else TransactionType.EXPENSE
                     title = effectiveParts[2].trim()
@@ -638,7 +766,6 @@ object ExcelXlsxReader {
                         ?: cleanAmount(effectiveParts.getOrNull(3))
                         ?: 0.0
                 } else {
-                    // Formato Quetzi Export (Fecha | Título | Monto | Tipo | Categoría...) o estándar
                     title = effectiveParts.getOrNull(1)?.ifBlank { "Transacción" } ?: "Transacción"
                     val rawAmt1 = cleanAmount(effectiveParts.getOrNull(2)) ?: 0.0
                     if (rawAmt1 > 0.0) {
@@ -666,13 +793,19 @@ object ExcelXlsxReader {
                 }
             }
 
-            // 4. Filtrar filas de subtotales, totales, balance y resúmenes de Excel
-            if (isSummaryOrTotalText(title) || isInstructionOrMetaText(title)) {
+            val rawType = if (colType != -1 && colType < parts.size) parts[colType].trim() else ""
+            // 4. Filtrar filas de subtotales, totales, balance y resúmenes de Excel (saldos anteriores)
+            if (isSummaryOrTotalText(title) || isSummaryOrTotalText(rawType) || isSummaryOrTotalText(category) ||
+                isInstructionOrMetaText(title) || isInstructionOrMetaText(rawType) || isInstructionOrMetaText(category)) {
+                summaryCount++
+                val label = if (title.isNotBlank()) title else (if (rawType.isNotBlank()) rawType else category)
+                discardedDetails.add("Saldo anterior / Total excluido: '$label'")
                 continue
             }
 
             // 5. Validación de transacción obligatoria: monto positivo y concepto válido
             if (amount <= 0.0 || title.isBlank() || title.length <= 1) {
+                invalidCount++
                 continue
             }
 
@@ -688,15 +821,9 @@ object ExcelXlsxReader {
                 cal.add(java.util.Calendar.DAY_OF_YEAR, days.toInt())
                 parsedDate = cal.time
             } else {
-                for (fmt in DATE_FORMATS) {
-                    try {
-                        parsedDate = fmt.parse(cleanDate)
-                        if (parsedDate != null) break
-                    } catch (_: Exception) {}
-                }
+                parsedDate = parseDateRobustly(cleanDate)
             }
 
-            // Normalización a las 12:00 del mediodía local para blindar contra cualquier desfase horario
             val cal = java.util.Calendar.getInstance()
             if (parsedDate != null) {
                 cal.time = parsedDate
@@ -727,6 +854,27 @@ object ExcelXlsxReader {
             )
         }
 
-        return result
+        val totalIncome = result.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
+        val totalExpense = result.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+
+        return ImportAnalysisResult(
+            validTransactions = result,
+            discardedRowsCount = headerCount + summaryCount + invalidCount,
+            discardedSummaryRowsCount = summaryCount,
+            discardedHeaderRowsCount = headerCount,
+            discardedInvalidRowsCount = invalidCount,
+            totalIncome = totalIncome,
+            totalExpense = totalExpense,
+            discardedDetails = discardedDetails
+        )
+    }
+
+    /**
+     * Parsea texto (CSV, TSV o filas extraídas de Excel) produciendo una lista verificada de transacciones.
+     * Descarta filas informativas, de resumen y cabeceras, garantizando coherencia absoluta entre
+     * la vista previa y la persistencia final en la base de datos Room.
+     */
+    fun parseTransactionsFromText(raw: String): List<ParsedTransaction> {
+        return analyzeTransactionsFromText(raw).validTransactions
     }
 }

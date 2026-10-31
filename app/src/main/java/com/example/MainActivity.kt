@@ -244,7 +244,19 @@ class MainActivity : ComponentActivity() {
                                 onToggleVerifyTransaction = { tx -> viewModel.toggleVerifyTransaction(tx) },
                                 onDecideTentative = { tx, decision -> viewModel.decideTentativeTransaction(tx, decision) },
                                 onExportCsv = { viewModel.getCsvExport() },
-                                onImportCsv = { text -> viewModel.importCsv(text) }
+                                onImportCsv = { text -> viewModel.importCsv(text) },
+                                onFilterPeriodChange = { p -> viewModel.setFilterPeriod(p) },
+                                onFilterSpecificDateChange = { d -> viewModel.setFilterSpecificDate(d) },
+                                onFilterDateRangeChange = { s, e -> viewModel.setFilterDateRange(s, e) },
+                                onFilterQuincenaChange = { q -> viewModel.setFilterQuincena(q) },
+                                onFilterSubCategoryChange = { sc -> viewModel.setFilterSubCategory(sc) },
+                                onFilterBeneficiaryChange = { b -> viewModel.setFilterBeneficiary(b) },
+                                onFilterStatusChange = { st -> viewModel.setFilterStatus(st) },
+                                onFilterSourceChange = { src -> viewModel.setFilterSource(src) },
+                                onFilterDuplicatesModeChange = { m -> viewModel.setFilterDuplicatesMode(m) },
+                                onClearAllFilters = { viewModel.clearAllFilters() },
+                                onDeleteTransactions = { ids -> viewModel.deleteTransactions(ids) },
+                                onMarkTransactionsAsLegitimate = { ids -> viewModel.markTransactionsAsLegitimate(ids) }
                             )
 
                             2 -> BudgetsScreen(

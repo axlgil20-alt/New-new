@@ -189,3 +189,72 @@ object DefaultData {
 
     val familyMembers = listOf("Todos", "Personal", "Hogar", "Familia")
 }
+
+object TransactionStatus {
+    const val REAL = "REAL"
+    const val PENDING = "PENDING"
+    const val PROJECTED = "PROJECTED"
+    const val DISCARDED = "DISCARDED"
+}
+
+object TransactionSource {
+    const val ALL = "ALL"
+    const val MANUAL = "MANUAL"
+    const val IMPORTED = "IMPORTED"
+}
+
+object DuplicateFilterMode {
+    const val ALL = "ALL"
+    const val ONLY_DUPLICATES = "ONLY_DUPLICATES"
+    const val EXCLUDE_DUPLICATES = "EXCLUDE_DUPLICATES"
+}
+
+object FilterPeriod {
+    const val ALL = "ALL"
+    const val DAY = "DAY"
+    const val WEEK = "WEEK"
+    const val MONTH = "MONTH"
+    const val YEAR = "YEAR"
+}
+
+val TransactionEntity.beneficiary: String
+    get() = title
+
+val TransactionEntity.isGastoSupuesto: Boolean
+    get() = (type == TransactionType.EXPENSE) &&
+        (tentativeDecision != "CONFIRMED") &&
+        (isTentative ||
+         tentativeDecision == "PENDING" ||
+         notes.contains("[SUPUESTO]", ignoreCase = true) ||
+         notes.contains("Supuesto", ignoreCase = true) ||
+         notes.contains("[PENDIENTE]", ignoreCase = true) ||
+         notes.contains("Pendiente", ignoreCase = true))
+
+val TransactionEntity.isGastoReal: Boolean
+    get() = (type == TransactionType.EXPENSE) &&
+        (tentativeDecision != "DISCARDED") &&
+        !isGastoSupuesto
+
+val TransactionEntity.isIngresoReal: Boolean
+    get() = (type == TransactionType.INCOME)
+
+val TransactionEntity.status: String
+    get() = when {
+        isTentative && tentativeDecision == "DISCARDED" -> TransactionStatus.DISCARDED
+        isGastoSupuesto -> TransactionStatus.PROJECTED
+        else -> TransactionStatus.REAL
+    }
+
+val TransactionEntity.source: String
+    get() = if (!importHash.isNullOrBlank() || !externalId.isNullOrBlank() || notes.contains("Importado de Excel", ignoreCase = true)) {
+        TransactionSource.IMPORTED
+    } else {
+        TransactionSource.MANUAL
+    }
+
+val TransactionEntity.quincenaNumber: Int
+    get() = com.example.ui.util.QuincenaFilterHelper.getBudgetPeriod(dateMillis).quincena
+
+val TransactionEntity.quincenaLabel: String
+    get() = if (quincenaNumber == 1) "1ra Quincena (Fin de mes - 14)" else "2da Quincena (15 - Penúltimo día)"
+

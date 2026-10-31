@@ -45,6 +45,19 @@ class BudgetRepository(
     suspend fun updateTransaction(tx: TransactionEntity) = transactionDao.updateTransaction(tx)
     suspend fun deleteTransaction(tx: TransactionEntity) = transactionDao.deleteTransaction(tx)
     suspend fun deleteTransactionById(id: Long) = transactionDao.deleteById(id)
+    suspend fun deleteTransactionsByIds(ids: List<Long>) = runInTransaction {
+        if (ids.isNotEmpty()) {
+            transactionDao.deleteByIds(ids)
+        }
+    }
+    suspend fun markTransactionsAsLegitimate(ids: List<Long>) = runInTransaction {
+        val all = transactionDao.getAllTransactionsList()
+        for (tx in all) {
+            if (tx.id in ids && tx.isSuspectedDuplicate) {
+                transactionDao.updateTransaction(tx.copy(isSuspectedDuplicate = false))
+            }
+        }
+    }
 
     suspend fun setBudget(budget: BudgetLimitEntity) = budgetDao.setBudget(budget)
     suspend fun deleteBudget(category: String) = budgetDao.deleteBudget(category)
@@ -594,14 +607,34 @@ class BudgetRepository(
     }
 
     fun exportToCsv(transactions: List<TransactionEntity>): String {
-        val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+        val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.US)
         val sb = StringBuilder()
-        sb.append("Fecha,Título,Monto,Tipo,Categoría,Miembro,Verificado,Supuesto,Notas\n")
+        sb.append("Fecha,Descripción,Monto,Tipo,Categoría,Subcategoría,Beneficiario,Notas,Quincena,Estado,Origen,ID\n")
         for (tx in transactions) {
             val date = sdf.format(Date(tx.dateMillis))
-            val verified = if (tx.isVerified) "SÍ" else "NO"
-            val tentative = if (tx.isTentative) "SUPUESTO" else "CONFIRMADO"
-            sb.append("\"$date\",\"${tx.title}\",${tx.amount},\"${tx.type}\",\"${tx.category}\",\"${tx.familyMember}\",\"$verified\",\"$tentative\",\"${tx.notes}\"\n")
+            val typeLabel = if (tx.type == TransactionType.INCOME) "Ingreso" else "Gasto"
+            val statusLabel = when (tx.status) {
+                TransactionStatus.PROJECTED -> "Proyectado"
+                TransactionStatus.PENDING -> "Pendiente"
+                TransactionStatus.DISCARDED -> "Descartado"
+                else -> "Real"
+            }
+            val sourceLabel = if (tx.source == TransactionSource.IMPORTED) "Importado Excel" else "Manual"
+            val quincena = tx.quincenaLabel
+            val subCat = tx.familyMember
+            val extId = tx.externalId ?: ""
+            sb.append("\"$date\",")
+            sb.append("\"${tx.title.replace("\"", "\"\"")}\",")
+            sb.append(String.format(Locale.US, "%.2f", tx.amount)).append(",")
+            sb.append("\"$typeLabel\",")
+            sb.append("\"${tx.category.replace("\"", "\"\"")}\",")
+            sb.append("\"${subCat.replace("\"", "\"\"")}\",")
+            sb.append("\"${tx.title.replace("\"", "\"\"")}\",")
+            sb.append("\"${tx.notes.replace("\"", "\"\"")}\",")
+            sb.append("\"$quincena\",")
+            sb.append("\"$statusLabel\",")
+            sb.append("\"$sourceLabel\",")
+            sb.append("\"$extId\"\n")
         }
         return sb.toString()
     }
