@@ -253,8 +253,7 @@ val TransactionEntity.source: String
     }
 
 val TransactionEntity.quincenaNumber: Int
-    get() = com.example.ui.util.QuincenaFilterHelper.getBudgetPeriod(dateMillis).quincena
+    get() = com.example.ui.util.QuincenaFilterHelper.getBudgetPeriod(dateMillis, type).quincena
 
 val TransactionEntity.quincenaLabel: String
-    get() = if (quincenaNumber == 1) "1ra Quincena (Fin de mes - 14)" else "2da Quincena (15 - Penúltimo día)"
-
+    get() = if (quincenaNumber == 1) "1ra Quincena (1 - 15)" else "2da Quincena (16 - fin de mes)"

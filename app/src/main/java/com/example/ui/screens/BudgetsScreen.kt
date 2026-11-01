@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -55,6 +56,7 @@ import com.example.ui.theme.EmeraldGreen
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.util.FormatUtils
+import com.example.ui.util.BudgetLimitCalculator
 import com.example.ui.viewmodel.BudgetUiState
 
 import com.example.ui.components.HeaderVolcanoBackground
@@ -66,6 +68,7 @@ fun BudgetsScreen(
     onNextMonth: () -> Unit,
     onToggleAllTime: () -> Unit,
     onAddBudgetLimitClick: () -> Unit,
+    onEditBudgetLimit: (BudgetLimitEntity) -> Unit,
     onDeleteBudgetLimit: (String) -> Unit,
     onAddRecurringExpenseClick: () -> Unit,
     onDeleteRecurringExpense: (RecurringExpenseEntity) -> Unit,
@@ -78,7 +81,7 @@ fun BudgetsScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(if (uiState.isDarkTheme) Color(0xFF1E261D) else Color(0xFFFFF9E6))
     ) {
         // Fondo sutil de volcanes y Tikal en la cabecera
         HeaderVolcanoBackground(height = 180.dp, alpha = 0.20f)
@@ -142,6 +145,15 @@ fun BudgetsScreen(
         }
 
         // BLOQUE 1: LÍMITES DE PRESUPUESTO
+        item {
+            Text(
+                text = "Límites mensuales · ${BudgetLimitCalculator.monthLabel(uiState.currentYear, uiState.currentMonthIndex)}. Solo se contabilizan gastos reales; supuestos, descartados y duplicados marcados quedan fuera.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 20.dp)
+            )
+        }
+
         item {
             Card(
                 shape = RoundedCornerShape(20.dp),
@@ -225,22 +237,30 @@ fun BudgetsScreen(
                 Text(
                     text = "No has configurado límites de presupuesto aún.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = Color.Gray,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 20.dp)
                 )
             }
         } else {
             items(uiState.budgetLimits, key = { it.category }) { limit ->
-                val spent = uiState.categoryStats.find { it.category == limit.category }?.totalAmount ?: 0.0
-                val progress = if (limit.monthlyLimit > 0) (spent / limit.monthlyLimit).toFloat().coerceIn(0f, 1.2f) else 0f
-                val isOver = spent > limit.monthlyLimit
+                val usage = BudgetLimitCalculator.usage(
+                    spentAmount = BudgetLimitCalculator.monthlySpend(
+                        transactions = uiState.allTransactions,
+                        category = limit.category,
+                        year = uiState.currentYear,
+                        monthIndex = uiState.currentMonthIndex
+                    ),
+                    limitAmount = limit.monthlyLimit
+                )
+                val isOver = usage.isOverLimit
+                val isNear = BudgetLimitCalculator.isNearLimit(usage)
 
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    colors = CardDefaults.cardColors(containerColor = if (uiState.isDarkTheme) Color(0xFF293629) else Color(0xFFFFFDF6)),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
@@ -249,7 +269,10 @@ fun BudgetsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(
+                                modifier = Modifier.weight(1f).padding(end = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
                                 Box(
                                     modifier = Modifier
                                         .size(36.dp)
@@ -275,14 +298,21 @@ fun BudgetsScreen(
                                         Text(
                                             text = limit.reason,
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = Color.Gray
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
                                 }
                             }
 
-                            IconButton(onClick = { onDeleteBudgetLimit(limit.category) }) {
-                                Icon(imageVector = Icons.Default.Delete, contentDescription = "Eliminar", tint = Color.Gray)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = { onEditBudgetLimit(limit) }) {
+                                    Icon(imageVector = Icons.Default.Edit, contentDescription = "Editar límite de ${limit.category}", tint = MaterialTheme.colorScheme.primary)
+                                }
+                                IconButton(onClick = { onDeleteBudgetLimit(limit.category) }) {
+                                    Icon(imageVector = Icons.Default.Delete, contentDescription = "Eliminar límite de ${limit.category}", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
                             }
                         }
 
@@ -293,37 +323,74 @@ fun BudgetsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "Gastado: ${FormatUtils.formatCurrency(spent, uiState.currencySymbol, uiState.isDiscreetMode)}",
+                                text = "Gastado: ${FormatUtils.formatCurrency(usage.spent.toDouble(), BudgetLimitCalculator.QUETZAL_SYMBOL, uiState.isDiscreetMode)}",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.SemiBold,
-                                color = if (isOver) ExpenseRed else MaterialTheme.colorScheme.onSurface
+                                color = if (isOver) (if (uiState.isDarkTheme) Color(0xFFFF9A91) else ExpenseRed) else MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                text = "Límite: ${FormatUtils.formatCurrency(limit.monthlyLimit, uiState.currencySymbol, uiState.isDiscreetMode)}",
+                                text = "Límite: ${FormatUtils.formatCurrency(usage.limit.toDouble(), BudgetLimitCalculator.QUETZAL_SYMBOL, uiState.isDiscreetMode)}",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.weight(1f),
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Restante: ${FormatUtils.formatCurrency(usage.remaining.toDouble(), BudgetLimitCalculator.QUETZAL_SYMBOL, uiState.isDiscreetMode)}",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "${usage.percentUsed.stripTrailingZeros().toPlainString()}% utilizado",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isOver) (if (uiState.isDarkTheme) Color(0xFFFF9A91) else ExpenseRed) else if (isNear) (if (uiState.isDarkTheme) Color(0xFFFFC078) else Color(0xFF9A4D00)) else MaterialTheme.colorScheme.primary
                             )
                         }
 
                         Spacer(modifier = Modifier.height(6.dp))
 
                         LinearProgressIndicator(
-                            progress = { progress.coerceIn(0f, 1f) },
+                            progress = { usage.progress },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(8.dp)
                                 .clip(RoundedCornerShape(4.dp)),
-                            color = if (isOver) ExpenseRed else IncomeGreen,
-                            trackColor = Color(0xFFF1F5F9)
+                            color = if (isOver) (if (uiState.isDarkTheme) Color(0xFFFF9A91) else ExpenseRed) else if (isNear) (if (uiState.isDarkTheme) Color(0xFFF5A753) else Color(0xFFE67E22)) else (if (uiState.isDarkTheme) Color(0xFFA8D5A0) else IncomeGreen),
+                            trackColor = if (uiState.isDarkTheme) Color(0xFF435143) else Color(0xFFE2E8D8)
                         )
 
                         if (isOver) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "¡Excedido por ${FormatUtils.formatCurrency(spent - limit.monthlyLimit, uiState.currencySymbol, uiState.isDiscreetMode)}!",
+                                text = "¡Excedido por ${FormatUtils.formatCurrency(usage.exceededBy.toDouble(), BudgetLimitCalculator.QUETZAL_SYMBOL, uiState.isDiscreetMode)}!",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = ExpenseRed
+                                color = if (uiState.isDarkTheme) Color(0xFFFF9A91) else ExpenseRed
+                            )
+                        } else if (isNear) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "Aviso: alcanzaste ${usage.percentUsed.stripTrailingZeros().toPlainString()}% del límite. Restan ${FormatUtils.formatCurrency(usage.remaining.toDouble(), BudgetLimitCalculator.QUETZAL_SYMBOL, uiState.isDiscreetMode)}.",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (uiState.isDarkTheme) Color(0xFFFFC078) else Color(0xFF9A4D00)
                             )
                         }
                     }
@@ -449,9 +516,9 @@ fun BudgetsScreen(
                                 fontWeight = FontWeight.Bold
                             )
                             Text(
-                                text = "${FormatUtils.formatCurrency(rec.amount, uiState.currencySymbol, uiState.isDiscreetMode)} • ${rec.category} • ${rec.familyMember}",
+                                text = "${FormatUtils.formatCurrency(rec.amount, BudgetLimitCalculator.QUETZAL_SYMBOL, uiState.isDiscreetMode)} • ${rec.category} • ${rec.familyMember}",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -466,7 +533,7 @@ fun BudgetsScreen(
                             )
                         )
                         IconButton(onClick = { onDeleteRecurringExpense(rec) }) {
-                            Icon(imageVector = Icons.Default.Delete, contentDescription = "Eliminar", tint = Color.Gray)
+                            Icon(imageVector = Icons.Default.Delete, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
                 }
@@ -595,14 +662,14 @@ fun BudgetsScreen(
                                     Text(
                                         text = goal.notes,
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = Color.Gray
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             }
                         }
 
                         IconButton(onClick = { onDeleteSavingsGoal(goal) }) {
-                            Icon(imageVector = Icons.Default.Delete, contentDescription = "Eliminar", tint = Color.Gray)
+                            Icon(imageVector = Icons.Default.Delete, contentDescription = "Eliminar", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
 
@@ -613,15 +680,15 @@ fun BudgetsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "Ahorrado: ${FormatUtils.formatCurrency(goal.currentAmount, uiState.currencySymbol, uiState.isDiscreetMode)}",
+                            text = "Ahorrado: ${FormatUtils.formatCurrency(goal.currentAmount, BudgetLimitCalculator.QUETZAL_SYMBOL, uiState.isDiscreetMode)}",
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Bold,
                             color = IncomeGreen
                         )
                         Text(
-                            text = "Meta: ${FormatUtils.formatCurrency(goal.targetAmount, uiState.currencySymbol, uiState.isDiscreetMode)} (${"%.0f".format(progress * 100)}%)",
+                            text = "Meta: ${FormatUtils.formatCurrency(goal.targetAmount, BudgetLimitCalculator.QUETZAL_SYMBOL, uiState.isDiscreetMode)} (${"%.0f".format(progress * 100)}%)",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color.Gray
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
 
@@ -634,7 +701,7 @@ fun BudgetsScreen(
                             .height(8.dp)
                             .clip(RoundedCornerShape(4.dp)),
                         color = IncomeGreen,
-                        trackColor = Color(0xFFF1F5F9)
+                        trackColor = if (uiState.isDarkTheme) Color(0xFF435143) else Color(0xFFE2E8D8)
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))

@@ -4,18 +4,23 @@ import android.app.DatePickerDialog
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -67,12 +72,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.DefaultData
@@ -83,7 +93,7 @@ import com.example.data.model.TransactionSource
 import com.example.data.model.TransactionStatus
 import com.example.data.model.TransactionType
 import com.example.data.model.isGastoSupuesto
-import com.example.ui.components.AlfombraCenefa
+import com.example.R
 import com.example.ui.components.AntiguaHeaderBackground
 import com.example.ui.components.ExcelCsvImporter
 import com.example.ui.components.HeaderVolcanoBackground
@@ -117,7 +127,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TransactionsScreen(
     uiState: BudgetUiState,
@@ -240,27 +250,39 @@ fun TransactionsScreen(
     }
 
     Box(modifier = modifier.fillMaxSize().background(if (uiState.isDarkTheme) MaterialTheme.colorScheme.background else IvoryWarm)) {
-        // Fondo icónico de Antigua Guatemala (Arco de Santa Catalina y Volcán de Agua) con cenefa
+        Image(
+            painter = painterResource(id = R.drawable.antigua_carpet_photo),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize().alpha(if (uiState.isDarkTheme) 0.38f else 0.82f)
+        )
+        Box(
+            modifier = Modifier.fillMaxSize().background(
+                if (uiState.isDarkTheme) Color(0x770B1220) else IvoryWarm.copy(alpha = 0.34f)
+            )
+        )
+        // Se conserva sin cambios la fotografía de Antigua del encabezado.
         AntiguaHeaderBackground(height = 260.dp, alpha = 0.90f)
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // 1. Encabezado Oficial de Registros con Botón de Filtros, Excel y Nuevo
+            // 1. Encabezado Oficial de Registros con acciones originales adaptadas a móvil
             item {
-                Row(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = JadeGreen,
                         border = androidx.compose.foundation.BorderStroke(1.2.dp, GoldenYellow.copy(alpha = 0.7f)),
                         shadowElevation = 3.dp,
-                        modifier = Modifier.size(42.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
@@ -272,24 +294,43 @@ fun TransactionsScreen(
                         }
                     }
                     Spacer(modifier = Modifier.width(10.dp))
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Historial de Registros",
+                            text = "Historial de registros",
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Black,
-                            color = Color.White
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "Antigua Guatemala • Finanzas Sin Clavos",
+                            text = "Tus finanzas sin clavos",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
-                            color = GoldenYellowLight
+                            color = GoldenYellowLight,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
-                    Spacer(modifier = Modifier.weight(1f))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = onAddTransactionClick,
+                        colors = ButtonDefaults.buttonColors(containerColor = JadeGreen, contentColor = Color.White),
+                        shape = RoundedCornerShape(14.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, GoldenYellow),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.heightIn(min = 48.dp).testTag("add_transaction_button")
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, tint = GoldenYellowLight, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Nuevo", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
+                    }
+                    }
 
                     // Botón Filtros Avanzados con Badge de conteo
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     BadgedBox(
+                        modifier = Modifier.weight(1f),
                         badge = {
                             if (uiState.activeFiltersCount > 0) {
                                 Badge(
@@ -301,69 +342,73 @@ fun TransactionsScreen(
                             }
                         }
                     ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = Color(0x66000000),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.35f)),
-                            modifier = Modifier.size(42.dp)
+                        Button(
+                            onClick = { showAdvancedFiltersSheet = true },
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("advanced_filters_button"),
+                            colors = ButtonDefaults.buttonColors(containerColor = JadeGreen, contentColor = Color.White),
+                            shape = RoundedCornerShape(14.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, GoldenYellow),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            IconButton(
-                                onClick = { showAdvancedFiltersSheet = true },
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .testTag("advanced_filters_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.FilterList,
-                                    contentDescription = "Filtros Avanzados",
-                                    tint = if (uiState.activeFiltersCount > 0) GoldenYellow else Color.White
-                                )
-                            }
+                            Icon(Icons.Default.FilterList, contentDescription = null, tint = GoldenYellowLight)
+                            Spacer(modifier = Modifier.width(5.dp))
+                            Text("Filtros", fontWeight = FontWeight.Bold, maxLines = 1)
                         }
                     }
-
-                    Spacer(modifier = Modifier.width(6.dp))
 
                     // Botón Exportar / Importar Excel & CSV
                     if (onExportCsv != null) {
-                        Surface(
-                            shape = CircleShape,
-                            color = Color(0x66000000),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.35f)),
-                            modifier = Modifier.size(42.dp)
+                        Button(
+                            onClick = { showCsvDialog = true },
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("export_csv_top_button"),
+                            colors = ButtonDefaults.buttonColors(containerColor = DeepNavyBlue, contentColor = Color.White),
+                            shape = RoundedCornerShape(14.dp),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, TurquoiseAccent),
+                            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 6.dp, vertical = 4.dp)
                         ) {
-                            IconButton(
-                                onClick = { showCsvDialog = true },
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .testTag("export_csv_top_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.FileDownload,
-                                    contentDescription = "Importar y Exportar Excel",
-                                    tint = Color.White
-                                )
-                            }
+                            Icon(Icons.Default.FileDownload, contentDescription = null, tint = TurquoiseLight)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Importar / Exportar", fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
-                        Spacer(modifier = Modifier.width(6.dp))
                     }
+                    }
+                }
+            }
 
-                    // Botón Nuevo Registro
-                    Button(
-                        onClick = onAddTransactionClick,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = JadeGreen,
-                            contentColor = Color.White
+            // Búsqueda rápida: usa la misma consulta reactiva que se combina con filtros y registros de Room.
+            item {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 2.dp)
+                ) {
+                    OutlinedTextField(
+                        value = uiState.searchQuery,
+                        onValueChange = onSearchQueryChange,
+                        placeholder = { Text("Beneficiario, comercio, concepto, categoría, monto o fecha...", color = Color.Gray) },
+                        leadingIcon = {
+                            Icon(imageVector = Icons.Default.Search, contentDescription = "Buscar", tint = JadeGreen)
+                        },
+                        trailingIcon = {
+                            if (uiState.searchQuery.isNotBlank()) {
+                                IconButton(onClick = { onSearchQueryChange("") }) {
+                                    Icon(imageVector = Icons.Default.Clear, contentDescription = "Limpiar búsqueda", tint = Color.Gray)
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 56.dp)
+                            .testTag("transactions_search_bar"),
+                        shape = RoundedCornerShape(22.dp),
+                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = JadeGreen,
+                            unfocusedBorderColor = JadeGreen.copy(alpha = 0.62f),
+                            focusedContainerColor = Color.White,
+                            unfocusedContainerColor = Color.White
                         ),
-                        shape = RoundedCornerShape(12.dp),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 3.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                        modifier = Modifier.testTag("add_transaction_button")
-                    ) {
-                        Icon(imageVector = Icons.Default.Add, contentDescription = null, tint = GoldenYellowLight, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(text = "Nuevo", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
-                    }
+                        singleLine = true
+                    )
                 }
             }
 
@@ -386,14 +431,13 @@ fun TransactionsScreen(
                         .padding(horizontal = 16.dp, vertical = 4.dp)
                         .testTag("simplifi_summary_card"),
                     shape = RoundedCornerShape(22.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (uiState.isDarkTheme) MaterialTheme.colorScheme.surface else Color(0xFFFFFCF2)
+                    ),
                     elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
                     border = androidx.compose.foundation.BorderStroke(1.5.dp, IvoryBorder)
                 ) {
                     Column {
-                        // Cenefa superior tradicional de alfombra de aserrín
-                        AlfombraCenefa(height = 6.dp)
-
                         Column(modifier = Modifier.padding(16.dp)) {
                             // Fila de Encabezado: Título y Filtros Activos
                             Row(
@@ -433,15 +477,15 @@ fun TransactionsScreen(
                             Surface(
                                 modifier = Modifier.fillMaxWidth(),
                                 shape = RoundedCornerShape(16.dp),
-                                color = JadeGreenLight.copy(alpha = 0.45f),
-                                border = androidx.compose.foundation.BorderStroke(1.2.dp, JadeGreen.copy(alpha = 0.35f))
+                                color = EmeraldGreen,
+                                border = androidx.compose.foundation.BorderStroke(1.2.dp, JadeGreen)
                             ) {
                                 Column(modifier = Modifier.padding(14.dp)) {
                                     Text(
                                         text = "TOTAL DISPONIBLE PARA GASTAR",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
-                                        color = JadeGreen,
+                                        color = Color.White,
                                         letterSpacing = 0.5.sp
                                     )
                                     Spacer(modifier = Modifier.height(4.dp))
@@ -454,17 +498,17 @@ fun TransactionsScreen(
                                             text = if (uiState.isDiscreetMode) "Q ****.**" else "${uiState.currencySymbol}${"%,.2f".format(uiState.totalAmountToSpend)}",
                                             style = MaterialTheme.typography.headlineMedium,
                                             fontWeight = FontWeight.Black,
-                                            color = if (uiState.totalAmountToSpend >= 0) JadeGreen else CoralRed
+                                            color = if (uiState.totalAmountToSpend >= 0) Color.White else Color(0xFFFFCDD2)
                                         )
                                         Surface(
                                             shape = RoundedCornerShape(8.dp),
-                                            color = JadeGreenLight
+                                            color = Color.White.copy(alpha = 0.18f)
                                         ) {
                                             Text(
                                                 text = "Ingresos: +${uiState.currencySymbol}${"%,.0f".format(uiState.filteredRealIncome)}",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color(0xFF065F46),
+                                                color = Color.White,
                                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                                             )
                                         }
@@ -504,77 +548,44 @@ fun TransactionsScreen(
                             Spacer(modifier = Modifier.height(12.dp))
 
                             // MÉTRICAS 2, 3, 4: FILA DE 3 GASTOS (DÉBITOS)
-                            Row(
+                            FlowRow(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                // 2. Gastos Reales (Confirmados)
-                                Surface(
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = CoralRedLight.copy(alpha = 0.6f),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, CoralRed.copy(alpha = 0.4f))
-                                ) {
-                                    Column(modifier = Modifier.padding(8.dp)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Default.TrendingDown, contentDescription = null, tint = CoralRed, modifier = Modifier.size(12.dp))
-                                            Spacer(modifier = Modifier.width(2.dp))
-                                            Text(text = "Gastos Reales", style = MaterialTheme.typography.labelSmall, color = Color(0xFF9F1239), fontWeight = FontWeight.Bold, fontSize = 10.sp)
-                                        }
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = if (uiState.isDiscreetMode) "Q ****.**" else "-${uiState.currencySymbol}${"%,.2f".format(uiState.filteredConfirmedExpense)}",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Black,
-                                            color = CoralRed
-                                        )
-                                        Text(text = "Confirmados", style = MaterialTheme.typography.labelSmall, color = Color.Gray, fontSize = 9.sp)
-                                    }
-                                }
-
-                                // 3. Gastos Supuestos (Pendientes de Aprobación)
-                                Surface(
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = NazarenoPurpleLight,
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, NazarenoPurple.copy(alpha = 0.4f))
-                                ) {
-                                    Column(modifier = Modifier.padding(8.dp)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Default.HelpOutline, contentDescription = null, tint = NazarenoPurple, modifier = Modifier.size(12.dp))
-                                            Spacer(modifier = Modifier.width(2.dp))
-                                            Text(text = "Gastos Supuestos", style = MaterialTheme.typography.labelSmall, color = Color(0xFF581C87), fontWeight = FontWeight.Bold, fontSize = 10.sp)
-                                        }
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = if (uiState.isDiscreetMode) "Q ****.**" else "-${uiState.currencySymbol}${"%,.2f".format(uiState.filteredSupuestoExpense)}",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Black,
-                                            color = NazarenoPurple
-                                        )
-                                        Text(text = "Por Aprobar", style = MaterialTheme.typography.labelSmall, color = Color.Gray, fontSize = 9.sp)
-                                    }
-                                }
-
-                                // 4. Total Ambos Gastos (Reales + Supuestos)
-                                Surface(
-                                    modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = DeepNavyLight,
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, DeepNavyBlue.copy(alpha = 0.3f))
-                                ) {
-                                    Column(modifier = Modifier.padding(8.dp)) {
-                                        Text(text = "Total Ambos", style = MaterialTheme.typography.labelSmall, color = DeepNavyBlue, fontWeight = FontWeight.Bold, fontSize = 10.sp)
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = if (uiState.isDiscreetMode) "Q ****.**" else "-${uiState.currencySymbol}${"%,.2f".format(uiState.filteredTotalBothExpenses)}",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Black,
-                                            color = DeepNavyBlue
-                                        )
-                                        Text(text = "Real + Supuesto", style = MaterialTheme.typography.labelSmall, color = Color.Gray, fontSize = 9.sp)
-                                    }
-                                }
+                                SummaryMetricCard(
+                                    modifier = Modifier.weight(1f).widthIn(min = 132.dp),
+                                    label = "Gastos Reales",
+                                    amount = if (uiState.isDiscreetMode) "Q ****.**" else "-${uiState.currencySymbol}${"%,.2f".format(uiState.filteredConfirmedExpense)}",
+                                    detail = "Confirmados",
+                                    icon = Icons.Default.TrendingDown,
+                                    accent = CoralRed,
+                                    container = Color(0xFFFECACA),
+                                    border = CoralRed.copy(alpha = 0.72f),
+                                    detailColor = Color(0xFF9F1239)
+                                )
+                                SummaryMetricCard(
+                                    modifier = Modifier.weight(1f).widthIn(min = 132.dp),
+                                    label = "Gastos Supuestos",
+                                    amount = if (uiState.isDiscreetMode) "Q ****.**" else "-${uiState.currencySymbol}${"%,.2f".format(uiState.filteredSupuestoExpense)}",
+                                    detail = "Por aprobar",
+                                    icon = Icons.Default.HelpOutline,
+                                    accent = Color(0xFFB45309),
+                                    container = Color(0xFFFFECB5),
+                                    border = GoldenYellow,
+                                    detailColor = Color(0xFF92400E)
+                                )
+                                SummaryMetricCard(
+                                    modifier = Modifier.weight(1f).widthIn(min = 132.dp),
+                                    label = "Total Ambos",
+                                    amount = if (uiState.isDiscreetMode) "Q ****.**" else "-${uiState.currencySymbol}${"%,.2f".format(uiState.filteredTotalBothExpenses)}",
+                                    detail = "Real + supuesto",
+                                    icon = null,
+                                    accent = DeepNavyBlue,
+                                    container = Color(0xFFD4DEFF),
+                                    border = DeepNavyBlue.copy(alpha = 0.62f),
+                                    detailColor = DeepNavyBlue
+                                )
                             }
 
                             Spacer(modifier = Modifier.height(10.dp))
@@ -584,45 +595,28 @@ fun TransactionsScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                // 5. Dinero Real en Mano (Sin Supuestos)
-                                Surface(
+                                SummaryMetricCard(
                                     modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = Color(0xFFECFDF5),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFA7F3D0))
-                                ) {
-                                    Column(modifier = Modifier.padding(10.dp)) {
-                                        Text(text = "Saldo Real en Mano", style = MaterialTheme.typography.labelSmall, color = Color(0xFF065F46), fontWeight = FontWeight.Bold)
-                                        Spacer(modifier = Modifier.height(3.dp))
-                                        Text(
-                                            text = if (uiState.isDiscreetMode) "Q ****.**" else "${uiState.currencySymbol}${"%,.2f".format(uiState.filteredRealRemainingBalance)}",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Black,
-                                            color = if (uiState.filteredRealRemainingBalance >= 0) JadeGreen else CoralRed
-                                        )
-                                        Text(text = "Sin supuestos (en mano)", style = MaterialTheme.typography.labelSmall, color = Color(0xFF047857), fontSize = 10.sp)
-                                    }
-                                }
-
-                                // 6. Pronóstico Proyectado Final si se aprueban todos los supuestos
-                                Surface(
+                                    label = "Saldo Real en Mano",
+                                    amount = if (uiState.isDiscreetMode) "Q ****.**" else "${uiState.currencySymbol}${"%,.2f".format(uiState.filteredRealRemainingBalance)}",
+                                    detail = "Sin supuestos (en mano)",
+                                    icon = null,
+                                    accent = Color(0xFF087F8C),
+                                    container = Color(0xFFB6ECE6),
+                                    border = TurquoiseAccent.copy(alpha = 0.82f),
+                                    detailColor = Color(0xFF0E6670)
+                                )
+                                SummaryMetricCard(
                                     modifier = Modifier.weight(1f),
-                                    shape = RoundedCornerShape(14.dp),
-                                    color = NazarenoPurpleLight,
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, NazarenoPurple.copy(alpha = 0.4f))
-                                ) {
-                                    Column(modifier = Modifier.padding(10.dp)) {
-                                        Text(text = "Saldo Proyectado", style = MaterialTheme.typography.labelSmall, color = Color(0xFF4C1D95), fontWeight = FontWeight.Bold)
-                                        Spacer(modifier = Modifier.height(3.dp))
-                                        Text(
-                                            text = if (uiState.isDiscreetMode) "Q ****.**" else "${uiState.currencySymbol}${"%,.2f".format(uiState.filteredProjectedRemainingBalance)}",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Black,
-                                            color = if (uiState.filteredProjectedRemainingBalance >= 0) NazarenoPurple else CoralRed
-                                        )
-                                        Text(text = "Si apruebas supuestos", style = MaterialTheme.typography.labelSmall, color = Color(0xFF6B21A8), fontSize = 10.sp)
-                                    }
-                                }
+                                    label = "Saldo Proyectado",
+                                    amount = if (uiState.isDiscreetMode) "Q ****.**" else "${uiState.currencySymbol}${"%,.2f".format(uiState.filteredProjectedRemainingBalance)}",
+                                    detail = "Si apruebas supuestos",
+                                    icon = null,
+                                    accent = NazarenoPurple,
+                                    container = Color(0xFFE4D7FF),
+                                    border = NazarenoPurple.copy(alpha = 0.7f),
+                                    detailColor = Color(0xFF6B21A8)
+                                )
                             }
 
                             // Subtotales por Categoría
@@ -812,42 +806,6 @@ fun TransactionsScreen(
                 }
             }
 
-            // 6. Barra de Búsqueda Superior en Tiempo Real
-            item {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 2.dp)
-                ) {
-                    OutlinedTextField(
-                        value = uiState.searchQuery,
-                        onValueChange = onSearchQueryChange,
-                        placeholder = { Text("Buscar por comercio, concepto o monto...", color = Color.Gray) },
-                        leadingIcon = {
-                            Icon(imageVector = Icons.Default.Search, contentDescription = "Buscar", tint = JadeGreen)
-                        },
-                        trailingIcon = {
-                            if (uiState.searchQuery.isNotBlank()) {
-                                IconButton(onClick = { onSearchQueryChange("") }) {
-                                    Icon(imageVector = Icons.Default.Clear, contentDescription = "Limpiar", tint = Color.Gray)
-                                }
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .testTag("transactions_search_bar"),
-                        shape = RoundedCornerShape(16.dp),
-                        colors = androidx.compose.material3.OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = JadeGreen,
-                            unfocusedBorderColor = IvoryBorder,
-                            focusedContainerColor = Color.White,
-                            unfocusedContainerColor = Color.White
-                        ),
-                        singleLine = true
-                    )
-                }
-            }
-
             // 7. Filtros Rápidos en Chips Horizontales (Quicken Simplifi Bar)
             item {
                 Row(
@@ -870,6 +828,8 @@ fun TransactionsScreen(
                         },
                         label = { Text("Todos") },
                         colors = FilterChipDefaults.filterChipColors(
+                            containerColor = Color(0xFFF4ECD9),
+                            labelColor = Color(0xFF26352D),
                             selectedContainerColor = JadeGreen,
                             selectedLabelColor = Color.White
                         )
@@ -883,8 +843,10 @@ fun TransactionsScreen(
                         },
                         label = { Text("Gastos Reales") },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = CoralRedLight,
-                            selectedLabelColor = CoralRed
+                            containerColor = Color(0xFFF4ECD9),
+                            labelColor = Color(0xFF26352D),
+                            selectedContainerColor = CoralRed,
+                            selectedLabelColor = Color.White
                         )
                     )
 
@@ -895,12 +857,14 @@ fun TransactionsScreen(
                             onFilterTypeChange(if (uiState.filterType == "SUPUESTO") null else "SUPUESTO")
                         },
                         leadingIcon = {
-                            Icon(imageVector = Icons.Default.HelpOutline, contentDescription = null, modifier = Modifier.size(14.dp), tint = if (uiState.filterType == "SUPUESTO") NazarenoPurple else Color.Gray)
+                            Icon(imageVector = Icons.Default.HelpOutline, contentDescription = null, modifier = Modifier.size(14.dp), tint = if (uiState.filterType == "SUPUESTO") Color.White else Color(0xFF26352D))
                         },
                         label = { Text("Gastos Supuestos") },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = NazarenoPurpleLight,
-                            selectedLabelColor = NazarenoPurple
+                            containerColor = Color(0xFFF4ECD9),
+                            labelColor = Color(0xFF26352D),
+                            selectedContainerColor = NazarenoPurple,
+                            selectedLabelColor = Color.White
                         )
                     )
 
@@ -912,8 +876,10 @@ fun TransactionsScreen(
                         },
                         label = { Text("Todos los Gastos") },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = CoralRedLight,
-                            selectedLabelColor = CoralRed
+                            containerColor = Color(0xFFF4ECD9),
+                            labelColor = Color(0xFF26352D),
+                            selectedContainerColor = CoralRed,
+                            selectedLabelColor = Color.White
                         )
                     )
 
@@ -925,8 +891,10 @@ fun TransactionsScreen(
                         },
                         label = { Text("Ingresos") },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = JadeGreenLight,
-                            selectedLabelColor = Color(0xFF065F46)
+                            containerColor = Color(0xFFF4ECD9),
+                            labelColor = Color(0xFF26352D),
+                            selectedContainerColor = JadeGreen,
+                            selectedLabelColor = Color.White
                         )
                     )
 
@@ -938,6 +906,8 @@ fun TransactionsScreen(
                         },
                         label = { Text("1ra Quincena (Fin de mes - 14)") },
                         colors = FilterChipDefaults.filterChipColors(
+                            containerColor = Color(0xFFF4ECD9),
+                            labelColor = Color(0xFF26352D),
                             selectedContainerColor = JadeGreen,
                             selectedLabelColor = Color.White
                         )
@@ -951,6 +921,8 @@ fun TransactionsScreen(
                         },
                         label = { Text("2da Quincena (15 - Penúltimo)") },
                         colors = FilterChipDefaults.filterChipColors(
+                            containerColor = Color(0xFFF4ECD9),
+                            labelColor = Color(0xFF26352D),
                             selectedContainerColor = JadeGreen,
                             selectedLabelColor = Color.White
                         )
@@ -963,12 +935,14 @@ fun TransactionsScreen(
                             onFilterSourceChange?.invoke(if (uiState.filterSource == TransactionSource.IMPORTED) null else TransactionSource.IMPORTED)
                         },
                         leadingIcon = {
-                            Icon(imageVector = Icons.Default.TableChart, contentDescription = null, modifier = Modifier.size(14.dp), tint = if (uiState.filterSource == TransactionSource.IMPORTED) TurquoiseAccent else Color.Gray)
+                            Icon(imageVector = Icons.Default.TableChart, contentDescription = null, modifier = Modifier.size(14.dp), tint = if (uiState.filterSource == TransactionSource.IMPORTED) Color.White else Color(0xFF26352D))
                         },
                         label = { Text("Importados Excel") },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = TurquoiseLight,
-                            selectedLabelColor = TurquoiseAccent
+                            containerColor = Color(0xFFF4ECD9),
+                            labelColor = Color(0xFF26352D),
+                            selectedContainerColor = Color(0xFF006B61),
+                            selectedLabelColor = Color.White
                         )
                     )
 
@@ -986,12 +960,14 @@ fun TransactionsScreen(
                                 selectedIds.clear()
                             },
                             leadingIcon = {
-                                Icon(imageVector = Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(14.dp), tint = GoldenYellow)
+                                Icon(imageVector = Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(14.dp), tint = if (uiState.filterDuplicatesMode == DuplicateFilterMode.ONLY_DUPLICATES) Color.White else Color(0xFF8A4B08))
                             },
                             label = { Text("Duplicados (${uiState.suspectedDuplicatesCount})") },
                             colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = GoldenYellowLight,
-                                selectedLabelColor = Color(0xFFB45309)
+                                containerColor = Color(0xFFF4ECD9),
+                                labelColor = Color(0xFF26352D),
+                                selectedContainerColor = Color(0xFF92400E),
+                                selectedLabelColor = Color.White
                             )
                         )
                     }
@@ -1001,12 +977,14 @@ fun TransactionsScreen(
                         selected = uiState.onlyHighlighted,
                         onClick = { onToggleOnlyHighlighted(!uiState.onlyHighlighted) },
                         leadingIcon = {
-                            Icon(imageVector = Icons.Default.FormatColorFill, contentDescription = null, modifier = Modifier.size(14.dp), tint = if (uiState.onlyHighlighted) GoldenYellow else Color.Gray)
+                            Icon(imageVector = Icons.Default.FormatColorFill, contentDescription = null, modifier = Modifier.size(14.dp), tint = if (uiState.onlyHighlighted) Color.White else Color(0xFF26352D))
                         },
                         label = { Text("Resaltados") },
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = GoldenYellowLight,
-                            selectedLabelColor = Color(0xFFB45309)
+                            containerColor = Color(0xFFF4ECD9),
+                            labelColor = Color(0xFF26352D),
+                            selectedContainerColor = Color(0xFF92400E),
+                            selectedLabelColor = Color.White
                         )
                     )
                 }
@@ -1020,8 +998,8 @@ fun TransactionsScreen(
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp, vertical = 4.dp),
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = JadeGreenLight.copy(alpha = 0.45f)),
-                        border = androidx.compose.foundation.BorderStroke(1.2.dp, JadeGreen.copy(alpha = 0.5f))
+                        colors = CardDefaults.cardColors(containerColor = JadeGreenLight),
+                        border = androidx.compose.foundation.BorderStroke(1.2.dp, JadeGreen)
                     ) {
                         Row(
                             modifier = Modifier.padding(14.dp),
@@ -1060,8 +1038,8 @@ fun TransactionsScreen(
                                 }
                                 Text(
                                     text = "Dinero no gastado del periodo anterior transferido a tu disponible de esta quincena.",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = Color(0xFF047857)
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color(0xFF064E3B)
                                 )
                             }
                             Text(
@@ -1096,16 +1074,21 @@ fun TransactionsScreen(
                         Text(
                             text = "No hay registros con los filtros seleccionados. Ajusta tu búsqueda o agrega un nuevo movimiento.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color.Gray,
+                            color = if (uiState.isDarkTheme) Color(0xFFF3F4F6) else Color(0xFF374151),
                             textAlign = TextAlign.Center
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         OutlinedButton(
                             onClick = { onClearAllFilters?.invoke() },
+                            modifier = Modifier.heightIn(min = 48.dp),
                             shape = RoundedCornerShape(12.dp),
-                            border = androidx.compose.foundation.BorderStroke(1.2.dp, JadeGreen)
+                            border = androidx.compose.foundation.BorderStroke(1.2.dp, GoldenYellow),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = JadeGreen,
+                                contentColor = Color.White
+                            )
                         ) {
-                            Text("Restablecer Filtros", color = JadeGreen, fontWeight = FontWeight.Bold)
+                            Text("Restablecer Filtros", color = Color.White, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -1431,11 +1414,68 @@ private fun AdvancedFiltersSheetContent(
                 modifier = Modifier.weight(1f),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Aplicar (${uiState.filteredTransactions.size})", color = Color.White, fontWeight = FontWeight.Bold)
+                Text("Aplicar", color = Color.White, fontWeight = FontWeight.Bold)
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+@Composable
+private fun SummaryMetricCard(
+    modifier: Modifier = Modifier,
+    label: String,
+    amount: String,
+    detail: String,
+    icon: ImageVector?,
+    accent: Color,
+    container: Color,
+    border: Color,
+    detailColor: Color
+) {
+    Surface(
+        modifier = modifier.heightIn(min = 104.dp),
+        shape = RoundedCornerShape(16.dp),
+        color = container,
+        border = androidx.compose.foundation.BorderStroke(1.2.dp, border)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (icon != null) {
+                    Icon(imageVector = icon, contentDescription = null, tint = accent, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = accent,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Text(
+                text = amount,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Black,
+                color = accent,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = detail,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = detailColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
 

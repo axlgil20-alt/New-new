@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.ShoppingCart
@@ -97,6 +98,7 @@ fun GoalsAndToolsScreen(
     onSaveExpenseToBudget: (title: String, amountGtq: Double, category: String, note: String) -> Unit = { _, _, _, _ -> },
     onToggleDarkTheme: () -> Unit = {},
     onOpenQuincenas: () -> Unit = {},
+    onOpenLimits: () -> Unit = {},
     onOpenSmartCart: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -452,6 +454,16 @@ fun GoalsAndToolsScreen(
                     icon = Icons.Default.CalendarMonth,
                     iconColor = Color(0xFF0284C7),
                     onClick = onOpenQuincenas
+                )
+            }
+
+            item {
+                ToolActionCard(
+                    title = "Límites y metas",
+                    subtitle = "Presupuestos por categoría, gastos recurrentes y metas de ahorro",
+                    icon = Icons.Default.PieChart,
+                    iconColor = Color(0xFF0F766E),
+                    onClick = onOpenLimits
                 )
             }
 

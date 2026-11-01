@@ -7,6 +7,8 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.local.AppDatabase
 import com.example.data.model.*
 import com.example.data.repository.BudgetRepository
+import com.example.ui.util.BudgetLimitCalculator
+import com.example.ui.util.FormatUtils
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -386,11 +388,11 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     tx.dateMillis in yStart..yEnd
                 }
                 else -> {
-                    com.example.ui.util.QuincenaFilterHelper.isDateInBudgetMonth(tx.dateMillis, dateRange.year, dateRange.monthIndex)
+                    com.example.ui.util.QuincenaFilterHelper.isDateInBudgetMonth(tx.dateMillis, dateRange.year, dateRange.monthIndex, tx.type)
                 }
             }
             val matchesQuincena = if (filters.quincena > 0) {
-                com.example.ui.util.QuincenaFilterHelper.isDateInQuincena(tx.dateMillis, filters.quincena)
+                com.example.ui.util.QuincenaFilterHelper.isDateInQuincena(tx.dateMillis, filters.quincena, tx.type)
             } else true
 
             matchesDate && matchesQuincena
@@ -463,6 +465,11 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }.sortedByDescending { stat: CategoryExpenseStat -> stat.totalAmount }
 
         // 3. Filtrado completo combinable de los 11 criterios
+        val searchDateFormats = listOf(
+            SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()),
+            SimpleDateFormat("yyyy-MM-dd", Locale.ROOT),
+            SimpleDateFormat("d MMMM yyyy", Locale("es", "GT"))
+        )
         val filtered = periodTx.filter { tx ->
             val matchesType = when (filters.type) {
                 null -> true
@@ -491,13 +498,25 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 true
             } else {
                 val q = filters.query.trim().lowercase(Locale.ROOT)
+                val formattedAmountLocal = String.format(Locale.getDefault(), "%.2f", tx.amount)
+                val formattedAmountRoot = String.format(Locale.ROOT, "%.2f", tx.amount)
+                val currency = filters.currency.trim().lowercase(Locale.ROOT)
+                val matchesAmount = listOf(
+                    tx.amount.toString(),
+                    formattedAmountLocal,
+                    formattedAmountRoot,
+                    "$currency$formattedAmountLocal",
+                    "$currency $formattedAmountLocal"
+                ).any { it.lowercase(Locale.ROOT).contains(q) }
+                val matchesDate = searchDateFormats.any { formatter ->
+                    formatter.format(java.util.Date(tx.dateMillis)).lowercase(Locale.ROOT).contains(q)
+                }
                 tx.title.lowercase(Locale.ROOT).contains(q) ||
                 tx.category.lowercase(Locale.ROOT).contains(q) ||
                 tx.notes.lowercase(Locale.ROOT).contains(q) ||
                 tx.familyMember.lowercase(Locale.ROOT).contains(q) ||
-                tx.amount.toString().contains(q) ||
-                "%.2f".format(tx.amount).contains(q) ||
-                "q${"%.2f".format(tx.amount)}".contains(q)
+                matchesAmount ||
+                matchesDate
             }
             matchesType && matchesCategory && matchesMember && matchesSubCat && matchesBeneficiary &&
                     matchesStatus && matchesSource && matchesDuplicates && matchesHighlighted && matchesQuery
@@ -558,13 +577,21 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
         val warnings = mutableListOf<RecurringExpenseWarning>()
         for (limit in budgets) {
-            val spent = catMap[limit.category] ?: 0.0
-            if (spent > limit.monthlyLimit) {
+            val usage = BudgetLimitCalculator.usage(
+                spentAmount = BudgetLimitCalculator.monthlySpend(
+                    transactions = txList,
+                    category = limit.category,
+                    year = dateRange.year,
+                    monthIndex = dateRange.monthIndex
+                ),
+                limitAmount = limit.monthlyLimit
+            )
+            if (usage.isOverLimit) {
                 warnings.add(
                     RecurringExpenseWarning(
                         title = "Límite excedido en ${limit.category}",
-                        amount = spent - limit.monthlyLimit,
-                        dueDateMessage = "Has gastado ${filters.currency}${"%.2f".format(spent)} de tu límite de ${filters.currency}${"%.2f".format(limit.monthlyLimit)}.",
+                        amount = usage.exceededBy.toDouble(),
+                        dueDateMessage = "Has gastado ${FormatUtils.formatCurrency(usage.spent.toDouble(), BudgetLimitCalculator.QUETZAL_SYMBOL, filters.isDiscreet)} de tu límite de ${FormatUtils.formatCurrency(usage.limit.toDouble(), BudgetLimitCalculator.QUETZAL_SYMBOL, filters.isDiscreet)}. Excedido por ${FormatUtils.formatCurrency(usage.exceededBy.toDouble(), BudgetLimitCalculator.QUETZAL_SYMBOL, filters.isDiscreet)}.",
                         severity = "HIGH"
                     )
                 )

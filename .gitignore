@@ -13,6 +13,11 @@ captures/
 *.apk
 *.aab
 *.zip
+debug.keystore
+*.keystore
+*.jks
+*.p12
+*.pfx
 .env
 .dev.env.json
 .aistudio/artifacts/

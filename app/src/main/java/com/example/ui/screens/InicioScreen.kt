@@ -23,9 +23,11 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
@@ -38,12 +40,17 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -69,7 +76,9 @@ import com.example.ui.theme.EmeraldGreen
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.TentativePurple
 import com.example.ui.util.FormatUtils
+import com.example.ui.util.BudgetLimitCalculator
 import com.example.ui.viewmodel.BudgetUiState
+import java.util.Locale
 
 /**
  * InicioScreen - Pantalla Principal de Quetzi con Identidad Guatemalteca
@@ -101,10 +110,38 @@ fun InicioScreen(
     onOpenSmartCartClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
+    val homeBackground = if (uiState.isDarkTheme) Color(0xFF1E261D) else Color(0xFFFFF9E6)
+    var movementSearchQuery by remember { mutableStateOf("") }
+    val searchedTransactions = remember(uiState.filteredTransactions, movementSearchQuery) {
+        val query = movementSearchQuery.trim()
+        if (query.isBlank()) {
+            uiState.filteredTransactions
+        } else {
+            val textQuery = query.lowercase(Locale.ROOT)
+            fun normalizedAmount(value: String) = value.filter { it.isDigit() || it == '.' }
+            val amountQuery = normalizedAmount(query)
+            uiState.filteredTransactions.filter { transaction ->
+                val matchesBusinessOrCategory = transaction.title.lowercase(Locale.ROOT).contains(textQuery) ||
+                    transaction.category.lowercase(Locale.ROOT).contains(textQuery)
+                val amountCandidates = listOf(
+                    transaction.amount.toString(),
+                    String.format(Locale.ROOT, "%.2f", transaction.amount),
+                    String.format(Locale.ROOT, "%,.2f", transaction.amount),
+                    FormatUtils.formatCurrency(transaction.amount, uiState.currencySymbol, false)
+                )
+                val matchesAmount = amountQuery.isNotEmpty() && amountCandidates.any {
+                    normalizedAmount(it).contains(amountQuery)
+                }
+                matchesBusinessOrCategory || matchesAmount
+            }
+        }
+    }
+    val visibleTransactions = if (movementSearchQuery.isBlank()) searchedTransactions.take(8) else searchedTransactions
+
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(homeBackground)
     ) {
         // 1. ILUSTRACIÓN DE FONDO CON VERIFICACIÓN FALLBACK SEGURA
         Box(
@@ -125,8 +162,8 @@ fun InicioScreen(
                         Brush.verticalGradient(
                             colors = listOf(
                                 Color.Transparent,
-                                MaterialTheme.colorScheme.background.copy(alpha = 0.65f),
-                                MaterialTheme.colorScheme.background
+                                homeBackground.copy(alpha = 0.65f),
+                                homeBackground
                             )
                         )
                     )
@@ -255,7 +292,8 @@ fun InicioScreen(
                         savingsRate = uiState.savingsRate,
                         healthScore = uiState.financialHealthScore,
                         currencySymbol = uiState.currencySymbol,
-                        isDiscreetMode = uiState.isDiscreetMode
+                        isDiscreetMode = uiState.isDiscreetMode,
+                        isDarkTheme = uiState.isDarkTheme
                     )
                 }
 
@@ -273,7 +311,8 @@ fun InicioScreen(
                         currencySymbol = uiState.currencySymbol,
                         includeTentativeInBalance = uiState.includeTentativeInBalance,
                         onToggleIncludeTentative = onToggleIncludeTentative,
-                        isDiscreetMode = uiState.isDiscreetMode
+                        isDiscreetMode = uiState.isDiscreetMode,
+                        isDarkTheme = uiState.isDarkTheme
                     )
                 }
 
@@ -289,8 +328,11 @@ fun InicioScreen(
                             uiState.upcomingDeficitWarnings.forEach { w ->
                                 Surface(
                                     shape = RoundedCornerShape(12.dp),
-                                    color = Color(0xFFFEF2F2),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFFCA5A5))
+                                    color = if (uiState.isDarkTheme) Color(0xFF3A2020) else Color(0xFFFEF2F2),
+                                    border = androidx.compose.foundation.BorderStroke(
+                                        1.dp,
+                                        if (uiState.isDarkTheme) Color(0xFF9F4B48) else Color(0xFFFCA5A5)
+                                    )
                                 ) {
                                     Row(
                                         modifier = Modifier.padding(12.dp),
@@ -304,9 +346,13 @@ fun InicioScreen(
                                         )
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
-                                            text = "${w.title}: ${uiState.currencySymbol}${"%,.2f".format(w.amount)} • ${w.dueDateMessage}",
+                                            text = if (uiState.isDiscreetMode) {
+                                                "${w.title}: detalles ocultos en modo discreto."
+                                            } else {
+                                                "${w.title}: ${FormatUtils.formatCurrency(w.amount, BudgetLimitCalculator.QUETZAL_SYMBOL, false)} • ${w.dueDateMessage}"
+                                            },
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = ExpenseRed,
+                                            color = if (uiState.isDarkTheme) Color(0xFFFFB4AB) else ExpenseRed,
                                             fontWeight = FontWeight.SemiBold
                                         )
                                     }
@@ -475,7 +521,7 @@ fun InicioScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Movimientos del Mes (${uiState.filteredTransactions.size})",
+                            text = "${if (uiState.isAllTime) "Movimientos del Historial" else "Movimientos del Mes"} (${searchedTransactions.size})",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -484,14 +530,36 @@ fun InicioScreen(
                             Text(
                                 text = "Toca para opciones",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color.Gray
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
                 }
 
+                item {
+                    OutlinedTextField(
+                        value = movementSearchQuery,
+                        onValueChange = { movementSearchQuery = it },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp)
+                            .testTag("home_movement_search"),
+                        singleLine = true,
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar movimientos") },
+                        trailingIcon = {
+                            if (movementSearchQuery.isNotEmpty()) {
+                                IconButton(onClick = { movementSearchQuery = "" }) {
+                                    Icon(Icons.Default.Close, contentDescription = "Limpiar búsqueda")
+                                }
+                            }
+                        },
+                        placeholder = { Text("Buscar por negocio, categoría o monto...") },
+                        shape = RoundedCornerShape(14.dp)
+                    )
+                }
+
                 // Lista de transacciones recientes
-                if (uiState.filteredTransactions.isEmpty()) {
+                if (searchedTransactions.isEmpty()) {
                     item {
                         Card(
                             modifier = Modifier
@@ -507,26 +575,32 @@ fun InicioScreen(
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Text(
-                                    text = "🇬🇹 No hay transacciones registradas este mes.",
+                                    text = if (movementSearchQuery.isBlank()) {
+                                        "🇬🇹 No hay transacciones registradas este mes."
+                                    } else {
+                                        "No hay movimientos que coincidan con «${movementSearchQuery.trim()}»."
+                                    },
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = Color.Gray
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                                 Spacer(modifier = Modifier.height(10.dp))
-                                Button(
-                                    onClick = onAddTransactionClick,
-                                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen, contentColor = Color.White),
-                                    shape = RoundedCornerShape(12.dp)
-                                ) {
-                                    Icon(imageVector = Icons.Default.Add, contentDescription = null)
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Agregar Registro")
+                                if (movementSearchQuery.isBlank()) {
+                                    Button(
+                                        onClick = onAddTransactionClick,
+                                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen, contentColor = Color.White),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Icon(imageVector = Icons.Default.Add, contentDescription = null)
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Agregar Registro")
+                                    }
                                 }
                             }
                         }
                     }
                 } else {
-                    items(
-                        items = uiState.filteredTransactions.take(8),
+                        items(
+                        items = visibleTransactions,
                         key = { it.id }
                     ) { tx ->
                         Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 3.dp)) {
@@ -534,6 +608,7 @@ fun InicioScreen(
                                 transaction = tx,
                                 currencySymbol = uiState.currencySymbol,
                                 isDiscreetMode = uiState.isDiscreetMode,
+                                isDarkTheme = uiState.isDarkTheme,
                                 onEdit = { onEditTransaction(tx) },
                                 onDelete = { onDeleteTransaction(tx) },
                                 onHighlight = { colorHex -> onHighlightTransaction(tx, colorHex) },
@@ -545,7 +620,7 @@ fun InicioScreen(
                 }
 
                 item {
-                    Spacer(modifier = Modifier.height(100.dp))
+                    Spacer(modifier = Modifier.height(80.dp))
                 }
             }
         }

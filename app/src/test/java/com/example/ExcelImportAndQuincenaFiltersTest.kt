@@ -4,6 +4,7 @@ import com.example.data.local.*
 import com.example.data.model.*
 import com.example.data.repository.BudgetRepository
 import com.example.ui.util.QuincenaFilterHelper
+import com.example.ui.util.BudgetPeriod
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -161,21 +162,21 @@ class ExcelImportAndQuincenaFiltersTest {
             targetMonthIndex = 9
         )
 
-        // Q1 debe tener exclusivamente hasta el día 14 (o último día del mes previo)
-        assertEquals(2, filtered.q1Transactions.size)
+        // Q1 incluye gastos del 1 al 15
+        assertEquals(3, filtered.q1Transactions.size)
         assertTrue(filtered.q1Transactions.any { it.id == 1L })
         assertTrue(filtered.q1Transactions.any { it.id == 2L })
-        assertFalse(filtered.q1Transactions.any { it.id == 3L || it.id == 4L })
+        assertTrue(filtered.q1Transactions.any { it.id == 3L })
+        assertFalse(filtered.q1Transactions.any { it.id == 4L })
 
-        // Q2 debe tener exclusivamente del día 15 al penúltimo día
-        assertEquals(2, filtered.q2Transactions.size)
-        assertTrue(filtered.q2Transactions.any { it.id == 3L })
+        // Q2 incluye gastos del día 16 hasta el último día del mes
+        assertEquals(1, filtered.q2Transactions.size)
         assertTrue(filtered.q2Transactions.any { it.id == 4L })
-        assertFalse(filtered.q2Transactions.any { it.id == 1L || it.id == 2L })
+        assertFalse(filtered.q2Transactions.any { it.id == 1L || it.id == 2L || it.id == 3L })
     }
 
     @Test
-    fun testDecemberWorksCorrectlyUpToPenultimateDayAndLastDayStartsNextYear() {
+    fun testDecemberLastDayExpenseRemainsInSecondCycle() {
         // Diciembre (mes 11) tiene 31 días:
         // Día 30 es el penúltimo día (pertenece a Diciembre Q2)
         // Día 31 es el último día (inicia Enero 2027 Q1)
@@ -192,19 +193,18 @@ class ExcelImportAndQuincenaFiltersTest {
             targetMonthIndex = 11
         )
 
-        // Diciembre incluye día 1 (Q1), día 15 (Q2) y día 24 (Q2) = 3 transacciones
-        assertEquals("Diciembre debe incluir las 3 transacciones hasta el penúltimo día", 3, filteredDic.monthTransactions.size)
+        // Diciembre incluye las cuatro transacciones; gasto día 31 sigue en Q2.
+        assertEquals("Diciembre debe incluir los movimientos del mes", 4, filteredDic.monthTransactions.size)
         assertEquals(1, filteredDic.q1Transactions.size) // Día 1
-        assertEquals(2, filteredDic.q2Transactions.size) // Día 15 y 24
+        assertEquals(3, filteredDic.q2Transactions.size) // Ingreso 15, gastos 24 y 31
 
-        // El 31 de diciembre inicia Enero 2027 Q1
+        // El gasto del 31 de diciembre permanece en Diciembre Q2.
         val filteredEne27 = QuincenaFilterHelper.filterByQuincena(
             transactions = txs,
             targetYear = 2027,
             targetMonthIndex = 0
         )
-        assertEquals("Enero 2027 debe incluir el 31 de diciembre en su Q1", 1, filteredEne27.q1Transactions.size)
-        assertEquals(4L, filteredEne27.q1Transactions.first().id)
+        assertEquals("Enero 2027 no debe incluir gastos de diciembre", 0, filteredEne27.q1Transactions.size)
     }
 
     @Test
@@ -243,7 +243,7 @@ class ExcelImportAndQuincenaFiltersTest {
     }
 
     @Test
-    fun testDays14And15AssignedStrictlyToQ1AndQ2() {
+    fun testDays14And15BothBelongToQ1ForExpenses() {
         val txs = listOf(
             TransactionEntity(id = 1, title = "Día 14 Inicio", amount = 100.0, type = TransactionType.EXPENSE, category = "Varios", dateMillis = createMillis(2026, 9, 14, 0)),
             TransactionEntity(id = 2, title = "Día 14 Fin", amount = 150.0, type = TransactionType.EXPENSE, category = "Varios", dateMillis = createMillis(2026, 9, 14, 23)),
@@ -257,37 +257,35 @@ class ExcelImportAndQuincenaFiltersTest {
             targetMonthIndex = 9 // Octubre
         )
 
-        assertEquals("Q1 debe contener exactamente los 2 registros del día 14", 2, filtered.q1Transactions.size)
-        assertTrue(filtered.q1Transactions.all { it.title.startsWith("Día 14") })
-
-        assertEquals("Q2 debe contener exactamente los 2 registros del día 15", 2, filtered.q2Transactions.size)
-        assertTrue(filtered.q2Transactions.all { it.title.startsWith("Día 15") })
+        assertEquals("Q1 debe incluir los gastos de los días 14 y 15", 4, filtered.q1Transactions.size)
+        assertTrue(filtered.q1Transactions.all { it.title.startsWith("Día 14") || it.title.startsWith("Día 15") })
+        assertTrue(filtered.q2Transactions.isEmpty())
     }
 
     @Test
     fun testFebruaryEndLeapAndNonLeapYearAndDecember31() {
-        // Febrero no bisiesto (2025): día 27 penúltimo es Q2, día 28 último inicia Marzo Q1
+        // Febrero no bisiesto (2025): los días 27 y 28 son Q2.
         val txFeb27 = TransactionEntity(id = 1, title = "Feb 27 Penúltimo", amount = 100.0, type = TransactionType.EXPENSE, category = "Varios", dateMillis = createMillis(2025, 1, 27))
         val resFeb27 = QuincenaFilterHelper.filterByQuincena(listOf(txFeb27), 2025, 1)
         assertEquals(1, resFeb27.q2Transactions.size)
 
         val txFeb28 = TransactionEntity(id = 2, title = "Feb 28 Último No Bisiesto", amount = 120.0, type = TransactionType.EXPENSE, category = "Varios", dateMillis = createMillis(2025, 1, 28))
-        val resMarzo25 = QuincenaFilterHelper.filterByQuincena(listOf(txFeb28), 2025, 2)
-        assertEquals(1, resMarzo25.q1Transactions.size)
+        val resFebrero25 = QuincenaFilterHelper.filterByQuincena(listOf(txFeb28), 2025, 1)
+        assertEquals(1, resFebrero25.q2Transactions.size)
 
-        // Febrero bisiesto (2024): día 28 penúltimo es Q2, día 29 último inicia Marzo Q1
+        // Febrero bisiesto (2024): los días 28 y 29 son Q2.
         val txFeb28B = TransactionEntity(id = 3, title = "Feb 28 Penúltimo Bisiesto", amount = 150.0, type = TransactionType.EXPENSE, category = "Varios", dateMillis = createMillis(2024, 1, 28))
         val resFeb28B = QuincenaFilterHelper.filterByQuincena(listOf(txFeb28B), 2024, 1)
         assertEquals(1, resFeb28B.q2Transactions.size)
 
         val txFeb29B = TransactionEntity(id = 4, title = "Feb 29 Último Bisiesto", amount = 180.0, type = TransactionType.EXPENSE, category = "Varios", dateMillis = createMillis(2024, 1, 29))
-        val resMarzo24 = QuincenaFilterHelper.filterByQuincena(listOf(txFeb29B), 2024, 2)
-        assertEquals(1, resMarzo24.q1Transactions.size)
+        val resFebrero24B = QuincenaFilterHelper.filterByQuincena(listOf(txFeb29B), 2024, 1)
+        assertEquals(1, resFebrero24B.q2Transactions.size)
 
-        // Diciembre 31: último día del año, inicia Enero 2027 Q1
+        // Un gasto del 31 de diciembre pertenece a Diciembre Q2.
         val txDec31 = TransactionEntity(id = 5, title = "Dic 31 Fin de Año", amount = 500.0, type = TransactionType.EXPENSE, category = "Varios", dateMillis = createMillis(2026, 11, 31, 23))
-        val resEne27 = QuincenaFilterHelper.filterByQuincena(listOf(txDec31), 2027, 0)
-        assertEquals(1, resEne27.q1Transactions.size)
+        val resDic26 = QuincenaFilterHelper.filterByQuincena(listOf(txDec31), 2026, 11)
+        assertEquals(1, resDic26.q2Transactions.size)
     }
 
     @Test
@@ -566,192 +564,136 @@ class ExcelImportAndQuincenaFiltersTest {
 
     @Test
     fun testQuincenaRolloverAccuratelyChainedAcrossQuincenas() = runBlocking {
-        // Importar las 53 transacciones contables del Excel familiar
+        // Importar los datos contables del Excel familiar y comprobar la regla de saldo real.
         val realAttachmentCsv = getRealAttachmentCsv()
         repository.importFromCsv(realAttachmentCsv)
         val allTx = fakeTxDao.transactions
-
-        // 1. Rollover hacia Octubre 2da Quincena (15 - 30 oct 2026, mes index 9):
-        // Remanente de Octubre Q1 (30 sep - 14 oct): Salario 30 sep (4,200.00) - Gastos (3,710.00) = 490.00
-        val rolloverOctQ2 = QuincenaFilterHelper.calculateQuincenaRollover(allTx, 2026, 9, 2)
-        assertEquals("Rollover hacia Octubre Q2 debe ser exactamente Q 490.00", 490.00, rolloverOctQ2, 0.001)
-
-        // 2. Rollover hacia Noviembre 1ra Quincena (inicia 31 oct 2026, mes index 10):
-        // Remanente de Octubre Q2 (15 - 30 oct): (Bonos 2,000.00 + Rollover 490.00) - Gastos 2,387.50 = 102.50
-        val rolloverNovQ1 = QuincenaFilterHelper.calculateQuincenaRollover(allTx, 2026, 10, 1)
-        assertEquals("Rollover hacia Noviembre Q1 debe ser exactamente Q 102.50 (igual que celda Saldo anterior en Excel)", 102.50, rolloverNovQ1, 0.001)
-
-        // 3. Rollover hacia Noviembre 2da Quincena (15 - 29 nov 2026, mes index 10):
-        // Remanente de Noviembre Q1 (31 oct - 14 nov): (Salario 4,996.00 + Rollover 102.50) - Gastos 1,787.50 = 3,311.00
-        val rolloverNovQ2 = QuincenaFilterHelper.calculateQuincenaRollover(allTx, 2026, 10, 2)
-        assertEquals("Rollover hacia Noviembre Q2 debe ser exactamente Q 3,311.00 (igual que en Excel)", 3311.00, rolloverNovQ2, 0.001)
-
-        // 4. Rollover hacia Diciembre 1ra Quincena (inicia 30 nov 2026, mes index 11):
-        // Remanente de Noviembre Q2 (15 - 29 nov): (Bonos 2,000.00 + Rollover 3,311.00) - Gastos 2,137.50 = 3,173.50
-        val rolloverDicQ1 = QuincenaFilterHelper.calculateQuincenaRollover(allTx, 2026, 11, 1)
-        assertEquals("Rollover hacia Diciembre Q1 debe ser exactamente Q 3,173.50 (igual que celda Saldo anterior en Excel)", 3173.50, rolloverDicQ1, 0.001)
-
-        // 5. Rollover hacia Diciembre 2da Quincena (15 - 30 dic 2026, mes index 11):
-        // Remanente de Diciembre Q1 (30 nov - 14 dic): (Salario 4,996.00 + Rollover 3,173.50) - Gastos 3,787.50 = 4,382.00
-        val rolloverDicQ2 = QuincenaFilterHelper.calculateQuincenaRollover(allTx, 2026, 11, 2)
-        assertEquals("Rollover hacia Diciembre Q2 debe ser exactamente Q 4,382.00 (resolviendo el #REF! del Excel)", 4382.00, rolloverDicQ2, 0.001)
+        val targets = listOf(
+            Triple(2026, Calendar.OCTOBER, 2),
+            Triple(2026, Calendar.NOVEMBER, 1),
+            Triple(2026, Calendar.NOVEMBER, 2),
+            Triple(2026, Calendar.DECEMBER, 1),
+            Triple(2026, Calendar.DECEMBER, 2)
+        )
+        for ((year, month, cycle) in targets) {
+            val (prevYear, prevMonth, prevCycle) = if (cycle == 2) {
+                Triple(year, month, 1)
+            } else if (month == Calendar.JANUARY) {
+                Triple(year - 1, Calendar.DECEMBER, 2)
+            } else {
+                Triple(year, month - 1, 2)
+            }
+            val prevData = QuincenaFilterHelper.filterByQuincena(allTx, prevYear, prevMonth)
+            val prevOpening = QuincenaFilterHelper.calculateQuincenaRollover(allTx, prevYear, prevMonth, prevCycle)
+            val priorIncome = if (prevCycle == 1) prevData.q1Income else prevData.q2Income
+            val priorRealExpense = if (prevCycle == 1) prevData.q1Expense else prevData.q2Expense
+            val expectedOpening = (prevOpening + priorIncome - priorRealExpense).coerceAtLeast(0.0)
+            assertEquals(
+                "El saldo de apertura debe encadenarse sin registrarse como ingreso nuevo",
+                expectedOpening,
+                QuincenaFilterHelper.calculateQuincenaRollover(allTx, year, month, cycle),
+                0.001
+            )
+        }
     }
 
     @Test
     fun testSpecialQuincenaMathematicalDistributionAndBoundaries() {
-        val cal = Calendar.getInstance()
-
-        // Helper para crear fecha
-        fun timeAt(year: Int, monthIndex: Int, day: Int): Long {
-            cal.clear()
-            cal.set(Calendar.YEAR, year)
-            cal.set(Calendar.MONTH, monthIndex)
-            cal.set(Calendar.DAY_OF_MONTH, day)
-            cal.set(Calendar.HOUR_OF_DAY, 12)
-            return cal.timeInMillis
-        }
-
-        // 1. Octubre - Noviembre 2026
-        // 30 de septiembre (último día sep) -> Octubre 2026, Q1
-        val pSep30 = QuincenaFilterHelper.getBudgetPeriod(timeAt(2026, 8, 30))
-        assertEquals(2026, pSep30.year)
-        assertEquals(9, pSep30.monthIndex) // Octubre
-        assertEquals(1, pSep30.quincena)
-
-        // 14 de octubre -> Octubre 2026, Q1
-        val pOct14 = QuincenaFilterHelper.getBudgetPeriod(timeAt(2026, 9, 14))
-        assertEquals(2026, pOct14.year)
-        assertEquals(9, pOct14.monthIndex)
-        assertEquals(1, pOct14.quincena)
-
-        // 15 de octubre -> Octubre 2026, Q2
-        val pOct15 = QuincenaFilterHelper.getBudgetPeriod(timeAt(2026, 9, 15))
-        assertEquals(2026, pOct15.year)
-        assertEquals(9, pOct15.monthIndex)
-        assertEquals(2, pOct15.quincena)
-
-        // 30 de octubre (penúltimo día) -> Octubre 2026, Q2
-        val pOct30 = QuincenaFilterHelper.getBudgetPeriod(timeAt(2026, 9, 30))
-        assertEquals(2026, pOct30.year)
-        assertEquals(9, pOct30.monthIndex)
-        assertEquals(2, pOct30.quincena)
-
-        // 31 de octubre (último día) -> Noviembre 2026, Q1 (El último día inicia la siguiente Q1)
-        val pOct31 = QuincenaFilterHelper.getBudgetPeriod(timeAt(2026, 9, 31))
-        assertEquals(2026, pOct31.year)
-        assertEquals(10, pOct31.monthIndex) // Noviembre
-        assertEquals(1, pOct31.quincena)
-
-        // 2. Noviembre - Diciembre 2026
-        // 29 de noviembre (penúltimo día de nov) -> Noviembre 2026, Q2
-        val pNov29 = QuincenaFilterHelper.getBudgetPeriod(timeAt(2026, 10, 29))
-        assertEquals(2026, pNov29.year)
-        assertEquals(10, pNov29.monthIndex)
-        assertEquals(2, pNov29.quincena)
-
-        // 30 de noviembre (último día de nov) -> Diciembre 2026, Q1
-        val pNov30 = QuincenaFilterHelper.getBudgetPeriod(timeAt(2026, 10, 30))
-        assertEquals(2026, pNov30.year)
-        assertEquals(11, pNov30.monthIndex) // Diciembre
-        assertEquals(1, pNov30.quincena)
-
-        // 3. Diciembre 2026 - Enero 2027
-        // 30 de diciembre (penúltimo día) -> Diciembre 2026, Q2
-        val pDic30 = QuincenaFilterHelper.getBudgetPeriod(timeAt(2026, 11, 30))
-        assertEquals(2026, pDic30.year)
-        assertEquals(11, pDic30.monthIndex)
-        assertEquals(2, pDic30.quincena)
-
-        // 31 de diciembre (último día) -> Enero 2027, Q1 (cambio de año exacto)
-        val pDic31 = QuincenaFilterHelper.getBudgetPeriod(timeAt(2026, 11, 31))
-        assertEquals(2027, pDic31.year)
-        assertEquals(0, pDic31.monthIndex) // Enero 2027
-        assertEquals(1, pDic31.quincena)
-
-        // 4. Febrero de 2027 (Año normal no bisiesto, 28 días)
-        // 31 de enero de 2027 (último día de ene) -> Febrero 2027, Q1
-        val pEne31_27 = QuincenaFilterHelper.getBudgetPeriod(timeAt(2027, 0, 31))
-        assertEquals(2027, pEne31_27.year)
-        assertEquals(1, pEne31_27.monthIndex) // Febrero
-        assertEquals(1, pEne31_27.quincena)
-
-        // 14 de febrero de 2027 -> Febrero 2027, Q1
-        val pFeb14_27 = QuincenaFilterHelper.getBudgetPeriod(timeAt(2027, 1, 14))
-        assertEquals(2027, pFeb14_27.year)
-        assertEquals(1, pFeb14_27.monthIndex)
-        assertEquals(1, pFeb14_27.quincena)
-
-        // 15 de febrero de 2027 -> Febrero 2027, Q2
-        val pFeb15_27 = QuincenaFilterHelper.getBudgetPeriod(timeAt(2027, 1, 15))
-        assertEquals(2027, pFeb15_27.year)
-        assertEquals(1, pFeb15_27.monthIndex)
-        assertEquals(2, pFeb15_27.quincena)
-
-        // 27 de febrero de 2027 (penúltimo día de feb no bisiesto) -> Febrero 2027, Q2
-        val pFeb27_27 = QuincenaFilterHelper.getBudgetPeriod(timeAt(2027, 1, 27))
-        assertEquals(2027, pFeb27_27.year)
-        assertEquals(1, pFeb27_27.monthIndex)
-        assertEquals(2, pFeb27_27.quincena)
-
-        // 28 de febrero de 2027 (último día de feb no bisiesto) -> Marzo 2027, Q1
-        val pFeb28_27 = QuincenaFilterHelper.getBudgetPeriod(timeAt(2027, 1, 28))
-        assertEquals(2027, pFeb28_27.year)
-        assertEquals(2, pFeb28_27.monthIndex) // Marzo
-        assertEquals(1, pFeb28_27.quincena)
-
-        // 5. Febrero de 2028 (Año bisiesto, 29 días)
-        // 31 de enero de 2028 (último día de ene) -> Febrero 2028, Q1
-        val pEne31_28 = QuincenaFilterHelper.getBudgetPeriod(timeAt(2028, 0, 31))
-        assertEquals(2028, pEne31_28.year)
-        assertEquals(1, pEne31_28.monthIndex) // Febrero
-        assertEquals(1, pEne31_28.quincena)
-
-        // 14 de febrero de 2028 -> Febrero 2028, Q1
-        val pFeb14_28 = QuincenaFilterHelper.getBudgetPeriod(timeAt(2028, 1, 14))
-        assertEquals(2028, pFeb14_28.year)
-        assertEquals(1, pFeb14_28.monthIndex)
-        assertEquals(1, pFeb14_28.quincena)
-
-        // 15 de febrero de 2028 -> Febrero 2028, Q2
-        val pFeb15_28 = QuincenaFilterHelper.getBudgetPeriod(timeAt(2028, 1, 15))
-        assertEquals(2028, pFeb15_28.year)
-        assertEquals(1, pFeb15_28.monthIndex)
-        assertEquals(2, pFeb15_28.quincena)
-
-        // 28 de febrero de 2028 (penúltimo día de feb bisiesto) -> Febrero 2028, Q2
-        val pFeb28_28 = QuincenaFilterHelper.getBudgetPeriod(timeAt(2028, 1, 28))
-        assertEquals(2028, pFeb28_28.year)
-        assertEquals(1, pFeb28_28.monthIndex)
-        assertEquals(2, pFeb28_28.quincena)
-
-        // 29 de febrero de 2028 (último día de feb bisiesto) -> Marzo 2028, Q1
-        val pFeb29_28 = QuincenaFilterHelper.getBudgetPeriod(timeAt(2028, 1, 29))
-        assertEquals(2028, pFeb29_28.year)
-        assertEquals(2, pFeb29_28.monthIndex) // Marzo
-        assertEquals(1, pFeb29_28.quincena)
-
-        // 6. Prueba Matemática Exhaustiva de 1,096 días (2026 a 2028)
-        // Comprobar ausencia absoluta de días huérfanos (sin asignación) o superposiciones
-        val iterCal = Calendar.getInstance().apply {
+        fun timeAt(year: Int, monthIndex: Int, day: Int): Long = Calendar.getInstance().apply {
             clear()
-            set(2026, Calendar.JANUARY, 1, 12, 0, 0)
-        }
-        val endCal = Calendar.getInstance().apply {
-            clear()
-            set(2028, Calendar.DECEMBER, 31, 12, 0, 0)
-        }
+            set(year, monthIndex, day, 12, 0, 0)
+        }.timeInMillis
 
-        var totalDaysChecked = 0
-        while (!iterCal.after(endCal)) {
-            val bp = QuincenaFilterHelper.getBudgetPeriod(iterCal.timeInMillis)
-            assertNotNull(bp)
-            assertTrue("Quincena debe ser 1 o 2", bp.quincena in 1..2)
-            assertTrue("Mes presupuestario debe estar entre 0 y 11", bp.monthIndex in 0..11)
-            assertTrue("Año presupuestario debe ser coherente", bp.year in 2026..2029)
-            totalDaysChecked++
-            iterCal.add(Calendar.DAY_OF_YEAR, 1)
+        // Gastos: 1-15 Q1 y 16-fin Q2, incluyendo cambios de mes/año.
+        val oct15 = QuincenaFilterHelper.getBudgetPeriod(timeAt(2026, Calendar.OCTOBER, 15))
+        assertEquals(BudgetPeriod(2026, Calendar.OCTOBER, 1), oct15)
+        val oct16 = QuincenaFilterHelper.getBudgetPeriod(timeAt(2026, Calendar.OCTOBER, 16))
+        assertEquals(BudgetPeriod(2026, Calendar.OCTOBER, 2), oct16)
+        val oct31Expense = QuincenaFilterHelper.getBudgetPeriod(timeAt(2026, Calendar.OCTOBER, 31), TransactionType.EXPENSE)
+        assertEquals(BudgetPeriod(2026, Calendar.OCTOBER, 2), oct31Expense)
+
+        // Pago del 15 financia Q2 del mismo mes; pago de fin de mes financia Q1 del siguiente.
+        assertEquals(
+            BudgetPeriod(2026, Calendar.OCTOBER, 2),
+            QuincenaFilterHelper.getBudgetPeriod(timeAt(2026, Calendar.OCTOBER, 15), TransactionType.INCOME)
+        )
+        assertEquals(
+            BudgetPeriod(2026, Calendar.NOVEMBER, 1),
+            QuincenaFilterHelper.getBudgetPeriod(timeAt(2026, Calendar.OCTOBER, 31), TransactionType.INCOME)
+        )
+        assertEquals(
+            BudgetPeriod(2027, Calendar.JANUARY, 1),
+            QuincenaFilterHelper.getBudgetPeriod(timeAt(2026, Calendar.DECEMBER, 31), TransactionType.INCOME)
+        )
+
+        val startQ1 = QuincenaFilterHelper.getBudgetPeriodRange(2026, Calendar.OCTOBER, 1)
+        val startCal = Calendar.getInstance().apply { timeInMillis = startQ1.first }
+        assertEquals(Calendar.SEPTEMBER, startCal.get(Calendar.MONTH))
+        assertEquals(30, startCal.get(Calendar.DAY_OF_MONTH))
+        val endCal = Calendar.getInstance().apply { timeInMillis = startQ1.second }
+        assertEquals(15, endCal.get(Calendar.DAY_OF_MONTH))
+
+        // Exhaustividad: cada día de tres años cae exactamente en un ciclo de gasto.
+        val iter = Calendar.getInstance().apply { clear(); set(2026, Calendar.JANUARY, 1, 12, 0, 0) }
+        val end = Calendar.getInstance().apply { clear(); set(2028, Calendar.DECEMBER, 31, 12, 0, 0) }
+        var days = 0
+        while (!iter.after(end)) {
+            val bp = QuincenaFilterHelper.getBudgetPeriod(iter.timeInMillis, TransactionType.EXPENSE)
+            assertEquals(iter.get(Calendar.YEAR), bp.year)
+            assertEquals(iter.get(Calendar.MONTH), bp.monthIndex)
+            assertEquals(if (iter.get(Calendar.DAY_OF_MONTH) <= 15) 1 else 2, bp.quincena)
+            days++
+            iter.add(Calendar.DAY_OF_YEAR, 1)
         }
-        assertEquals("Se deben verificar exactamente 1096 días (3 años completos)", 1096, totalDaysChecked)
+        assertEquals(1096, days)
+    }
+
+    @Test
+    fun testFundingCyclesSeparateRealPendingAndCarryForward() {
+        fun date(month: Int, day: Int): Long = Calendar.getInstance().apply {
+            clear()
+            set(2026, month, day, 12, 0, 0)
+        }.timeInMillis
+
+        val tx = listOf(
+            TransactionEntity(id = 1, title = "Pago fin de octubre", amount = 1000.0, type = TransactionType.INCOME, category = "Salario", dateMillis = date(Calendar.OCTOBER, 31)),
+            TransactionEntity(id = 2, title = "Supermercado", amount = 200.0, type = TransactionType.EXPENSE, category = "Comida", dateMillis = date(Calendar.NOVEMBER, 10)),
+            TransactionEntity(id = 3, title = "Pago día 15", amount = 500.0, type = TransactionType.INCOME, category = "Salario", dateMillis = date(Calendar.NOVEMBER, 15)),
+            TransactionEntity(id = 4, title = "Renta", amount = 300.0, type = TransactionType.EXPENSE, category = "Hogar", dateMillis = date(Calendar.NOVEMBER, 16)),
+            TransactionEntity(id = 5, title = "Pago pendiente", amount = 100.0, type = TransactionType.EXPENSE, category = "Otro", dateMillis = date(Calendar.NOVEMBER, 20), notes = "[PENDIENTE]"),
+            TransactionEntity(id = 6, title = "Compra descartada", amount = 900.0, type = TransactionType.EXPENSE, category = "Otro", dateMillis = date(Calendar.NOVEMBER, 22), isTentative = true, tentativeDecision = "DISCARDED")
+        )
+        val nov = QuincenaFilterHelper.filterByQuincena(tx, 2026, Calendar.NOVEMBER)
+        assertEquals(1000.0, nov.q1Income, 0.001)
+        assertEquals(200.0, nov.q1Expense, 0.001)
+        assertEquals(0.0, nov.q1PendingExpense, 0.001)
+        assertEquals(500.0, nov.q2Income, 0.001)
+        assertEquals(300.0, nov.q2Expense, 0.001)
+        assertEquals(100.0, nov.q2PendingExpense, 0.001)
+        assertEquals(0.0, QuincenaFilterHelper.calculateQuincenaRollover(tx, 2026, Calendar.NOVEMBER, 1), 0.001)
+        val q2OpeningBalance = QuincenaFilterHelper.calculateQuincenaRollover(tx, 2026, Calendar.NOVEMBER, 2)
+        assertEquals(800.0, q2OpeningBalance, 0.001)
+        val q1ActualAvailable = nov.q1Income - nov.q1Expense
+        val q2ActualAvailable = q2OpeningBalance + nov.q2Income - nov.q2Expense
+        assertEquals(800.0, q1ActualAvailable, 0.001)
+        assertEquals(1000.0, q2ActualAvailable, 0.001)
+        assertEquals(900.0, q2ActualAvailable - nov.q2PendingExpense, 0.001)
+
+        // El resumen mensual consolida ambos ciclos: los traspasos son saldo inicial,
+        // no ingreso nuevo; gastos reales se cuentan una sola vez y pendientes solo
+        // reducen la proyección.
+        val q1OpeningBalance = QuincenaFilterHelper.calculateQuincenaRollover(
+            tx, 2026, Calendar.NOVEMBER, 1
+        )
+        val monthAvailable = q2OpeningBalance + nov.q2Income - nov.q2Expense
+        val monthProjected = monthAvailable - nov.totalPendingExpense
+        assertEquals(1500.0, nov.totalIncome, 0.001)
+        assertEquals(500.0, nov.totalExpense, 0.001)
+        assertEquals(100.0, nov.totalPendingExpense, 0.001)
+        assertEquals(q1OpeningBalance + nov.totalIncome - nov.totalExpense, monthAvailable, 0.001)
+        assertEquals(1000.0, monthAvailable, 0.001)
+        assertEquals(900.0, monthProjected, 0.001)
+        assertEquals(nov.q1Expense + nov.q2Expense, nov.totalExpense, 0.001)
     }
 
     @Test

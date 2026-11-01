@@ -2,6 +2,8 @@ package com.example.ui.util
 
 import com.example.data.model.TransactionEntity
 import com.example.data.model.TransactionType
+import com.example.data.model.isGastoReal
+import com.example.data.model.isGastoSupuesto
 import java.util.Calendar
 
 data class BudgetPeriod(
@@ -16,49 +18,52 @@ data class QuincenaFilteredData(
     val monthTransactions: List<TransactionEntity>,
     val q1Income: Double,
     val q1Expense: Double,
+    val q1PendingExpense: Double,
     val q1Net: Double,
     val q2Income: Double,
     val q2Expense: Double,
+    val q2PendingExpense: Double,
     val q2Net: Double,
     val totalIncome: Double,
     val totalExpense: Double,
+    val totalPendingExpense: Double,
     val totalNet: Double
 )
 
 object QuincenaFilterHelper {
 
     /**
-     * Determina el periodo presupuestario (año, mes y quincena) de cualquier marca de tiempo:
-     * - Q1: Del último día del mes anterior hasta el día 14.
-     * - Q2: Del día 15 hasta el día anterior al último día del mes.
-     * - El último día del mes inicia la siguiente Q1 (del mes siguiente).
+     * Determina el ciclo financiado por una fecha. Gastos del 1 al 15 pertenecen a Q1;
+     * los del 16 al fin pertenecen a Q2. Un pago el 15 financia Q2, y un pago de fin
+     * de mes financia Q1 del mes siguiente. Sin tipo, se asume gasto.
      */
-    fun getBudgetPeriod(timeMillis: Long): BudgetPeriod {
+    fun getBudgetPeriod(timeMillis: Long, transactionType: String? = null): BudgetPeriod {
         val cal = Calendar.getInstance().apply { this.timeInMillis = timeMillis }
         val y = cal.get(Calendar.YEAR)
         val m = cal.get(Calendar.MONTH)
         val d = cal.get(Calendar.DAY_OF_MONTH)
         val maxDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
 
-        return if (d == maxDay) {
-            // El último día del mes inicia la Q1 del mes siguiente
+        return if (transactionType == TransactionType.INCOME && d == maxDay) {
+            // El pago de fin de mes financia del 1 al 15 del mes siguiente
             val nextMonth = if (m == 11) 0 else m + 1
             val nextYear = if (m == 11) y + 1 else y
             BudgetPeriod(year = nextYear, monthIndex = nextMonth, quincena = 1)
-        } else if (d in 1..14) {
-            // Del día 1 al 14 pertenece a Q1 del mes actual
+        } else if (transactionType == TransactionType.INCOME && d == 15) {
+            // El pago del 15 financia del 16 al último día del mes
+            BudgetPeriod(year = y, monthIndex = m, quincena = 2)
+        } else if (d in 1..15) {
             BudgetPeriod(year = y, monthIndex = m, quincena = 1)
         } else {
-            // Del día 15 hasta el día anterior al último día del mes pertenece a Q2 del mes actual
             BudgetPeriod(year = y, monthIndex = m, quincena = 2)
         }
     }
 
     /**
      * Obtiene el rango de timestamps exactos (inicio 00:00:00.000 a fin 23:59:59.999) para el periodo presupuestario:
-     * - quincena == 1: Último día del mes anterior (00:00) al día 14 del mes actual (23:59:59.999).
-     * - quincena == 2: Día 15 del mes actual (00:00) al día anterior al último día del mes actual (23:59:59.999).
-     * - quincena == 0: Todo el mes presupuestario: Último día del mes anterior al día anterior al último día del mes actual.
+     * Rango inclusivo de fechas que puede contener el ciclo, incluyendo la fecha del pago:
+     * Q1 incluye el pago de fin de mes anterior y gastos del 1 al 15;
+     * Q2 incluye el pago del 15 y gastos del 16 al fin de mes.
      */
     fun getBudgetPeriodRange(year: Int, monthIndex: Int, quincena: Int): Pair<Long, Long> {
         val cal = Calendar.getInstance()
@@ -92,7 +97,7 @@ object QuincenaFilterHelper {
             cal.clear()
             cal.set(Calendar.YEAR, year)
             cal.set(Calendar.MONTH, monthIndex)
-            cal.set(Calendar.DAY_OF_MONTH, 14)
+            cal.set(Calendar.DAY_OF_MONTH, 15)
             cal.set(Calendar.HOUR_OF_DAY, 23)
             cal.set(Calendar.MINUTE, 59)
             cal.set(Calendar.SECOND, 59)
@@ -103,8 +108,7 @@ object QuincenaFilterHelper {
             cal.set(Calendar.YEAR, year)
             cal.set(Calendar.MONTH, monthIndex)
             val curMaxDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-            val penultimateDay = (curMaxDay - 1).coerceAtLeast(15)
-            cal.set(Calendar.DAY_OF_MONTH, penultimateDay)
+            cal.set(Calendar.DAY_OF_MONTH, curMaxDay)
             cal.set(Calendar.HOUR_OF_DAY, 23)
             cal.set(Calendar.MINUTE, 59)
             cal.set(Calendar.SECOND, 59)
@@ -118,28 +122,28 @@ object QuincenaFilterHelper {
     /**
      * Verifica si una transacción pertenece al mes presupuestario indicado.
      */
-    fun isDateInBudgetMonth(dateMillis: Long, targetYear: Int, targetMonthIndex: Int): Boolean {
-        val bp = getBudgetPeriod(dateMillis)
+    fun isDateInBudgetMonth(dateMillis: Long, targetYear: Int, targetMonthIndex: Int, transactionType: String? = null): Boolean {
+        val bp = getBudgetPeriod(dateMillis, transactionType)
         return bp.year == targetYear && bp.monthIndex == targetMonthIndex
     }
 
     /**
      * Verifica si la fecha dada corresponde a la quincena indicada:
-     * - 1: Último día del mes anterior al 14.
-     * - 2: Día 15 al día anterior al último del mes.
+     * - 1: Gasto del 1 al 15; pago de fin de mes anterior.
+     * - 2: Gasto del 16 al fin; pago del día 15.
      * - <= 0: Todas.
      */
-    fun isDateInQuincena(dateMillis: Long, quincenaNumber: Int): Boolean {
+    fun isDateInQuincena(dateMillis: Long, quincenaNumber: Int, transactionType: String? = null): Boolean {
         if (quincenaNumber <= 0) return true
-        val bp = getBudgetPeriod(dateMillis)
+        val bp = getBudgetPeriod(dateMillis, transactionType)
         return bp.quincena == quincenaNumber
     }
 
     /**
      * Filtra rigurosamente las transacciones para la vista de Quincenas:
      * - Mes y año: Exclusivamente transacciones cuyo ciclo presupuestario pertenezca a targetYear y targetMonthIndex.
-     * - Q1: Último día del mes anterior hasta el 14.
-     * - Q2: Día 15 hasta el día anterior al último día del mes.
+     * - Q1: Pago de fin del mes anterior y gastos del día 1 al 15.
+     * - Q2: Pago del día 15 y gastos del día 16 al último día del mes.
      * - Totales calculados estrictamente sobre las listas filtradas.
      */
     fun filterByQuincena(
@@ -152,7 +156,7 @@ object QuincenaFilterHelper {
         val monthList = mutableListOf<TransactionEntity>()
 
         for (tx in transactions) {
-            val bp = getBudgetPeriod(tx.dateMillis)
+            val bp = getBudgetPeriod(tx.dateMillis, tx.type)
             if (bp.year == targetYear && bp.monthIndex == targetMonthIndex) {
                 monthList.add(tx)
                 if (bp.quincena == 1) {
@@ -164,11 +168,14 @@ object QuincenaFilterHelper {
         }
 
         val q1Inc = q1.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-        val q1Exp = q1.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+        val q1Exp = q1.filter { it.isGastoReal }.sumOf { it.amount }
+        val q1Pending = q1.filter { it.isGastoSupuesto && it.tentativeDecision != "DISCARDED" }.sumOf { it.amount }
         val q2Inc = q2.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-        val q2Exp = q2.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+        val q2Exp = q2.filter { it.isGastoReal }.sumOf { it.amount }
+        val q2Pending = q2.filter { it.isGastoSupuesto && it.tentativeDecision != "DISCARDED" }.sumOf { it.amount }
         val totInc = monthList.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-        val totExp = monthList.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+        val totExp = monthList.filter { it.isGastoReal }.sumOf { it.amount }
+        val totPending = monthList.filter { it.isGastoSupuesto && it.tentativeDecision != "DISCARDED" }.sumOf { it.amount }
 
         return QuincenaFilteredData(
             q1Transactions = q1,
@@ -176,12 +183,15 @@ object QuincenaFilterHelper {
             monthTransactions = monthList,
             q1Income = q1Inc,
             q1Expense = q1Exp,
+            q1PendingExpense = q1Pending,
             q1Net = q1Inc - q1Exp,
             q2Income = q2Inc,
             q2Expense = q2Exp,
+            q2PendingExpense = q2Pending,
             q2Net = q2Inc - q2Exp,
             totalIncome = totInc,
             totalExpense = totExp,
+            totalPendingExpense = totPending,
             totalNet = totInc - totExp
         )
     }
@@ -315,12 +325,12 @@ object QuincenaFilterHelper {
         val periodExpenseMap = mutableMapOf<Int, Double>()
 
         for (tx in transactions) {
-            val bp = getBudgetPeriod(tx.dateMillis)
+            val bp = getBudgetPeriod(tx.dateMillis, tx.type)
             val key = periodKey(bp.year, bp.monthIndex, bp.quincena)
 
             if (tx.type == TransactionType.INCOME) {
                 periodIncomeMap[key] = (periodIncomeMap[key] ?: 0.0) + tx.amount
-            } else if (tx.type == TransactionType.EXPENSE && tx.tentativeDecision != "DISCARDED") {
+            } else if (tx.isGastoReal) {
                 periodExpenseMap[key] = (periodExpenseMap[key] ?: 0.0) + tx.amount
             }
         }

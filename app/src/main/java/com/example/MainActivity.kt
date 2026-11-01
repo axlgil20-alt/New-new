@@ -16,7 +16,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.PieChart
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.Icon
@@ -81,6 +80,7 @@ class MainActivity : ComponentActivity() {
             var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
             var showAddAntExpenseDialog by remember { mutableStateOf(false) }
             var showBudgetLimitDialog by remember { mutableStateOf(false) }
+            var budgetLimitBeingEdited by remember { mutableStateOf<com.example.data.model.BudgetLimitEntity?>(null) }
             var showRecurringDialog by remember { mutableStateOf(false) }
             var showSavingsGoalDialog by remember { mutableStateOf(false) }
             var showAdvisorDialog by remember { mutableStateOf(false) }
@@ -138,12 +138,12 @@ class MainActivity : ComponentActivity() {
                                 label = { Text("Registros") }
                             )
 
-                            // 2. Límites
+                            // 2. Quincenas
                             NavigationBarItem(
                                 selected = selectedTab == 2,
                                 onClick = { selectedTab = 2 },
-                                icon = { Icon(Icons.Default.PieChart, contentDescription = "Límites") },
-                                label = { Text("Límites") }
+                                icon = { Icon(Icons.Default.CalendarMonth, contentDescription = "Quincenas") },
+                                label = { Text("Quincenas") }
                             )
 
                             // 3. Inicio (Centrado y Destacado con relieve visual)
@@ -186,10 +186,10 @@ class MainActivity : ComponentActivity() {
 
                             // 5. Ajustes
                             NavigationBarItem(
-                                selected = selectedTab == 4,
+                                selected = selectedTab == 4 || selectedTab == 6,
                                 onClick = { selectedTab = 4 },
                                 icon = { Icon(Icons.Default.Build, contentDescription = "Ajustes") },
-                                label = { Text("Ajustes") }
+                                label = { Text("Más") }
                             )
                         }
                     }
@@ -259,20 +259,22 @@ class MainActivity : ComponentActivity() {
                                 onMarkTransactionsAsLegitimate = { ids -> viewModel.markTransactionsAsLegitimate(ids) }
                             )
 
-                            2 -> BudgetsScreen(
-                                uiState = uiState,
-                                onPreviousMonth = { viewModel.previousMonth() },
-                                onNextMonth = { viewModel.nextMonth() },
-                                onToggleAllTime = { viewModel.toggleAllTime() },
-                                onAddBudgetLimitClick = { showBudgetLimitDialog = true },
-                                onDeleteBudgetLimit = { cat -> viewModel.deleteBudgetLimit(cat) },
-                                onAddRecurringExpenseClick = { showRecurringDialog = true },
-                                onDeleteRecurringExpense = { rec -> viewModel.deleteRecurringExpense(rec) },
-                                onToggleRecurringExpense = { rec -> viewModel.toggleRecurringExpenseActive(rec) },
-                                onAddSavingsGoalClick = { showSavingsGoalDialog = true },
-                                onDeleteSavingsGoal = { goal -> viewModel.deleteSavingsGoal(goal) },
-                                onContributeSavingsGoal = { goal, amt -> viewModel.contributeToGoal(goal, amt) }
-                            )
+                            2 -> {
+                                BackHandler { selectedTab = 4 }
+                                PlannedVsRealScreen(
+                                    uiState = uiState,
+                                    onPreviousMonth = { viewModel.previousMonth() },
+                                    onNextMonth = { viewModel.nextMonth() },
+                                    onEditTransaction = { tx ->
+                                        editingTransaction = tx
+                                        showAddTransactionDialog = true
+                                    },
+                                    onDeleteTransaction = { tx -> viewModel.deleteTransaction(tx) },
+                                    onHighlightTransaction = { tx, hex -> viewModel.highlightTransaction(tx, hex) },
+                                    onToggleVerifyTransaction = { tx -> viewModel.toggleVerifyTransaction(tx) },
+                                    onDecideTentative = { tx, decision -> viewModel.decideTentativeTransaction(tx, decision) }
+                                )
+                            }
 
                             3 -> FinancialAdvisorScreen(
                                 uiState = uiState
@@ -287,7 +289,8 @@ class MainActivity : ComponentActivity() {
                                 onExportCsv = { viewModel.getCsvExport() },
                                 onClearAllData = { viewModel.clearAllData() },
                                 onToggleDarkTheme = { viewModel.toggleDarkTheme() },
-                                onOpenQuincenas = { selectedTab = 5 },
+                                onOpenQuincenas = { selectedTab = 2 },
+                                onOpenLimits = { selectedTab = 6 },
                                 onOpenSmartCart = { showSmartCartDialog = true },
                                 onSaveIncomeToBudget = { title, amountGtq, note ->
                                     viewModel.addTransaction(
@@ -315,23 +318,28 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
 
-                            5 -> {
-                                BackHandler {
-                                    selectedTab = 4
-                                }
-                                PlannedVsRealScreen(
+                            6 -> {
+                                BackHandler { selectedTab = 4 }
+                                BudgetsScreen(
                                     uiState = uiState,
                                     onPreviousMonth = { viewModel.previousMonth() },
                                     onNextMonth = { viewModel.nextMonth() },
                                     onToggleAllTime = { viewModel.toggleAllTime() },
-                                    onEditTransaction = { tx ->
-                                        editingTransaction = tx
-                                        showAddTransactionDialog = true
+                                    onAddBudgetLimitClick = {
+                                        budgetLimitBeingEdited = null
+                                        showBudgetLimitDialog = true
                                     },
-                                    onDeleteTransaction = { tx -> viewModel.deleteTransaction(tx) },
-                                    onHighlightTransaction = { tx, hex -> viewModel.highlightTransaction(tx, hex) },
-                                    onToggleVerifyTransaction = { tx -> viewModel.toggleVerifyTransaction(tx) },
-                                    onDecideTentative = { tx, decision -> viewModel.decideTentativeTransaction(tx, decision) }
+                                    onEditBudgetLimit = { limit ->
+                                        budgetLimitBeingEdited = limit
+                                        showBudgetLimitDialog = true
+                                    },
+                                    onDeleteBudgetLimit = { cat -> viewModel.deleteBudgetLimit(cat) },
+                                    onAddRecurringExpenseClick = { showRecurringDialog = true },
+                                    onDeleteRecurringExpense = { rec -> viewModel.deleteRecurringExpense(rec) },
+                                    onToggleRecurringExpense = { rec -> viewModel.toggleRecurringExpenseActive(rec) },
+                                    onAddSavingsGoalClick = { showSavingsGoalDialog = true },
+                                    onDeleteSavingsGoal = { goal -> viewModel.deleteSavingsGoal(goal) },
+                                    onContributeSavingsGoal = { goal, amt -> viewModel.contributeToGoal(goal, amt) }
                                 )
                             }
                         }
@@ -366,8 +374,12 @@ class MainActivity : ComponentActivity() {
 
                     if (showBudgetLimitDialog) {
                         BudgetLimitDialog(
-                            currencySymbol = uiState.currencySymbol,
-                            onDismiss = { showBudgetLimitDialog = false },
+                            initialLimit = budgetLimitBeingEdited,
+                            currencySymbol = "Q ",
+                            onDismiss = {
+                                showBudgetLimitDialog = false
+                                budgetLimitBeingEdited = null
+                            },
                             onSave = { cat, limit, reason, tip ->
                                 viewModel.setBudgetLimit(cat, limit, reason, tip)
                             }

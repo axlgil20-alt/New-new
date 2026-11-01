@@ -85,6 +85,7 @@ fun TransactionItemCard(
     onToggleVerify: () -> Unit,
     onDecideTentative: (String) -> Unit,
     isDiscreetMode: Boolean = false,
+    isDarkTheme: Boolean = false,
     isSelectionMode: Boolean = false,
     isSelected: Boolean = false,
     onToggleSelect: () -> Unit = {},
@@ -102,6 +103,11 @@ fun TransactionItemCard(
 
     // Colores según estado y selección
     val baseCardColor = when {
+        isDarkTheme && isSelected -> Color(0xFF243A49)
+        isDarkTheme && isDiscarded -> Color(0xFF263629)
+        isDarkTheme && isPendingTentative -> Color(0xFF322842)
+        isDarkTheme && transaction.isSuspectedDuplicate -> Color(0xFF3B3222)
+        isDarkTheme && transaction.highlightColorHex != 0L -> Color(transaction.highlightColorHex).copy(alpha = 0.28f)
         isSelected -> Color(0xFFE0F2FE) // Azul suave de selección
         isDiscarded -> Color(0xFFF0FDF4)
         isPendingTentative -> Color(0xFFFAF5FF)
@@ -122,6 +128,10 @@ fun TransactionItemCard(
     }
 
     val amountColor = when {
+        isDarkTheme && isDiscarded -> Color(0xFFA8D5A0)
+        isDarkTheme && isPendingTentative -> Color(0xFFD2B6FF)
+        isDarkTheme && isIncome -> Color(0xFFA8D5A0)
+        isDarkTheme -> Color(0xFFFF9A91)
         isDiscarded -> IncomeGreen
         isPendingTentative -> TentativePurple
         isIncome -> IncomeGreen

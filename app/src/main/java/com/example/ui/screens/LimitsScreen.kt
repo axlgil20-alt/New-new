@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import com.example.data.model.BudgetLimitEntity
 import com.example.data.model.RecurringExpenseEntity
 import com.example.data.model.SavingsGoalEntity
 import com.example.ui.viewmodel.BudgetUiState
@@ -17,6 +18,7 @@ fun LimitsScreen(
     onNextMonth: () -> Unit,
     onToggleAllTime: () -> Unit,
     onAddBudgetLimitClick: () -> Unit,
+    onEditBudgetLimit: (BudgetLimitEntity) -> Unit,
     onDeleteBudgetLimit: (String) -> Unit,
     onAddRecurringExpenseClick: () -> Unit,
     onDeleteRecurringExpense: (RecurringExpenseEntity) -> Unit,
@@ -32,6 +34,7 @@ fun LimitsScreen(
         onNextMonth = onNextMonth,
         onToggleAllTime = onToggleAllTime,
         onAddBudgetLimitClick = onAddBudgetLimitClick,
+        onEditBudgetLimit = onEditBudgetLimit,
         onDeleteBudgetLimit = onDeleteBudgetLimit,
         onAddRecurringExpenseClick = onAddRecurringExpenseClick,
         onDeleteRecurringExpense = onDeleteRecurringExpense,

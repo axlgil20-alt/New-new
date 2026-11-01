@@ -27,6 +27,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import java.math.RoundingMode
+import java.util.Locale
 import com.example.data.model.BudgetLimitEntity
 import com.example.data.model.DefaultData
 
@@ -39,7 +41,12 @@ fun BudgetLimitDialog(
     onSave: (category: String, limit: Double, reason: String, tip: String) -> Unit
 ) {
     var category by remember { mutableStateOf(initialLimit?.category ?: "Comida rápida") }
-    var limitText by remember { mutableStateOf(initialLimit?.monthlyLimit?.let { "%.2f".format(it) } ?: "") }
+    var limitText by remember { mutableStateOf(initialLimit?.monthlyLimit?.let { String.format(Locale.ROOT, "%.2f", it) } ?: "") }
+    val parsedLimit = remember(limitText) {
+        limitText.toBigDecimalOrNull()
+            ?.setScale(2, RoundingMode.HALF_UP)
+            ?.takeIf { it.signum() > 0 }
+    }
     var reason by remember { mutableStateOf(initialLimit?.reason ?: "") }
     var tip by remember { mutableStateOf(initialLimit?.tipForControl ?: "") }
     var catExpanded by remember { mutableStateOf(false) }
@@ -93,7 +100,16 @@ fun BudgetLimitDialog(
 
                 OutlinedTextField(
                     value = limitText,
-                    onValueChange = { limitText = it.filter { char -> char.isDigit() || char == '.' } },
+                    onValueChange = { raw ->
+                        val cleaned = raw.replace(',', '.').filter { it.isDigit() || it == '.' }
+                        val decimalIndex = cleaned.indexOf('.')
+                        limitText = if (decimalIndex < 0) {
+                            cleaned
+                        } else {
+                            cleaned.substring(0, decimalIndex + 1) +
+                                cleaned.substring(decimalIndex + 1).filter { it.isDigit() }.take(2)
+                        }
+                    },
                     label = { Text("Límite Mensual Máximo ($currencySymbol)") },
                     placeholder = { Text("Ej: 800.00") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
@@ -132,15 +148,15 @@ fun BudgetLimitDialog(
                     }
                     Button(
                         onClick = {
-                            val limitVal = limitText.toDoubleOrNull() ?: 0.0
-                            if (category.isNotBlank() && limitVal > 0) {
+                            val limitVal = parsedLimit?.toDouble()
+                            if (category.isNotBlank() && limitVal != null) {
                                 onSave(category, limitVal, reason.trim(), tip.trim())
                                 onDismiss()
                             }
                         },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp),
-                        enabled = category.isNotBlank() && (limitText.toDoubleOrNull() ?: 0.0) > 0
+                        enabled = category.isNotBlank() && parsedLimit != null
                     ) {
                         Text("Guardar")
                     }

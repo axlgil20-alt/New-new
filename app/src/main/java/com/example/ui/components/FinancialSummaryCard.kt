@@ -66,47 +66,46 @@ fun FinancialSummaryCard(
     includeTentativeInBalance: Boolean,
     onToggleIncludeTentative: () -> Unit,
     isDiscreetMode: Boolean = false,
+    isDarkTheme: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var showExplanationDialog by remember { mutableStateOf(false) }
+    val cardSurface = if (isDarkTheme) Color(0xFF1E261D) else Color(0xFFFFF9E6)
+    val incomeSurface = if (isDarkTheme) Color(0xFF263629) else Color(0xFFEAF2E5)
+    val expenseSurface = if (isDarkTheme) Color(0xFF3A2927) else Color(0xFFFCE8E4)
+    val positiveText = if (isDarkTheme) Color(0xFFA8D5A0) else Color(0xFF2D5A27)
+    val negativeText = if (isDarkTheme) Color(0xFFFF9A91) else Color(0xFFD9534F)
+    val tentativeText = if (isDarkTheme) Color(0xFFD2B6FF) else TentativePurple
+    val cautionText = if (isDarkTheme) Color(0xFFFFC078) else Color(0xFF9A4D00)
+    val cautionIndicator = if (isDarkTheme) Color(0xFFF5A753) else Color(0xFFE67E22)
 
     Card(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = cardSurface),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
         Column(modifier = Modifier.padding(20.dp)) {
             // Cabecera con título y toggle de supuestos
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column {
-                    Text(
-                        text = "Balance Familiar",
-                        style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = if (includeTentativeInBalance) "Saldo Disponible (Con Supuestos)" else "Saldo Neto Confirmado",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (includeTentativeInBalance) TentativePurple else MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text("Balance Familiar", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    text = if (includeTentativeInBalance) "Saldo Disponible (Con Supuestos)" else "Saldo Neto Confirmado",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (includeTentativeInBalance) tentativeText else MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
                 Row(
+                    modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.End
                 ) {
                     Text(
                         text = if (includeTentativeInBalance) "Supuestos ON" else "Supuestos OFF",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (includeTentativeInBalance) TentativePurple else Color.Gray,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = if (includeTentativeInBalance) tentativeText else MaterialTheme.colorScheme.onSurfaceVariant,
                         fontWeight = FontWeight.Bold
                     )
                     Switch(
@@ -114,9 +113,9 @@ fun FinancialSummaryCard(
                         onCheckedChange = { onToggleIncludeTentative() },
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color.White,
-                            checkedTrackColor = TentativePurple,
+                            checkedTrackColor = if (isDarkTheme) Color(0xFF7B58B5) else TentativePurple,
                             uncheckedThumbColor = Color.White,
-                            uncheckedTrackColor = Color.LightGray
+                            uncheckedTrackColor = if (isDarkTheme) Color(0xFF596356) else Color.LightGray
                         )
                     )
                 }
@@ -126,7 +125,7 @@ fun FinancialSummaryCard(
 
             // Monto principal grande
             val isPositive = netBalance >= 0
-            val balanceColor = if (isPositive) Color(0xFF0F5132) else ExpenseRed
+            val balanceColor = if (isPositive) positiveText else negativeText
 
             Text(
                 text = FormatUtils.formatCurrency(netBalance, currencySymbol, isDiscreetMode),
@@ -147,17 +146,17 @@ fun FinancialSummaryCard(
                     Text(
                         text = "Real confirmado: ${FormatUtils.formatCurrency(confirmedNetBalance, currencySymbol, isDiscreetMode)}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     if (tentativeExpensesPending > 0) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = Color(0xFFEDE9FE)
+                            color = if (isDarkTheme) Color(0xFF3B2E4F) else Color(0xFFEDE9FE)
                         ) {
                             Text(
                                 text = "Supuestos: -${FormatUtils.formatCurrency(tentativeExpensesPending, currencySymbol, isDiscreetMode)}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = TentativePurple,
+                                color = tentativeText,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                             )
@@ -170,12 +169,12 @@ fun FinancialSummaryCard(
                 Spacer(modifier = Modifier.height(4.dp))
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = Color(0xFFD1FAE5)
+                    color = if (isDarkTheme) Color(0xFF263629) else Color(0xFFEAF2E5)
                 ) {
                     Text(
                         text = "¡Ahorraste ${FormatUtils.formatCurrency(discardedTentativeSavings, currencySymbol, isDiscreetMode)} al descartar compras supuestas!",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF065F46),
+                        color = if (isDarkTheme) Color(0xFFA8D5A0) else Color(0xFF2D5A27),
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
@@ -193,7 +192,7 @@ fun FinancialSummaryCard(
                 Surface(
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFFECFDF5)
+                    color = incomeSurface
                 ) {
                     Row(
                         modifier = Modifier.padding(12.dp),
@@ -218,13 +217,13 @@ fun FinancialSummaryCard(
                             Text(
                                 text = "Ingresos",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFF065F46)
+                                color = positiveText
                             )
                             Text(
                                 text = FormatUtils.formatCurrency(totalIncome, currencySymbol, isDiscreetMode),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF065F46)
+                                color = positiveText
                             )
                         }
                     }
@@ -234,7 +233,7 @@ fun FinancialSummaryCard(
                 Surface(
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(16.dp),
-                    color = Color(0xFFFEF2F2)
+                    color = expenseSurface
                 ) {
                     Row(
                         modifier = Modifier.padding(12.dp),
@@ -259,13 +258,13 @@ fun FinancialSummaryCard(
                             Text(
                                 text = "Gastos",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFF991B1B)
+                                color = negativeText
                             )
                             Text(
                                 text = FormatUtils.formatCurrency(totalExpense, currencySymbol, isDiscreetMode),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF991B1B)
+                                color = negativeText
                             )
                         }
                     }
@@ -289,7 +288,7 @@ fun FinancialSummaryCard(
                     text = "${"%.1f".format(savingsRate)}%",
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
-                    color = if (savingsRate >= 15) IncomeGreen else if (savingsRate >= 0) Color(0xFFD97706) else ExpenseRed
+                    color = if (savingsRate >= 15) positiveText else if (savingsRate >= 0) cautionText else negativeText
                 )
             }
 
@@ -302,8 +301,8 @@ fun FinancialSummaryCard(
                     .fillMaxWidth()
                     .height(8.dp)
                     .clip(RoundedCornerShape(4.dp)),
-                color = if (savingsRate >= 15) IncomeGreen else if (savingsRate >= 0) Color(0xFFD97706) else ExpenseRed,
-                trackColor = Color(0xFFE2E8F0)
+                color = if (savingsRate >= 15) positiveText else if (savingsRate >= 0) cautionIndicator else negativeText,
+                trackColor = if (isDarkTheme) Color(0xFF435143) else Color(0xFFE2E8D8)
             )
         }
     }
