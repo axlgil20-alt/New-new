@@ -113,6 +113,7 @@ val GUATEMALA_SUPERMARKETS = listOf(
     SupermarketChainInfo("Paiz", "https://www.paiz.com.gt/", "https://www.paiz.com.gt/search?q=", Color(0xFFE11932)),
     SupermarketChainInfo("La Torre", "https://www.supermercadolatorre.com/", "https://www.supermercadolatorre.com/?s=", Color(0xFFD32F2F)),
     SupermarketChainInfo("Maxi Despensa", "https://www.maxidespensa.com.gt/", "https://www.maxidespensa.com.gt/search?q=", Color(0xFFE65100)),
+    SupermarketChainInfo("La Barata", "https://superlabarata.com/", "", Color(0xFFE53935)),
     SupermarketChainInfo("Súper del Barrio", "https://superdelbarrio.com.gt/", "https://superdelbarrio.com.gt/?s=", Color(0xFFD32F2F)),
     SupermarketChainInfo("General", "", "", Color(0xFF4B5563))
 )

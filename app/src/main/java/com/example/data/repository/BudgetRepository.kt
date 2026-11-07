@@ -20,6 +20,9 @@ class BudgetRepository(
     private val savingsGoalDao: SavingsGoalDao,
     private val recurringExpenseDao: RecurringExpenseDao,
     private val smartCartDao: SmartCartDao,
+    private val paymentCommitmentDao: com.example.data.local.PaymentCommitmentDao? = null,
+    private val beneficiaryDao: com.example.data.local.BeneficiaryDao? = null,
+    private val shoppingTemplateDao: com.example.data.local.ShoppingTemplateDao? = null,
     private val database: AppDatabase? = null
 ) {
     private var lastCheckoutTime: Long = 0L
@@ -37,6 +40,12 @@ class BudgetRepository(
     val allGoals: Flow<List<SavingsGoalEntity>> = savingsGoalDao.getAllGoals()
     val allRecurringExpenses: Flow<List<RecurringExpenseEntity>> = recurringExpenseDao.getAll()
     val allCartItems: Flow<List<SmartCartItemEntity>> = smartCartDao.getAllItems()
+    val allPaymentCommitments: Flow<List<PaymentCommitmentEntity>> =
+        paymentCommitmentDao?.getAllCommitments() ?: kotlinx.coroutines.flow.flowOf(emptyList())
+    val allBeneficiaries: Flow<List<BeneficiaryEntity>> =
+        beneficiaryDao?.getAllBeneficiaries() ?: kotlinx.coroutines.flow.flowOf(emptyList())
+    val allShoppingTemplates: Flow<List<ShoppingTemplateEntity>> =
+        shoppingTemplateDao?.getAllTemplates() ?: kotlinx.coroutines.flow.flowOf(emptyList())
 
     fun getTransactionsBetween(startMillis: Long, endMillis: Long): Flow<List<TransactionEntity>> =
         transactionDao.getTransactionsBetween(startMillis, endMillis)
@@ -136,18 +145,18 @@ class BudgetRepository(
         val cleanName = name.trim()
         val cleanBrand = brand.trim()
         val currentList = if (existingItems.isNotEmpty()) existingItems else smartCartDao.getAllItemsList()
-        val existing = currentList.find { it.matchesProduct(cleanName, cleanBrand) }
-        if (existing != null) {
-            val newPriceSource = if (existing.isPantryProduct()) "${existing.getPantryStatus()}+CART" else priceSource
-            val updated = existing.copy(
-                quantity = if (quantity > 0.0) quantity else existing.quantity,
-                unit = if (unit.isNotBlank()) unit else existing.unit,
-                brand = if (cleanBrand.isNotBlank()) cleanBrand else existing.brand,
-                estimatedUnitPrice = if (price > 0.0) price else existing.estimatedUnitPrice,
-                storeName = if (store.isNotBlank() && store != "General") store else existing.storeName,
-                priceSource = newPriceSource,
-                notes = if (notes.isNotBlank()) notes else existing.notes,
-                productUrl = if (url.isNotBlank()) url else existing.productUrl,
+        // AISLAMIENTO ESTRICTO: Buscar únicamente dentro de la lista de compras activa.
+        // NUNCA alterar productos de Mi Despensa ni agregarlo automáticamente a la despensa.
+        val existingCart = currentList.find { !it.isPantryProduct() && it.matchesProduct(cleanName, cleanBrand) }
+        if (existingCart != null) {
+            val updated = existingCart.copy(
+                quantity = if (quantity > 0.0) quantity else existingCart.quantity,
+                unit = if (unit.isNotBlank()) unit else existingCart.unit,
+                brand = if (cleanBrand.isNotBlank()) cleanBrand else existingCart.brand,
+                estimatedUnitPrice = if (price > 0.0) price else existingCart.estimatedUnitPrice,
+                storeName = if (store.isNotBlank() && store != "General") store else existingCart.storeName,
+                notes = if (notes.isNotBlank()) notes else existingCart.notes,
+                productUrl = if (url.isNotBlank()) url else existingCart.productUrl,
                 isChecked = false
             )
             smartCartDao.updateItem(updated)
@@ -159,9 +168,10 @@ class BudgetRepository(
                 brand = cleanBrand,
                 estimatedUnitPrice = price.coerceAtLeast(0.0),
                 storeName = if (store.isBlank()) "General" else store,
-                priceSource = priceSource,
+                priceSource = if (priceSource.startsWith("PANTRY_")) "MANUAL" else priceSource,
                 notes = notes.trim(),
-                productUrl = url.trim()
+                productUrl = url.trim(),
+                isChecked = false
             )
             smartCartDao.insertItem(item)
         }
@@ -181,10 +191,11 @@ class BudgetRepository(
         val cleanName = name.trim()
         val cleanBrand = brand.trim()
         val currentList = if (existingPantry.isNotEmpty()) existingPantry else smartCartDao.getAllItemsList()
-        val existing = currentList.find { it.matchesProduct(cleanName, cleanBrand) }
+        val existing = currentList.find { it.isPantryProduct() && it.matchesProduct(cleanName, cleanBrand) }
+        val finalStatus = if (status.startsWith("PANTRY_")) status else "PANTRY_VERDE"
         if (existing != null) {
-            val inCart = existing.isInShoppingList()
-            val newStatus = if (inCart) "$status+CART" else status
+            val inCart = existing.priceSource.contains("+CART")
+            val newStatus = if (inCart) "$finalStatus+CART" else finalStatus
             val updated = existing.copy(
                 quantity = if (quantity > 0.0) quantity else existing.quantity,
                 unit = if (unit.isNotBlank()) unit else existing.unit,
@@ -203,8 +214,9 @@ class BudgetRepository(
                 brand = cleanBrand,
                 estimatedUnitPrice = price.coerceAtLeast(0.0),
                 storeName = if (store.isBlank()) "General" else store,
-                priceSource = status,
-                notes = notes.trim()
+                priceSource = finalStatus,
+                notes = notes.trim(),
+                isChecked = false
             )
             smartCartDao.insertItem(item)
         }
@@ -365,7 +377,8 @@ class BudgetRepository(
         title: String,
         amount: Double,
         storeName: String,
-        purchasedItemNames: List<String>
+        purchasedItemNames: List<String>,
+        updatePantryOnCheckout: Boolean = true
     ): Boolean {
         if (amount <= 0.0 && purchasedItemNames.isEmpty()) {
             return false
@@ -373,7 +386,7 @@ class BudgetRepository(
 
         // Deduplicación contra doble clic o taps repetidos rápidos (ventana de 2.5 segundos)
         val now = System.currentTimeMillis()
-        val signature = "$storeName-$amount-${purchasedItemNames.sorted().joinToString(",")}"
+        val signature = "$storeName-$amount-${purchasedItemNames.sorted().joinToString(",")}-$updatePantryOnCheckout"
         if (now - lastCheckoutTime < 2500L && signature == lastCheckoutSignature) {
             return false
         }
@@ -394,20 +407,467 @@ class BudgetRepository(
 
             val all = smartCartDao.getAllItemsList()
             val purchasedSet = purchasedItemNames.map { it.trim().lowercase() }.toSet()
+            val pantryList = all.filter { it.isPantryProduct() }.toMutableList()
 
             for (item in all) {
                 val wasPurchasedByName = purchasedSet.contains(item.name.trim().lowercase())
                 val wasChecked = item.isChecked
                 if (wasPurchasedByName || wasChecked) {
                     if (item.isPantryProduct()) {
-                        smartCartDao.updateItem(item.copy(priceSource = "PANTRY_VERDE", isChecked = false))
+                        // Es un producto de despensa que estaba en el carrito para reposición
+                        if (updatePantryOnCheckout) {
+                            smartCartDao.updateItem(item.copy(priceSource = "PANTRY_VERDE", isChecked = false))
+                        } else {
+                            // Remover la marca de compra, conservando el estado actual de despensa
+                            smartCartDao.updateItem(item.copy(priceSource = item.getPantryStatus(), isChecked = false))
+                        }
                     } else {
-                        // Artículos de súper no recurrentes se eliminan tras ser comprados
+                        // Es un producto de la lista del súper
+                        if (updatePantryOnCheckout) {
+                            val existingInPantry = pantryList.find { it.matchesProduct(item.name, item.brand) }
+                            if (existingInPantry != null) {
+                                smartCartDao.updateItem(existingInPantry.copy(priceSource = "PANTRY_VERDE", isChecked = false))
+                            } else {
+                                val newPantryItem = SmartCartItemEntity(
+                                    name = item.name.trim(),
+                                    quantity = item.quantity,
+                                    unit = item.unit,
+                                    brand = item.brand,
+                                    estimatedUnitPrice = item.estimatedUnitPrice,
+                                    storeName = item.storeName,
+                                    priceSource = "PANTRY_VERDE",
+                                    isChecked = false,
+                                    notes = item.notes
+                                )
+                                smartCartDao.insertItem(newPantryItem)
+                                pantryList.add(newPantryItem)
+                            }
+                        }
+                        // Quitar el producto de la lista activa tras comprarse
                         smartCartDao.deleteItem(item)
                     }
                 }
             }
             true
+        }
+    }
+
+    // =========================================================================
+    // LISTAS DE COMPRAS REUTILIZABLES (PLANTILLAS)
+    // =========================================================================
+
+    private fun escapeJson(s: String): String {
+        return s.replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r")
+            .replace("\t", "\\t")
+    }
+
+    fun serializeTemplateItems(items: List<TemplateItemData>): String {
+        val sb = StringBuilder()
+        sb.append("[")
+        for (i in items.indices) {
+            val it = items[i]
+            sb.append("{")
+            sb.append("\"name\":\"").append(escapeJson(it.name)).append("\",")
+            sb.append("\"quantity\":").append(it.quantity).append(",")
+            sb.append("\"unit\":\"").append(escapeJson(it.unit)).append("\",")
+            sb.append("\"brand\":\"").append(escapeJson(it.brand)).append("\",")
+            sb.append("\"estimatedUnitPrice\":").append(it.estimatedUnitPrice).append(",")
+            sb.append("\"storeName\":\"").append(escapeJson(it.storeName)).append("\",")
+            sb.append("\"notes\":\"").append(escapeJson(it.notes)).append("\"")
+            sb.append("}")
+            if (i < items.size - 1) sb.append(",")
+        }
+        sb.append("]")
+        return sb.toString()
+    }
+
+    suspend fun saveCartAsTemplate(name: String, description: String = ""): Long = runInTransaction {
+        if (shoppingTemplateDao == null) return@runInTransaction 0L
+        val all = smartCartDao.getAllItemsList()
+        val cartItems = all.filter { it.isInShoppingList() }
+        val templateItems = cartItems.map { item ->
+            TemplateItemData(
+                name = item.name,
+                quantity = item.quantity,
+                unit = item.unit,
+                brand = item.brand,
+                estimatedUnitPrice = item.estimatedUnitPrice,
+                storeName = item.storeName,
+                notes = item.notes
+            )
+        }
+        val total = cartItems.sumOf { it.quantity * it.estimatedUnitPrice }
+        val template = ShoppingTemplateEntity(
+            name = name.trim().ifBlank { "Lista de Compras" },
+            description = description.trim(),
+            itemsJson = serializeTemplateItems(templateItems),
+            itemCount = cartItems.size,
+            estimatedTotal = total
+        )
+        shoppingTemplateDao.insertTemplate(template)
+    }
+
+    suspend fun applyTemplateToCart(templateId: Long): Int = runInTransaction {
+        if (shoppingTemplateDao == null) return@runInTransaction 0
+        val template = shoppingTemplateDao.getTemplateById(templateId) ?: return@runInTransaction 0
+        val items = parseTemplateItemsJson(template.itemsJson)
+        val all = smartCartDao.getAllItemsList()
+        val currentCart = all.filter { it.isInShoppingList() }
+        var count = 0
+
+        for (item in items) {
+            val existing = currentCart.find { !it.isPantryProduct() && it.matchesProduct(item.name, item.brand) }
+            if (existing != null) {
+                val updated = existing.copy(
+                    quantity = existing.quantity + item.quantity,
+                    estimatedUnitPrice = if (item.estimatedUnitPrice > 0.0) item.estimatedUnitPrice else existing.estimatedUnitPrice,
+                    isChecked = false
+                )
+                smartCartDao.updateItem(updated)
+                count++
+            } else {
+                val newItem = SmartCartItemEntity(
+                    name = item.name.trim(),
+                    quantity = item.quantity,
+                    unit = item.unit.ifBlank { "Unidad" },
+                    brand = item.brand.trim(),
+                    estimatedUnitPrice = item.estimatedUnitPrice.coerceAtLeast(0.0),
+                    storeName = if (item.storeName.isBlank()) "General" else item.storeName,
+                    priceSource = "MANUAL",
+                    isChecked = false,
+                    notes = item.notes.trim()
+                )
+                smartCartDao.insertItem(newItem)
+                count++
+            }
+        }
+        count
+    }
+
+    suspend fun duplicateTemplate(templateId: Long, newName: String = ""): Long = runInTransaction {
+        if (shoppingTemplateDao == null) return@runInTransaction 0L
+        val original = shoppingTemplateDao.getTemplateById(templateId) ?: return@runInTransaction 0L
+        val finalName = if (newName.isNotBlank()) newName.trim() else "${original.name} (Copia)"
+        val copy = original.copy(
+            id = 0L,
+            name = finalName,
+            createdAtMillis = System.currentTimeMillis()
+        )
+        shoppingTemplateDao.insertTemplate(copy)
+    }
+
+    suspend fun deleteTemplate(template: ShoppingTemplateEntity) {
+        shoppingTemplateDao?.deleteTemplate(template)
+    }
+
+    suspend fun updateTemplate(template: ShoppingTemplateEntity) {
+        shoppingTemplateDao?.updateTemplate(template)
+    }
+
+    fun parseTemplateItemsJson(jsonStr: String): List<TemplateItemData> {
+        val list = mutableListOf<TemplateItemData>()
+        if (jsonStr.isBlank()) return list
+        try {
+            val array = org.json.JSONArray(jsonStr)
+            for (i in 0 until array.length()) {
+                val obj = array.getJSONObject(i)
+                list.add(
+                    TemplateItemData(
+                        name = obj.optString("name", ""),
+                        quantity = obj.optDouble("quantity", 1.0),
+                        unit = obj.optString("unit", "Unidad"),
+                        brand = obj.optString("brand", ""),
+                        estimatedUnitPrice = obj.optDouble("estimatedUnitPrice", 0.0),
+                        storeName = obj.optString("storeName", "General"),
+                        notes = obj.optString("notes", "")
+                    )
+                )
+            }
+            if (list.isNotEmpty()) return list
+        } catch (_: Throwable) {}
+
+        // Fallback robust regex parser para tests unitarios JVM donde org.json no está disponible
+        val objectPattern = java.util.regex.Pattern.compile("\\{([^}]+)\\}")
+        val matcher = objectPattern.matcher(jsonStr)
+        while (matcher.find()) {
+            val body = matcher.group(1) ?: continue
+            fun extractString(key: String): String {
+                val p = java.util.regex.Pattern.compile("\"$key\"\\s*:\\s*\"([^\"]*)\"")
+                val m = p.matcher(body)
+                return if (m.find()) (m.group(1) ?: "").replace("\\\"", "\"").replace("\\\\", "\\") else ""
+            }
+            fun extractDouble(key: String, default: Double): Double {
+                val p = java.util.regex.Pattern.compile("\"$key\"\\s*:\\s*([0-9]+(?:\\.[0-9]+)?)")
+                val m = p.matcher(body)
+                return if (m.find()) m.group(1)?.toDoubleOrNull() ?: default else default
+            }
+            val name = extractString("name")
+            if (name.isNotBlank()) {
+                list.add(
+                    TemplateItemData(
+                        name = name,
+                        quantity = extractDouble("quantity", 1.0),
+                        unit = extractString("unit").ifBlank { "Unidad" },
+                        brand = extractString("brand"),
+                        estimatedUnitPrice = extractDouble("estimatedUnitPrice", 0.0),
+                        storeName = extractString("storeName").ifBlank { "General" },
+                        notes = extractString("notes")
+                    )
+                )
+            }
+        }
+        return list
+    }
+
+    suspend fun ensureDefaultShoppingTemplates() = runInTransaction {
+        if (shoppingTemplateDao == null) return@runInTransaction
+        val existing = shoppingTemplateDao.getAllTemplatesList()
+        if (existing.isNotEmpty()) return@runInTransaction
+
+        val default1Items = org.json.JSONArray().apply {
+            put(org.json.JSONObject().apply { put("name", "Huevos de granja"); put("quantity", 1.0); put("unit", "Docena"); put("estimatedUnitPrice", 22.0); put("storeName", "Maxi Despensa") })
+            put(org.json.JSONObject().apply { put("name", "Frijoles negros Ducal"); put("quantity", 2.0); put("unit", "Lata"); put("estimatedUnitPrice", 14.50); put("storeName", "La Torre") })
+            put(org.json.JSONObject().apply { put("name", "Leche entera Trebolac"); put("quantity", 2.0); put("unit", "Litro"); put("estimatedUnitPrice", 16.0); put("storeName", "Walmart") })
+            put(org.json.JSONObject().apply { put("name", "Arroz blanco Gallo Dorado"); put("quantity", 2.0); put("unit", "Libra"); put("estimatedUnitPrice", 6.50); put("storeName", "General") })
+            put(org.json.JSONObject().apply { put("name", "Aceite vegetal Ideal"); put("quantity", 1.0); put("unit", "Litro"); put("estimatedUnitPrice", 24.0); put("storeName", "Maxi Despensa") })
+            put(org.json.JSONObject().apply { put("name", "Pan sandwich Europa"); put("quantity", 1.0); put("unit", "Bolsa"); put("estimatedUnitPrice", 18.0); put("storeName", "Paiz") })
+            put(org.json.JSONObject().apply { put("name", "Pollo fresco en piezas"); put("quantity", 3.0); put("unit", "Libra"); put("estimatedUnitPrice", 16.0); put("storeName", "La Barata") })
+        }
+
+        val default2Items = org.json.JSONArray().apply {
+            put(org.json.JSONObject().apply { put("name", "Detergente en polvo"); put("quantity", 1.0); put("unit", "Bolsa"); put("estimatedUnitPrice", 38.0); put("storeName", "Maxi Despensa") })
+            put(org.json.JSONObject().apply { put("name", "Cloro desinfectante"); put("quantity", 1.0); put("unit", "Litro"); put("estimatedUnitPrice", 12.0); put("storeName", "La Torre") })
+            put(org.json.JSONObject().apply { put("name", "Jabón para trastos"); put("quantity", 1.0); put("unit", "Bote"); put("estimatedUnitPrice", 19.50); put("storeName", "Walmart") })
+            put(org.json.JSONObject().apply { put("name", "Papel higiénico 4 rollos"); put("quantity", 2.0); put("unit", "Paquete"); put("estimatedUnitPrice", 21.0); put("storeName", "Súper del Barrio") })
+            put(org.json.JSONObject().apply { put("name", "Bolsas para basura"); put("quantity", 1.0); put("unit", "Paquete"); put("estimatedUnitPrice", 15.0); put("storeName", "General") })
+        }
+
+        shoppingTemplateDao.insertTemplate(
+            ShoppingTemplateEntity(
+                name = "Compra de quincena básica",
+                description = "Alimentos esenciales para el hogar",
+                itemsJson = default1Items.toString(),
+                itemCount = default1Items.length(),
+                estimatedTotal = 159.0
+            )
+        )
+
+        shoppingTemplateDao.insertTemplate(
+            ShoppingTemplateEntity(
+                name = "Limpieza y hogar",
+                description = "Higiene y mantenimiento de la casa",
+                itemsJson = default2Items.toString(),
+                itemCount = default2Items.length(),
+                estimatedTotal = 126.50
+            )
+        )
+    }
+
+    // =========================================================================
+    // MÓDULO PAGOS (ADMINISTRADOR DE COMPROMISOS FAMILIARES & BENEFICIARIOS)
+    // =========================================================================
+
+    suspend fun createPaymentCommitment(commitment: PaymentCommitmentEntity): Long = runInTransaction {
+        if (paymentCommitmentDao == null) return@runInTransaction 0L
+
+        // 1. Crear gasto supuesto vinculado en Room: refleja la obligación en proyecciones y quincenas sin descontar saldo real
+        val txTitle = if (commitment.beneficiaryName.isNotBlank() && !commitment.title.contains(commitment.beneficiaryName, ignoreCase = true)) {
+            "${commitment.beneficiaryName} - ${commitment.title}".trim()
+        } else {
+            commitment.title.ifBlank { commitment.beneficiaryName }
+        }
+
+        val tentativeTx = TransactionEntity(
+            title = txTitle,
+            amount = commitment.amount,
+            type = TransactionType.EXPENSE,
+            category = commitment.category,
+            dateMillis = commitment.dueDateMillis,
+            isTentative = true,
+            tentativeDecision = "PENDING",
+            notes = if (commitment.description.isNotBlank()) "[PENDIENTE] ${commitment.description}" else "[PENDIENTE] Pago programado"
+        )
+        val linkedId = transactionDao.insertTransaction(tentativeTx)
+
+        // 2. Guardar el compromiso con el identificador estable de la transacción
+        val toSave = commitment.copy(linkedTransactionId = linkedId)
+        val savedId = paymentCommitmentDao.insertCommitment(toSave)
+
+        // 3. Si el beneficiario no existe en el directorio, guardarlo automáticamente
+        if (beneficiaryDao != null && commitment.beneficiaryName.isNotBlank()) {
+            val existing = beneficiaryDao.getAllBeneficiariesList()
+            if (existing.none { it.name.trim().equals(commitment.beneficiaryName.trim(), ignoreCase = true) }) {
+                beneficiaryDao.insertBeneficiary(
+                    BeneficiaryEntity(
+                        name = commitment.beneficiaryName.trim(),
+                        category = commitment.category,
+                        defaultDescription = commitment.description.trim()
+                    )
+                )
+            }
+        }
+
+        savedId
+    }
+
+    suspend fun markPaymentAsPaid(commitmentId: Long): Boolean = runInTransaction {
+        if (paymentCommitmentDao == null) return@runInTransaction false
+        val commitment = paymentCommitmentDao.getCommitmentById(commitmentId) ?: return@runInTransaction false
+
+        // PROTECCIÓN CONTRA DUPLICADOS: Si ya fue confirmado, retornar false de inmediato sin descontar doble
+        if (commitment.isPaid || commitment.status == PaymentStatus.PAID) {
+            return@runInTransaction false
+        }
+
+        val now = System.currentTimeMillis()
+
+        // 1. Actualizar el movimiento vinculado en REGISTROS a GASTO REAL CONFIRMADO
+        val linkedId = commitment.linkedTransactionId
+        if (linkedId != null) {
+            val allTxs = transactionDao.getAllTransactionsList()
+            val existingTx = allTxs.find { it.id == linkedId }
+            if (existingTx != null) {
+                val cleanNotes = existingTx.notes.replace("[PENDIENTE]", "")
+                    .replace("Pendiente", "", ignoreCase = true)
+                    .replace("[SUPUESTO]", "")
+                    .replace("Supuesto", "", ignoreCase = true)
+                    .trim()
+                val confirmedTx = existingTx.copy(
+                    isTentative = false,
+                    tentativeDecision = "CONFIRMED",
+                    isVerified = true,
+                    notes = if (cleanNotes.isNotBlank()) "$cleanNotes (Pagado)" else "Pago realizado"
+                )
+                transactionDao.updateTransaction(confirmedTx)
+            } else {
+                val newRealTx = TransactionEntity(
+                    title = commitment.title.ifBlank { commitment.beneficiaryName },
+                    amount = commitment.amount,
+                    type = TransactionType.EXPENSE,
+                    category = commitment.category,
+                    dateMillis = now,
+                    isTentative = false,
+                    tentativeDecision = "CONFIRMED",
+                    isVerified = true,
+                    notes = "Pago realizado a ${commitment.beneficiaryName}"
+                )
+                transactionDao.insertTransaction(newRealTx)
+            }
+        }
+
+        // 2. Marcar el compromiso como PAGADO con fecha de confirmación
+        val updatedCommitment = commitment.copy(
+            isPaid = true,
+            status = PaymentStatus.PAID,
+            paidDateMillis = now
+        )
+        paymentCommitmentDao.updateCommitment(updatedCommitment)
+
+        // 3. Si es un pago RECURRENTE: generar el siguiente vencimiento automáticamente sin duplicar ni borrar el historial
+        if (commitment.frequency != PaymentFrequency.ONCE) {
+            val nextDueDate = calculateNextDueDate(commitment.dueDateMillis, commitment.frequency)
+            val nextTitle = if (commitment.beneficiaryName.isNotBlank() && !commitment.title.contains(commitment.beneficiaryName, ignoreCase = true)) {
+                "${commitment.beneficiaryName} - ${commitment.title}".trim()
+            } else {
+                commitment.title.ifBlank { commitment.beneficiaryName }
+            }
+            val nextTentativeTx = TransactionEntity(
+                title = nextTitle,
+                amount = commitment.amount,
+                type = TransactionType.EXPENSE,
+                category = commitment.category,
+                dateMillis = nextDueDate,
+                isTentative = true,
+                tentativeDecision = "PENDING",
+                notes = if (commitment.description.isNotBlank()) "[PENDIENTE] ${commitment.description}" else "[PENDIENTE] Pago programado"
+            )
+            val nextLinkedTxId = transactionDao.insertTransaction(nextTentativeTx)
+            val nextCommitment = commitment.copy(
+                id = 0L,
+                dueDateMillis = nextDueDate,
+                isPaid = false,
+                status = PaymentStatus.PENDING,
+                paidDateMillis = null,
+                linkedTransactionId = nextLinkedTxId,
+                createdAtMillis = now
+            )
+            paymentCommitmentDao.insertCommitment(nextCommitment)
+        }
+
+        true
+    }
+
+    suspend fun updatePaymentCommitment(commitment: PaymentCommitmentEntity) = runInTransaction {
+        if (paymentCommitmentDao == null) return@runInTransaction
+        // Si el compromiso aún está pendiente, actualizar la transacción vinculada
+        if (!commitment.isPaid && commitment.linkedTransactionId != null) {
+            val allTxs = transactionDao.getAllTransactionsList()
+            val existingTx = allTxs.find { it.id == commitment.linkedTransactionId }
+            if (existingTx != null) {
+                val updatedTx = existingTx.copy(
+                    title = if (commitment.beneficiaryName.isNotBlank() && !commitment.title.contains(commitment.beneficiaryName, ignoreCase = true)) {
+                        "${commitment.beneficiaryName} - ${commitment.title}".trim()
+                    } else commitment.title,
+                    amount = commitment.amount,
+                    category = commitment.category,
+                    dateMillis = commitment.dueDateMillis
+                )
+                transactionDao.updateTransaction(updatedTx)
+            }
+        }
+        paymentCommitmentDao.updateCommitment(commitment)
+    }
+
+    suspend fun deletePaymentCommitment(commitment: PaymentCommitmentEntity) = runInTransaction {
+        if (paymentCommitmentDao == null) return@runInTransaction
+        // PROTECCIÓN DE HISTORIAL: Si el compromiso ya fue pagado, NO borrar el gasto real confirmado
+        if (!commitment.isPaid && commitment.linkedTransactionId != null) {
+            transactionDao.deleteById(commitment.linkedTransactionId)
+        }
+        paymentCommitmentDao.deleteCommitment(commitment)
+    }
+
+    fun calculateNextDueDate(currentDueMillis: Long, frequency: String): Long {
+        val cal = Calendar.getInstance().apply { timeInMillis = currentDueMillis }
+        when (frequency) {
+            PaymentFrequency.WEEKLY -> cal.add(Calendar.DAY_OF_YEAR, 7)
+            PaymentFrequency.BIWEEKLY -> cal.add(Calendar.DAY_OF_YEAR, 14)
+            PaymentFrequency.MONTHLY -> cal.add(Calendar.MONTH, 1)
+            else -> cal.add(Calendar.MONTH, 1)
+        }
+        return cal.timeInMillis
+    }
+
+    suspend fun addBeneficiary(beneficiary: BeneficiaryEntity): Long {
+        return beneficiaryDao?.insertBeneficiary(beneficiary) ?: 0L
+    }
+
+    suspend fun updateBeneficiary(beneficiary: BeneficiaryEntity) {
+        beneficiaryDao?.updateBeneficiary(beneficiary)
+    }
+
+    suspend fun deleteBeneficiary(beneficiary: BeneficiaryEntity) {
+        beneficiaryDao?.deleteBeneficiary(beneficiary)
+    }
+
+    suspend fun ensureDefaultBeneficiaries() = runInTransaction {
+        if (beneficiaryDao == null) return@runInTransaction
+        val existing = beneficiaryDao.getAllBeneficiariesList()
+        if (existing.isEmpty()) {
+            val defaults = listOf(
+                BeneficiaryEntity(name = "EEGSA", category = "Vivienda & Servicios", defaultDescription = "Servicio de Electricidad"),
+                BeneficiaryEntity(name = "Tigo", category = "Telefonía & Internet", defaultDescription = "Internet Residencial / Móvil"),
+                BeneficiaryEntity(name = "Claro", category = "Telefonía & Internet", defaultDescription = "Línea y Claro Hogar"),
+                BeneficiaryEntity(name = "Alquiler", category = "Vivienda & Servicios", defaultDescription = "Renta mensual de vivienda"),
+                BeneficiaryEntity(name = "Colegio", category = "Educación", defaultDescription = "Mensualidad / Colegiatura"),
+                BeneficiaryEntity(name = "Préstamo / Banco", category = "Otros Gastos", defaultDescription = "Cuota mensual crédito"),
+                BeneficiaryEntity(name = "Agua Potable", category = "Vivienda & Servicios", defaultDescription = "Servicio de agua / Municipal"),
+                BeneficiaryEntity(name = "Seguro Médico", category = "Salud & Medicina", defaultDescription = "Cuota seguro de salud")
+            )
+            beneficiaryDao.insertAllBeneficiaries(defaults)
         }
     }
 
@@ -417,6 +877,8 @@ class BudgetRepository(
         savingsGoalDao.clearAll()
         recurringExpenseDao.clearAll()
         smartCartDao.clearAll()
+        paymentCommitmentDao?.clearAll()
+        beneficiaryDao?.clearAll()
     }
 
     fun parseCsvLine(line: String): List<String> {

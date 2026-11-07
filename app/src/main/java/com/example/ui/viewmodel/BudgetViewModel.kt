@@ -96,7 +96,17 @@ data class BudgetUiState(
     val filteredSupuestoExpense: Double = 0.0,
     val filteredTotalBothExpenses: Double = 0.0,
     val filteredRealRemainingBalance: Double = 0.0,
-    val filteredProjectedRemainingBalance: Double = 0.0
+    val filteredProjectedRemainingBalance: Double = 0.0,
+    // Módulo Pagos
+    val paymentCommitments: List<PaymentCommitmentEntity> = emptyList(),
+    val paymentBeneficiaries: List<BeneficiaryEntity> = emptyList(),
+    val totalPendingPayments: Double = 0.0,
+    val upcomingPaymentsCount: Int = 0,
+    val overduePaymentsCount: Int = 0,
+    val monthPaidPaymentsTotal: Double = 0.0,
+    val nextUpcomingPayment: PaymentCommitmentEntity? = null,
+    // Plantillas Reutilizables de Compras
+    val shoppingTemplates: List<ShoppingTemplateEntity> = emptyList()
 )
 
 private data class BasicFilterBundle(
@@ -231,10 +241,15 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             savingsGoalDao = db.savingsGoalDao(),
             recurringExpenseDao = db.recurringExpenseDao(),
             smartCartDao = db.smartCartDao(),
+            paymentCommitmentDao = db.paymentCommitmentDao(),
+            beneficiaryDao = db.beneficiaryDao(),
+            shoppingTemplateDao = db.shoppingTemplateDao(),
             database = db
         )
         viewModelScope.launch {
             repository.deduplicateItemsIfAny()
+            repository.ensureDefaultBeneficiaries()
+            repository.ensureDefaultShoppingTemplates()
         }
     }
 
@@ -333,16 +348,31 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         val budgets: List<BudgetLimitEntity>,
         val goals: List<SavingsGoalEntity>,
         val recurring: List<RecurringExpenseEntity>,
-        val cartItems: List<SmartCartItemEntity>
+        val cartItems: List<SmartCartItemEntity>,
+        val payments: List<PaymentCommitmentEntity>,
+        val beneficiaries: List<BeneficiaryEntity>,
+        val templates: List<ShoppingTemplateEntity>
     )
 
     private val plansDataFlow = combine(
         repository.allBudgets,
         repository.allGoals,
         repository.allRecurringExpenses,
-        repository.allCartItems
-    ) { budgets, goals, recurring, cartItems ->
-        PlansData(budgets, goals, recurring, cartItems)
+        repository.allCartItems,
+        repository.allPaymentCommitments,
+        repository.allBeneficiaries,
+        repository.allShoppingTemplates
+    ) { args: Array<Any?> ->
+        @Suppress("UNCHECKED_CAST")
+        PlansData(
+            budgets = args[0] as List<BudgetLimitEntity>,
+            goals = args[1] as List<SavingsGoalEntity>,
+            recurring = args[2] as List<RecurringExpenseEntity>,
+            cartItems = args[3] as List<SmartCartItemEntity>,
+            payments = args[4] as List<PaymentCommitmentEntity>,
+            beneficiaries = args[5] as List<BeneficiaryEntity>,
+            templates = args[6] as List<ShoppingTemplateEntity>
+        )
     }
 
     val uiState: StateFlow<BudgetUiState> = combine(
@@ -619,6 +649,41 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             else -> 100
         }
 
+        // Métricas de Pagos y Compromisos
+        val payments = plans.payments
+        val beneficiaries = plans.beneficiaries
+
+        val nowTime = System.currentTimeMillis()
+        val totalPendingPaymentsVal = payments.filter { !it.isPaid && it.status != PaymentStatus.PAID }.sumOf { it.amount }
+        val upcomingPaymentsCountVal = payments.count { it.isUpcoming(nowTime, 7) }
+        val overduePaymentsCountVal = payments.count { it.isOverdue(nowTime) }
+
+        val (monthStartMillis, monthEndMillis) = run {
+            val cal = Calendar.getInstance().apply {
+                clear()
+                set(Calendar.YEAR, dateRange.year)
+                set(Calendar.MONTH, dateRange.monthIndex)
+                set(Calendar.DAY_OF_MONTH, 1)
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }
+            val start = cal.timeInMillis
+            val maxDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+            cal.set(Calendar.DAY_OF_MONTH, maxDay)
+            cal.set(Calendar.HOUR_OF_DAY, 23)
+            cal.set(Calendar.MINUTE, 59)
+            cal.set(Calendar.SECOND, 59)
+            cal.set(Calendar.MILLISECOND, 999)
+            val end = cal.timeInMillis
+            Pair(start, end)
+        }
+        val monthPaidPaymentsTotalVal = payments.filter { it.isPaid && (it.paidDateMillis ?: 0L) in monthStartMillis..monthEndMillis }.sumOf { it.amount }
+
+        val nextUpcomingPaymentVal = payments.filter { !it.isPaid && it.status != PaymentStatus.PAID }
+            .minByOrNull { it.dueDateMillis }
+
         BudgetUiState(
             isLoading = false,
             isAllTime = dateRange.startMillis == 0L,
@@ -687,7 +752,15 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             filteredSupuestoExpense = filteredSupuestoExp,
             filteredTotalBothExpenses = filteredTotalBothExp,
             filteredRealRemainingBalance = filteredRealRemaining,
-            filteredProjectedRemainingBalance = filteredProjectedRemaining
+            filteredProjectedRemainingBalance = filteredProjectedRemaining,
+            paymentCommitments = payments,
+            paymentBeneficiaries = beneficiaries,
+            totalPendingPayments = totalPendingPaymentsVal,
+            upcomingPaymentsCount = upcomingPaymentsCountVal,
+            overduePaymentsCount = overduePaymentsCountVal,
+            monthPaidPaymentsTotal = monthPaidPaymentsTotalVal,
+            nextUpcomingPayment = nextUpcomingPaymentVal,
+            shoppingTemplates = plans.templates
         )
     }.stateIn(
         scope = viewModelScope,
@@ -1141,22 +1214,21 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         store: String = "General",
         notes: String = "",
         url: String = "",
-        priceSource: String = "PANTRY_AMARILLO"
+        priceSource: String = "MANUAL"
     ) {
         viewModelScope.launch {
-            repository.addOrUpdateUnifiedItem(
+            repository.addOrUpdateCartItem(
                 name = name,
                 quantity = quantity,
                 unit = unit,
                 brand = brand,
-                estimatedUnitPrice = price,
-                storeName = store,
-                status = if (priceSource.startsWith("PANTRY_")) priceSource else "PANTRY_AMARILLO",
-                isChecked = false,
+                price = price,
+                store = store,
                 notes = notes,
-                productUrl = url
+                url = url,
+                priceSource = if (priceSource.startsWith("PANTRY_")) "MANUAL" else priceSource
             )
-            showToast("Producto guardado en Smart Cart.")
+            showToast("Producto agregado a la lista del súper.")
         }
     }
 
@@ -1220,19 +1292,21 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         status: String = "PANTRY_VERDE",
         price: Double = 0.0,
         store: String = "General",
-        notes: String = ""
+        notes: String = "",
+        brand: String = ""
     ) {
         viewModelScope.launch {
-            repository.addOrUpdateUnifiedItem(
+            repository.addOrUpdatePantryItem(
                 name = name,
                 quantity = quantity,
                 unit = unit,
                 status = status,
-                estimatedUnitPrice = price,
-                storeName = store,
-                notes = notes
+                price = price,
+                store = store,
+                notes = notes,
+                brand = brand
             )
-            showToast("Artículo guardado en tu despensa.")
+            showToast("Artículo guardado en Mi Despensa.")
         }
     }
 
@@ -1313,7 +1387,13 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     private val isCheckoutInProgress = java.util.concurrent.atomic.AtomicBoolean(false)
 
-    fun checkoutCartAsExpense(title: String, amount: Double, storeName: String, purchasedNames: List<String>) {
+    fun checkoutCartAsExpense(
+        title: String,
+        amount: Double,
+        storeName: String,
+        purchasedNames: List<String>,
+        updatePantryOnCheckout: Boolean = true
+    ) {
         if (!isCheckoutInProgress.compareAndSet(false, true)) {
             return
         }
@@ -1323,15 +1403,166 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                     title = title,
                     amount = amount,
                     storeName = storeName,
-                    purchasedItemNames = purchasedNames
+                    purchasedItemNames = purchasedNames,
+                    updatePantryOnCheckout = updatePantryOnCheckout
                 )
                 if (success) {
-                    showToast("Compra registrada de Q${"%,.2f".format(amount)} y despensa actualizada.")
+                    showToast("Compra registrada de Q${"%,.2f".format(amount)} en Alimentación & Súper.")
                 }
             } finally {
                 kotlinx.coroutines.delay(800L)
                 isCheckoutInProgress.set(false)
             }
+        }
+    }
+
+    fun saveCartAsTemplate(name: String, description: String = "") {
+        viewModelScope.launch {
+            val id = repository.saveCartAsTemplate(name, description)
+            if (id > 0) {
+                showToast("Plantilla «$name» guardada exitosamente.")
+            } else {
+                showToast("No hay productos en la lista activa para guardar.")
+            }
+        }
+    }
+
+    fun applyTemplateToCart(templateId: Long) {
+        viewModelScope.launch {
+            val count = repository.applyTemplateToCart(templateId)
+            if (count > 0) {
+                showToast("¡Listo! $count productos agregados a tu lista del súper.")
+            } else {
+                showToast("La plantilla seleccionada no contiene productos.")
+            }
+        }
+    }
+
+    fun duplicateTemplate(templateId: Long, newName: String = "") {
+        viewModelScope.launch {
+            repository.duplicateTemplate(templateId, newName)
+            showToast("Plantilla duplicada.")
+        }
+    }
+
+    fun deleteTemplate(template: ShoppingTemplateEntity) {
+        viewModelScope.launch {
+            repository.deleteTemplate(template)
+            showToast("Plantilla «${template.name}» eliminada.")
+        }
+    }
+
+    fun updateTemplate(template: ShoppingTemplateEntity) {
+        viewModelScope.launch {
+            repository.updateTemplate(template)
+            showToast("Plantilla actualizada.")
+        }
+    }
+
+    // =========================================================================
+    // MÓDULO PAGOS: MÉTODOS DE COMPROMISOS FAMILIARES & BENEFICIARIOS
+    // =========================================================================
+
+    fun addPaymentCommitment(
+        title: String,
+        beneficiaryName: String,
+        description: String = "",
+        amount: Double,
+        dueDateMillis: Long,
+        category: String = "Vivienda & Servicios",
+        frequency: String = PaymentFrequency.ONCE,
+        isVariableAmount: Boolean = false,
+        reminderDaysBefore: Int = 1,
+        notes: String = ""
+    ) {
+        viewModelScope.launch {
+            val commitment = PaymentCommitmentEntity(
+                title = title.trim(),
+                beneficiaryName = beneficiaryName.trim(),
+                description = description.trim(),
+                amount = amount.coerceAtLeast(0.0),
+                dueDateMillis = dueDateMillis,
+                category = category,
+                frequency = frequency,
+                isVariableAmount = isVariableAmount,
+                reminderDaysBefore = reminderDaysBefore,
+                notes = notes.trim()
+            )
+            val savedId = repository.createPaymentCommitment(commitment)
+            if (reminderDaysBefore >= 0) {
+                com.example.data.service.PaymentReminderManager.scheduleReminder(
+                    getApplication(),
+                    commitment.copy(id = savedId)
+                )
+            }
+            showToast("Compromiso de pago guardado y proyectado.")
+        }
+    }
+
+    fun markPaymentAsPaid(commitmentId: Long) {
+        viewModelScope.launch {
+            val success = repository.markPaymentAsPaid(commitmentId)
+            if (success) {
+                com.example.data.service.PaymentReminderManager.cancelReminder(getApplication(), commitmentId)
+                showToast("¡Pago confirmado! Registrado en tus gastos reales.")
+            } else {
+                showToast("El pago ya se encontraba confirmado.")
+            }
+        }
+    }
+
+    fun updatePaymentCommitment(commitment: PaymentCommitmentEntity) {
+        viewModelScope.launch {
+            repository.updatePaymentCommitment(commitment)
+            if (commitment.reminderDaysBefore >= 0 && !commitment.isPaid) {
+                com.example.data.service.PaymentReminderManager.scheduleReminder(getApplication(), commitment)
+            } else {
+                com.example.data.service.PaymentReminderManager.cancelReminder(getApplication(), commitment.id)
+            }
+            showToast("Compromiso de pago actualizado.")
+        }
+    }
+
+    fun deletePaymentCommitment(commitment: PaymentCommitmentEntity) {
+        viewModelScope.launch {
+            com.example.data.service.PaymentReminderManager.cancelReminder(getApplication(), commitment.id)
+            repository.deletePaymentCommitment(commitment)
+            showToast("Compromiso de pago eliminado.")
+        }
+    }
+
+    fun addBeneficiary(
+        name: String,
+        category: String = "Vivienda & Servicios",
+        defaultDescription: String = "",
+        phoneOrContact: String = "",
+        notes: String = ""
+    ) {
+        viewModelScope.launch {
+            repository.addBeneficiary(
+                BeneficiaryEntity(
+                    name = name.trim(),
+                    category = category,
+                    defaultDescription = defaultDescription.trim(),
+                    phoneOrContact = phoneOrContact.trim(),
+                    notes = notes.trim()
+                )
+            )
+            showToast("Beneficiario «$name» guardado.")
+        }
+    }
+
+    fun updateBeneficiary(beneficiary: BeneficiaryEntity) {
+        viewModelScope.launch {
+            repository.updateBeneficiary(beneficiary)
+            showToast("Beneficiario actualizado.")
+        }
+    }
+
+    fun deleteBeneficiary(beneficiary: BeneficiaryEntity) {
+        viewModelScope.launch {
+            repository.deleteBeneficiary(beneficiary)
+            showToast("Beneficiario eliminado.")
         }
     }
 }

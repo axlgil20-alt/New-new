@@ -99,6 +99,53 @@ data class RecurringExpenseEntity(
     val isActive: Boolean = true
 )
 
+object PaymentFrequency {
+    const val ONCE = "ONCE"
+    const val WEEKLY = "WEEKLY"
+    const val BIWEEKLY = "BIWEEKLY"
+    const val MONTHLY = "MONTHLY"
+    const val CUSTOM = "CUSTOM"
+}
+
+object PaymentStatus {
+    const val PENDING = "PENDING"
+    const val PAID = "PAID"
+    const val CANCELLED = "CANCELLED"
+}
+
+@Entity(tableName = "payment_commitments")
+data class PaymentCommitmentEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0L,
+    val title: String,
+    val beneficiaryName: String,
+    val description: String = "",
+    val amount: Double,
+    val dueDateMillis: Long,
+    val category: String = "Vivienda & Servicios",
+    val frequency: String = PaymentFrequency.ONCE,
+    val isVariableAmount: Boolean = false,
+    val reminderDaysBefore: Int = 1, // 0 = Mismo día, 1 = 1 día antes, 2 = 2 días antes, etc.
+    val status: String = PaymentStatus.PENDING,
+    val isPaid: Boolean = false,
+    val paidDateMillis: Long? = null,
+    val linkedTransactionId: Long? = null,
+    val createdAtMillis: Long = System.currentTimeMillis(),
+    val notes: String = ""
+)
+
+@Entity(tableName = "payment_beneficiaries")
+data class BeneficiaryEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0L,
+    val name: String,
+    val category: String = "Vivienda & Servicios",
+    val defaultDescription: String = "",
+    val phoneOrContact: String = "",
+    val notes: String = "",
+    val createdAtMillis: Long = System.currentTimeMillis()
+)
+
 @Entity(tableName = "smart_cart_items")
 data class SmartCartItemEntity(
     @PrimaryKey(autoGenerate = true)
@@ -116,14 +163,43 @@ data class SmartCartItemEntity(
     val createdAt: Long = System.currentTimeMillis()
 )
 
+@Entity(tableName = "shopping_templates")
+data class ShoppingTemplateEntity(
+    @PrimaryKey(autoGenerate = true)
+    val id: Long = 0L,
+    val name: String,
+    val description: String = "",
+    val itemsJson: String = "[]",
+    val itemCount: Int = 0,
+    val estimatedTotal: Double = 0.0,
+    val createdAtMillis: Long = System.currentTimeMillis()
+)
+
+data class TemplateItemData(
+    val name: String,
+    val quantity: Double = 1.0,
+    val unit: String = "Unidad",
+    val brand: String = "",
+    val estimatedUnitPrice: Double = 0.0,
+    val storeName: String = "General",
+    val notes: String = ""
+)
+
 fun SmartCartItemEntity.isPantryProduct(): Boolean =
-    priceSource.contains("PANTRY_")
+    priceSource.startsWith("PANTRY_")
 
 fun SmartCartItemEntity.getPantryStatus(): String = when {
     priceSource.contains("PANTRY_VERDE") -> "PANTRY_VERDE"
     priceSource.contains("PANTRY_AMARILLO") -> "PANTRY_AMARILLO"
     priceSource.contains("PANTRY_ROJO") -> "PANTRY_ROJO"
     else -> "PANTRY_AMARILLO"
+}
+
+fun SmartCartItemEntity.getPantryStatusDisplay(): String = when (getPantryStatus()) {
+    "PANTRY_VERDE" -> "Verde (Suficiente)"
+    "PANTRY_AMARILLO" -> "Amarillo (Por agotarse)"
+    "PANTRY_ROJO" -> "Rojo (Agotado)"
+    else -> "Amarillo (Por agotarse)"
 }
 
 fun SmartCartItemEntity.isInShoppingList(): Boolean =
@@ -257,3 +333,21 @@ val TransactionEntity.quincenaNumber: Int
 
 val TransactionEntity.quincenaLabel: String
     get() = if (quincenaNumber == 1) "1ra Quincena (1 - 15)" else "2da Quincena (16 - fin de mes)"
+
+fun PaymentCommitmentEntity.isOverdue(nowMillis: Long = System.currentTimeMillis()): Boolean {
+    if (isPaid || status == PaymentStatus.PAID) return false
+    val (todayStart, _) = com.example.ui.util.QuincenaFilterHelper.getDayRange(nowMillis)
+    return dueDateMillis < todayStart
+}
+
+fun PaymentCommitmentEntity.isDueToday(nowMillis: Long = System.currentTimeMillis()): Boolean {
+    val (todayStart, todayEnd) = com.example.ui.util.QuincenaFilterHelper.getDayRange(nowMillis)
+    return dueDateMillis in todayStart..todayEnd
+}
+
+fun PaymentCommitmentEntity.isUpcoming(nowMillis: Long = System.currentTimeMillis(), days: Int = 7): Boolean {
+    if (isPaid || status == PaymentStatus.PAID) return false
+    val (todayStart, _) = com.example.ui.util.QuincenaFilterHelper.getDayRange(nowMillis)
+    val horizonMillis = todayStart + days * 24L * 60L * 60L * 1000L + (24L * 60L * 60L * 1000L - 1)
+    return dueDateMillis in todayStart..horizonMillis
+}

@@ -16,8 +16,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -30,9 +33,14 @@ import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.ui.screens.FinancialAdvisorScreen
+import com.example.ui.screens.PaymentsScreen
+import com.example.ui.screens.SmartCartScreen
 import com.example.ui.theme.EmeraldGreen
+import com.example.ui.theme.ExpenseRed
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -135,7 +143,7 @@ class MainActivity : ComponentActivity() {
                                 selected = selectedTab == 1,
                                 onClick = { selectedTab = 1 },
                                 icon = { Icon(Icons.Default.ReceiptLong, contentDescription = "Registros") },
-                                label = { Text("Registros") }
+                                label = { Text("Registros", fontSize = 10.sp, maxLines = 1, softWrap = false) }
                             )
 
                             // 2. Quincenas
@@ -143,7 +151,7 @@ class MainActivity : ComponentActivity() {
                                 selected = selectedTab == 2,
                                 onClick = { selectedTab = 2 },
                                 icon = { Icon(Icons.Default.CalendarMonth, contentDescription = "Quincenas") },
-                                label = { Text("Quincenas") }
+                                label = { Text("Quincenas", fontSize = 10.sp, maxLines = 1, softWrap = false) }
                             )
 
                             // 3. HOY (Centrado y Destacado con relieve visual)
@@ -155,14 +163,14 @@ class MainActivity : ComponentActivity() {
                                         shape = CircleShape,
                                         color = if (selectedTab == 0) EmeraldGreen else EmeraldGreen.copy(alpha = 0.15f),
                                         shadowElevation = if (selectedTab == 0) 6.dp else 0.dp,
-                                        modifier = Modifier.size(42.dp)
+                                        modifier = Modifier.size(38.dp)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Icon(
                                                 imageVector = Icons.Default.Home,
                                                 contentDescription = "HOY",
                                                 tint = if (selectedTab == 0) Color.White else EmeraldGreen,
-                                                modifier = Modifier.size(24.dp)
+                                                modifier = Modifier.size(22.dp)
                                             )
                                         }
                                     }
@@ -170,26 +178,86 @@ class MainActivity : ComponentActivity() {
                                 label = {
                                     Text(
                                         text = "HOY",
+                                        fontSize = 11.sp,
+                                        maxLines = 1,
+                                        softWrap = false,
                                         fontWeight = if (selectedTab == 0) FontWeight.ExtraBold else FontWeight.Normal,
                                         color = if (selectedTab == 0) EmeraldGreen else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 }
                             )
 
-                            // 4. Asesor (Dedicado con ícono Robot/AI)
+                            // 4. Pagos (Nueva pestaña principal independiente)
                             NavigationBarItem(
-                                selected = selectedTab == 3,
-                                onClick = { selectedTab = 3 },
-                                icon = { Icon(Icons.Default.SmartToy, contentDescription = "Asesor IA") },
-                                label = { Text("Asesor") }
+                                selected = selectedTab == 5,
+                                onClick = { selectedTab = 5 },
+                                icon = {
+                                    BadgedBox(
+                                        badge = {
+                                            if (uiState.overduePaymentsCount > 0) {
+                                                Badge(containerColor = ExpenseRed) {
+                                                    Text("${uiState.overduePaymentsCount}", fontSize = 9.sp)
+                                                }
+                                            } else if (uiState.upcomingPaymentsCount > 0) {
+                                                Badge(containerColor = Color(0xFF2563EB)) {
+                                                    Text("${uiState.upcomingPaymentsCount}", fontSize = 9.sp)
+                                                }
+                                            }
+                                        }
+                                    ) {
+                                        Icon(Icons.Default.Payments, contentDescription = "Pagos")
+                                    }
+                                },
+                                label = {
+                                    Text(
+                                        text = "Pagos",
+                                        fontSize = 10.sp,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        fontWeight = if (selectedTab == 5) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (selectedTab == 5) EmeraldGreen else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             )
 
-                            // 5. Ajustes
+                            // 5. Smart Cart (Lista del súper, despensa y plantillas)
+                            val pendingCartCount = uiState.smartCartItems.count { !it.isChecked }
+                            NavigationBarItem(
+                                selected = selectedTab == 7,
+                                onClick = { selectedTab = 7 },
+                                icon = {
+                                    if (pendingCartCount > 0) {
+                                        BadgedBox(
+                                            badge = {
+                                                Badge(containerColor = EmeraldGreen) {
+                                                    Text("$pendingCartCount", fontSize = 9.sp, color = Color.White)
+                                                }
+                                            }
+                                        ) {
+                                            Icon(Icons.Default.ShoppingCart, contentDescription = "Smart Cart")
+                                        }
+                                    } else {
+                                        Icon(Icons.Default.ShoppingCart, contentDescription = "Smart Cart")
+                                    }
+                                },
+                                label = {
+                                    Text(
+                                        text = "Smart Cart",
+                                        fontSize = 10.sp,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        fontWeight = if (selectedTab == 7) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (selectedTab == 7) EmeraldGreen else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            )
+
+                            // 6. Ajustes / Más
                             NavigationBarItem(
                                 selected = selectedTab == 4 || selectedTab == 6,
                                 onClick = { selectedTab = 4 },
                                 icon = { Icon(Icons.Default.Build, contentDescription = "Ajustes") },
-                                label = { Text("Más") }
+                                label = { Text("Más", fontSize = 10.sp, maxLines = 1, softWrap = false) }
                             )
                         }
                     }
@@ -218,7 +286,8 @@ class MainActivity : ComponentActivity() {
                                 onHighlightTransaction = { tx, hex -> viewModel.highlightTransaction(tx, hex) },
                                 onToggleVerifyTransaction = { tx -> viewModel.toggleVerifyTransaction(tx) },
                                 onDecideTentative = { tx, decision -> viewModel.decideTentativeTransaction(tx, decision) },
-                                onOpenSmartCartClick = { showSmartCartDialog = true }
+                                onOpenSmartCartClick = { selectedTab = 7 },
+                                onOpenPaymentsClick = { selectedTab = 5 }
                             )
 
                             1 -> TransactionsScreen(
@@ -276,9 +345,12 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
-                            3 -> FinancialAdvisorScreen(
-                                uiState = uiState
-                            )
+                            3 -> {
+                                BackHandler { selectedTab = 4 }
+                                FinancialAdvisorScreen(
+                                    uiState = uiState
+                                )
+                            }
 
                             4 -> GoalsAndToolsScreen(
                                 uiState = uiState,
@@ -291,7 +363,7 @@ class MainActivity : ComponentActivity() {
                                 onToggleDarkTheme = { viewModel.toggleDarkTheme() },
                                 onOpenQuincenas = { selectedTab = 2 },
                                 onOpenLimits = { selectedTab = 6 },
-                                onOpenSmartCart = { showSmartCartDialog = true },
+                                onOpenSmartCart = { selectedTab = 7 },
                                 onSaveIncomeToBudget = { title, amountGtq, note ->
                                     viewModel.addTransaction(
                                         com.example.data.model.TransactionEntity(
@@ -318,6 +390,24 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
 
+                            5 -> {
+                                BackHandler { selectedTab = 0 }
+                                PaymentsScreen(
+                                    uiState = uiState,
+                                    onAddPayment = { title, ben, desc, amt, due, cat, freq, isVar, rem, notes ->
+                                        viewModel.addPaymentCommitment(title, ben, desc, amt, due, cat, freq, isVar, rem, notes)
+                                    },
+                                    onMarkAsPaid = { id -> viewModel.markPaymentAsPaid(id) },
+                                    onUpdatePayment = { p -> viewModel.updatePaymentCommitment(p) },
+                                    onDeletePayment = { p -> viewModel.deletePaymentCommitment(p) },
+                                    onAddBeneficiary = { name, cat, desc, cont, notes ->
+                                        viewModel.addBeneficiary(name, cat, desc, cont, notes)
+                                    },
+                                    onUpdateBeneficiary = { ben -> viewModel.updateBeneficiary(ben) },
+                                    onDeleteBeneficiary = { ben -> viewModel.deleteBeneficiary(ben) }
+                                )
+                            }
+
                             6 -> {
                                 BackHandler { selectedTab = 4 }
                                 BudgetsScreen(
@@ -340,6 +430,50 @@ class MainActivity : ComponentActivity() {
                                     onAddSavingsGoalClick = { showSavingsGoalDialog = true },
                                     onDeleteSavingsGoal = { goal -> viewModel.deleteSavingsGoal(goal) },
                                     onContributeSavingsGoal = { goal, amt -> viewModel.contributeToGoal(goal, amt) }
+                                )
+                            }
+
+                            7 -> {
+                                BackHandler { selectedTab = 0 }
+                                SmartCartScreen(
+                                    uiState = uiState,
+                                    onAddItem = { name, qty, unit, brand, price, store, notes, url ->
+                                        viewModel.addSmartCartItem(
+                                            name = name,
+                                            quantity = qty,
+                                            unit = unit,
+                                            brand = brand,
+                                            price = price,
+                                            store = store,
+                                            notes = notes,
+                                            url = url,
+                                            priceSource = "MANUAL"
+                                        )
+                                    },
+                                    onUpdateItem = { item -> viewModel.updateSmartCartItem(item) },
+                                    onDeleteItem = { item -> viewModel.deleteSmartCartItem(item) },
+                                    onToggleChecked = { item -> viewModel.toggleSmartCartItemChecked(item) },
+                                    onSetBudget = { budget -> viewModel.setSmartCartBudget(budget) },
+                                    onCheckoutExpense = { title, amount, store, purchasedNames, updatePantry ->
+                                        viewModel.checkoutCartAsExpense(title, amount, store, purchasedNames, updatePantry)
+                                    },
+                                    onAddPantryItem = { name, qty, unit, status, price, store, notes, brand ->
+                                        viewModel.addPantryItem(name, qty, unit, status, price, store, notes, brand)
+                                    },
+                                    onUpdatePantryItem = { item -> viewModel.updatePantryItem(item) },
+                                    onTogglePantryStatus = { item -> viewModel.togglePantryStatus(item) },
+                                    onDeletePantryItem = { item -> viewModel.deletePantryItem(item) },
+                                    onTogglePantryInCart = { item -> viewModel.togglePantryInCart(item) },
+                                    onIncorporateNeedToBuy = { viewModel.incorporateNeedToBuy() },
+                                    onClearChecked = { viewModel.clearCheckedCartItems() },
+                                    onClearAllCart = { viewModel.clearAllCartItems() },
+                                    onSaveTemplate = { name, desc -> viewModel.saveCartAsTemplate(name, desc) },
+                                    onApplyTemplate = { id -> viewModel.applyTemplateToCart(id) },
+                                    onDuplicateTemplate = { id, name -> viewModel.duplicateTemplate(id, name) },
+                                    onDeleteTemplate = { template -> viewModel.deleteTemplate(template) },
+                                    onAddScannedItems = { items, dest, avoidDup ->
+                                        viewModel.addScannedItems(items, dest, avoidDup)
+                                    }
                                 )
                             }
                         }

@@ -68,6 +68,7 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.model.TransactionEntity
 import com.example.ui.components.CategoryBreakdownChart
+import com.example.ui.components.CompactPaymentsSummaryCard
 import com.example.ui.components.DashboardVisualChartsCard
 import com.example.ui.components.FinancialSummaryCard
 import com.example.ui.components.MonthlyExecutiveSummaryCard
@@ -113,6 +114,7 @@ fun InicioScreen(
     onDecideTentative: (TransactionEntity, String) -> Unit,
     onToggleDarkTheme: () -> Unit = {},
     onOpenSmartCartClick: () -> Unit = {},
+    onOpenPaymentsClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val homeBackground = if (uiState.isDarkTheme) Color(0xFF1D1814) else Color(0xFFFCF7EE)
@@ -356,6 +358,21 @@ fun InicioScreen(
                         onToggleIncludeTentative = onToggleIncludeTentative,
                         isDiscreetMode = uiState.isDiscreetMode,
                         isDarkTheme = uiState.isDarkTheme
+                    )
+                }
+
+                // 4b. Resumen Compacto de Compromisos de Pago (Módulo Pagos)
+                item {
+                    CompactPaymentsSummaryCard(
+                        totalPending = uiState.totalPendingPayments,
+                        upcomingCount = uiState.upcomingPaymentsCount,
+                        overdueCount = uiState.overduePaymentsCount,
+                        nextPayment = uiState.nextUpcomingPayment,
+                        currencySymbol = uiState.currencySymbol,
+                        isDiscreetMode = uiState.isDiscreetMode,
+                        isDarkTheme = uiState.isDarkTheme,
+                        onOpenPayments = onOpenPaymentsClick,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
                     )
                 }
 

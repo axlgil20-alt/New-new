@@ -439,21 +439,10 @@ fun GoalsAndToolsScreen(
             item {
                 ToolActionCard(
                     title = "Asesor Financiero Familiar (IA)",
-                    subtitle = "Chat conversacional inteligente con diagnóstico de salud financiera",
+                    subtitle = "Diagnóstico integral, salud financiera y recomendaciones inteligentes",
                     icon = Icons.Default.AutoAwesome,
                     iconColor = Color(0xFF10B981),
-                    onClick = { showAdvisorDialog = true }
-                )
-            }
-
-            // 2. Control de Quincenas (Planificado vs Real)
-            item {
-                ToolActionCard(
-                    title = "Control de Quincenas (Planificado vs Real)",
-                    subtitle = "Comparativa quincenal de presupuestos asignados contra gastos ejecutados",
-                    icon = Icons.Default.CalendarMonth,
-                    iconColor = Color(0xFF0284C7),
-                    onClick = onOpenQuincenas
+                    onClick = onOpenAdvisor
                 )
             }
 
