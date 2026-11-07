@@ -261,6 +261,8 @@ fun QuetziMascotView(
     val combinedY = flightY + (if (!isDeepFlying) idleOffsetY else 0f)
     val combinedRotation = flightTilt + idleTilt + spinRotation.value + (waveHandAngle.value * 0.25f)
 
+    val isDark = uiState?.isDarkTheme ?: false
+
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -274,7 +276,7 @@ fun QuetziMascotView(
             },
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (uiState.isDarkTheme) {
+            containerColor = if (isDark) {
                 if (isCelebrating) Color(0xFF263629) else Color(0xFF1E261D)
             } else {
                 if (isCelebrating) Color(0xFFF0FDF4) else Color(0xFFFBFDFB)
@@ -283,7 +285,7 @@ fun QuetziMascotView(
         elevation = CardDefaults.cardElevation(defaultElevation = if (isDeepFlying) 8.dp else 2.dp),
         border = androidx.compose.foundation.BorderStroke(
             1.2.dp,
-            if (uiState.isDarkTheme) {
+            if (isDark) {
                 if (isCelebrating) Color(0xFF6B9B68) else Color(0xFF435143)
             } else {
                 if (isCelebrating) Color(0xFF86EFAC) else Color(0xFFD1E7DD)
@@ -382,12 +384,12 @@ fun QuetziMascotView(
                             text = "Quetzi",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.ExtraBold,
-                            color = if (uiState.isDarkTheme) Color(0xFFA8D5A0) else EmeraldGreen
+                            color = if (isDark) Color(0xFFA8D5A0) else EmeraldGreen
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = if (uiState.isDarkTheme) Color(0xFF344433) else Color(0xFFD1E7DD)
+                            color = if (isDark) Color(0xFF344433) else Color(0xFFD1E7DD)
                         ) {
                             Text(
                                 text = when {
@@ -397,7 +399,7 @@ fun QuetziMascotView(
                                     else -> "Consejo Financiero"
                                 },
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (uiState.isDarkTheme) Color(0xFFA8D5A0) else EmeraldGreen,
+                                color = if (isDark) Color(0xFFA8D5A0) else EmeraldGreen,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
@@ -407,7 +409,7 @@ fun QuetziMascotView(
                     // Botón para hacer volar a Quetzi a voluntad
                     Surface(
                         shape = CircleShape,
-                        color = if (uiState.isDarkTheme) Color(0xFF243A49) else Color(0xFFE0F2FE),
+                        color = if (isDark) Color(0xFF243A49) else Color(0xFFE0F2FE),
                         modifier = Modifier
                             .size(28.dp)
                             .clickable {
@@ -420,7 +422,7 @@ fun QuetziMascotView(
                             Icon(
                                 imageVector = Icons.Default.Flight,
                                 contentDescription = "Volar Quetzi",
-                                tint = if (uiState.isDarkTheme) Color(0xFF8BB9FF) else Color(0xFF0284C7),
+                                tint = if (isDark) Color(0xFF8BB9FF) else Color(0xFF0284C7),
                                 modifier = Modifier.size(16.dp)
                             )
                         }

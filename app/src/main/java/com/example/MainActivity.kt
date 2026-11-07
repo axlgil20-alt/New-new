@@ -146,7 +146,7 @@ class MainActivity : ComponentActivity() {
                                 label = { Text("Quincenas") }
                             )
 
-                            // 3. Inicio (Centrado y Destacado con relieve visual)
+                            // 3. HOY (Centrado y Destacado con relieve visual)
                             NavigationBarItem(
                                 selected = selectedTab == 0,
                                 onClick = { selectedTab = 0 },
@@ -160,7 +160,7 @@ class MainActivity : ComponentActivity() {
                                         Box(contentAlignment = Alignment.Center) {
                                             Icon(
                                                 imageVector = Icons.Default.Home,
-                                                contentDescription = "Inicio",
+                                                contentDescription = "HOY",
                                                 tint = if (selectedTab == 0) Color.White else EmeraldGreen,
                                                 modifier = Modifier.size(24.dp)
                                             )
@@ -169,7 +169,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 label = {
                                     Text(
-                                        text = "Inicio",
+                                        text = "HOY",
                                         fontWeight = if (selectedTab == 0) FontWeight.ExtraBold else FontWeight.Normal,
                                         color = if (selectedTab == 0) EmeraldGreen else MaterialTheme.colorScheme.onSurfaceVariant
                                     )

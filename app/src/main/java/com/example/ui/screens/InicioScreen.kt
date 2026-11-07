@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -61,6 +62,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
@@ -83,11 +85,14 @@ import java.util.Locale
 /**
  * InicioScreen - Pantalla Principal de Quetzi con Identidad Guatemalteca
  *
- * Características:
- * 1. Fondo de Tikal y Volcanes de Guatemala: Ilustración panorámica en la cabecera con opacidad elegante
- *    y degradado inferior que ambienta el entorno chapín sin comprometer la legibilidad.
- * 2. Quetzi con Vuelo Libre y Profundo (3D): Despegue desde los volcanes, barrido curvilíneo y posado.
- * 3. Saludo Real de Caricatura: Movimiento activo de manos que sella con pulgar arriba (👍).
+ * Características oficiales:
+ * 1. Cabecera con Fotografía del Palacio Nacional de la Cultura (Guatemala): Fachada monumental
+ *    y cielo despejado con degradado de contraste y fusión que resalta la vista "HOY".
+ * 2. Fondo de Tarjeta Principal de Caja con el Parque Central (Plaza de la Constitución): Fotografía
+ *    de la plaza histórica y fuente con velo de legibilidad 100% para saldo disponible, ingresos y gastos.
+ * 3. Mascota Quetzi con Consejos Dinámicos: Integrada armónicamente respetando su diseño y colores originales.
+ * 4. Adaptabilidad para pantallas compactas (Samsung Galaxy A17) con touch targets >= 48dp y soporte perfecto
+ *    para modo claro y modo oscuro.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -110,7 +115,7 @@ fun InicioScreen(
     onOpenSmartCartClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val homeBackground = if (uiState.isDarkTheme) Color(0xFF1E261D) else Color(0xFFFFF9E6)
+    val homeBackground = if (uiState.isDarkTheme) Color(0xFF1D1814) else Color(0xFFFCF7EE)
     var movementSearchQuery by remember { mutableStateOf("") }
     val searchedTransactions = remember(uiState.filteredTransactions, movementSearchQuery) {
         val query = movementSearchQuery.trim()
@@ -143,60 +148,89 @@ fun InicioScreen(
             .fillMaxSize()
             .background(homeBackground)
     ) {
-        // 1. ILUSTRACIÓN DE FONDO CON VERIFICACIÓN FALLBACK SEGURA
+        // 1. CABECERA CON FOTOGRAFÍA DE LA PARROQUIA SAN JUAN BAUTISTA DE AMATITLÁN
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(250.dp)
+                .height(270.dp)
         ) {
-            com.example.ui.components.SafeTikalVolcanoBackground(
-                modifier = Modifier.fillMaxSize(),
-                alpha = 0.22f
+            Image(
+                painter = painterResource(id = R.drawable.img_amatitlan_parroquia_header),
+                contentDescription = "Parroquia San Juan Bautista de Amatitlán",
+                contentScale = ContentScale.Crop,
+                alignment = Alignment.TopCenter,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .alpha(1.0f)
             )
 
-            // Degradado de fusión suave
+            // Degradado selectivo: protege la barra superior y se funde al final,
+            // dejando la fachada amarilla colonial de Amatitlán con su contraste, nitidez y colores naturales al 100%
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
-                            colors = listOf(
-                                Color.Transparent,
-                                homeBackground.copy(alpha = 0.65f),
-                                homeBackground
-                            )
+                            0.00f to if (uiState.isDarkTheme) Color(0xD9000000) else Color(0x73000000),
+                            0.18f to Color.Transparent,
+                            0.80f to Color.Transparent,
+                            0.92f to homeBackground.copy(alpha = 0.45f),
+                            1.00f to homeBackground
                         )
                     )
             )
         }
 
         Column(modifier = Modifier.fillMaxSize()) {
-            // TopAppBar Oficial con Bandera, Marca Quetzi, Controles y Botón "+ Gasto"
+            // TopAppBar Oficial con Identidad Nacional HOY, Controles y Botón "+ Gasto"
             TopAppBar(
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    ) {
                         Surface(
                             shape = RoundedCornerShape(10.dp),
-                            color = EmeraldGreen,
-                            modifier = Modifier.size(34.dp)
+                            color = if (uiState.isDarkTheme) Color(0xFF382313) else Color(0xFF7A3E1D),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD97706)),
+                            modifier = Modifier.size(38.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Text(text = "🇬🇹", fontSize = 18.sp)
+                                Text(text = "🇬🇹", fontSize = 20.sp)
                             }
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "HOY",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color.White,
+                                    letterSpacing = 0.5.sp
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = Color(0xFFD97706).copy(alpha = 0.30f),
+                                    border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFFF59E0B))
+                                ) {
+                                    Text(
+                                        text = "Quetzi",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = if (uiState.isDarkTheme) Color(0xFFFDE047) else Color(0xFFFFFBEB),
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
                             Text(
-                                text = "Quetzi",
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Black,
-                                color = if (uiState.isDarkTheme) Color.White else EmeraldGreen
-                            )
-                            Text(
-                                text = "Tus finanzas sin clavos",
+                                text = "Parroquia San Juan Bautista · Amatitlán",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = if (uiState.isDarkTheme) Color(0xFFFDE68A) else Color(0xFFFFF7ED),
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -205,12 +239,14 @@ fun InicioScreen(
                     // Ojito de Camuflaje: Oculta / Muestra los montos en Quetzales
                     IconButton(
                         onClick = onToggleDiscreetMode,
-                        modifier = Modifier.testTag("discreet_mode_toggle_button")
+                        modifier = Modifier
+                            .size(48.dp)
+                            .testTag("discreet_mode_toggle_button")
                     ) {
                         Icon(
                             imageVector = if (uiState.isDiscreetMode) Icons.Default.VisibilityOff else Icons.Default.Visibility,
                             contentDescription = if (uiState.isDiscreetMode) "Desactivar Modo Discreto" else "Activar Modo Discreto",
-                            tint = if (uiState.isDiscreetMode) Color(0xFFF59E0B) else (if (uiState.isDarkTheme) Color.White else EmeraldGreen),
+                            tint = if (uiState.isDiscreetMode) Color(0xFFFBBF24) else Color.White,
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -218,23 +254,30 @@ fun InicioScreen(
                     // Botón Modo Nocturno
                     IconButton(
                         onClick = onToggleDarkTheme,
-                        modifier = Modifier.testTag("dark_mode_toggle_button")
+                        modifier = Modifier
+                            .size(48.dp)
+                            .testTag("dark_mode_toggle_button")
                     ) {
                         Icon(
                             imageVector = if (uiState.isDarkTheme) Icons.Default.LightMode else Icons.Default.DarkMode,
                             contentDescription = "Cambiar Tema",
-                            tint = if (uiState.isDarkTheme) Color(0xFFFDE047) else (if (uiState.isDarkTheme) Color.White else EmeraldGreen),
+                            tint = if (uiState.isDarkTheme) Color(0xFFFDE047) else Color.White,
                             modifier = Modifier.size(24.dp)
                         )
                     }
 
-                    // Botón "+ Gasto" Oficial destacado como en la barra superior de referencia
+                    // Botón "+ Gasto" Oficial destacado
                     Button(
                         onClick = onAddTransactionClick,
-                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen, contentColor = Color.White),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = EmeraldGreen,
+                            contentColor = Color.White
+                        ),
                         shape = RoundedCornerShape(12.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD4AF37)),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                         modifier = Modifier
+                            .heightIn(min = 48.dp)
                             .padding(end = 8.dp)
                             .testTag("topbar_add_expense_button")
                     ) {
@@ -381,7 +424,9 @@ fun InicioScreen(
                     ) {
                         OutlinedButton(
                             onClick = onAddAntExpenseClick,
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp),
                             shape = RoundedCornerShape(14.dp)
                         ) {
                             Icon(
@@ -401,7 +446,9 @@ fun InicioScreen(
                         Button(
                             onClick = onOpenAdvisorClick,
                             colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen, contentColor = Color.White),
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp),
                             shape = RoundedCornerShape(14.dp)
                         ) {
                             Icon(
@@ -548,7 +595,10 @@ fun InicioScreen(
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Buscar movimientos") },
                         trailingIcon = {
                             if (movementSearchQuery.isNotEmpty()) {
-                                IconButton(onClick = { movementSearchQuery = "" }) {
+                                IconButton(
+                                    onClick = { movementSearchQuery = "" },
+                                    modifier = Modifier.size(48.dp)
+                                ) {
                                     Icon(Icons.Default.Close, contentDescription = "Limpiar búsqueda")
                                 }
                             }

@@ -49,3 +49,12 @@ val DeepNavyLight = Color(0xFFEEF2FF)
 val IvoryWarm = Color(0xFFFAF8F5)
 val IvoryBorder = Color(0xFFEADBCE)
 val Terracotta = Color(0xFFC2410C)
+
+// Paleta Dulces Típicos Tradicionales de Amatitlán (Pepitoria, Chancaca, Camote)
+val PepitoriaGold = Color(0xFFD97706)      // Dorado miel y pepitoria tostada
+val PepitoriaLight = Color(0xFFFEF3C7)
+val ChancacaCaramel = Color(0xFF8B4513)    // Caramelo oscuro de panela y chancaca
+val ChancacaAmber = Color(0xFFA15524)
+val CamoteWarm = Color(0xFFC25E26)         // Terracota cálido de dulce de camote
+val AmatitlanWarmSurface = Color(0xFFFAF4EA) // Superficie artesanal con calidez de dulce de leche
+val AmatitlanWarmBorder = Color(0xFFE8D3B7)  // Borde cálido acaramelado

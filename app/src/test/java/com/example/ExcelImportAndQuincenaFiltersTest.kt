@@ -806,6 +806,107 @@ class ExcelImportAndQuincenaFiltersTest {
         assertEquals(realRemaining, projectedRemaining + supuestoExpensesTotal, 0.001)
     }
 
+    @Test
+    fun testQuincenasCycleDisplayAndSearchFiltering() {
+        fun date(month: Int, day: Int): Long = Calendar.getInstance().apply {
+            clear()
+            set(2026, month, day, 12, 0, 0)
+        }.timeInMillis
+
+        val txList = listOf(
+            TransactionEntity(id = 1, title = "Pago fin de mes previo", amount = 6000.0, type = TransactionType.INCOME, category = "Salario", dateMillis = date(Calendar.OCTOBER, 31)),
+            TransactionEntity(id = 2, title = "Supermercado La Torre", amount = 450.0, type = TransactionType.EXPENSE, category = "Comida", dateMillis = date(Calendar.NOVEMBER, 5), notes = "Despensa quincenal"),
+            TransactionEntity(id = 3, title = "Gasolina Shell", amount = 250.0, type = TransactionType.EXPENSE, category = "Transporte", dateMillis = date(Calendar.NOVEMBER, 10)),
+            TransactionEntity(id = 4, title = "Pago quincena día 15", amount = 6000.0, type = TransactionType.INCOME, category = "Salario", dateMillis = date(Calendar.NOVEMBER, 15)),
+            TransactionEntity(id = 5, title = "Farmacia Galeno", amount = 180.0, type = TransactionType.EXPENSE, category = "Salud", dateMillis = date(Calendar.NOVEMBER, 18), notes = "[SUPUESTO] Vitaminas"),
+            TransactionEntity(id = 6, title = "Restaurante San Martín", amount = 220.0, type = TransactionType.EXPENSE, category = "Comida", dateMillis = date(Calendar.NOVEMBER, 25))
+        )
+
+        val novData = QuincenaFilterHelper.filterByQuincena(txList, 2026, Calendar.NOVEMBER)
+
+        // Q1 contiene tx 1, 2, 3 (Fin mes previo al día 15)
+        assertEquals(3, novData.q1Transactions.size)
+        // Q2 contiene tx 4, 5, 6 (Día 15 al penúltimo día)
+        assertEquals(3, novData.q2Transactions.size)
+        // Mes contiene las 6 sin duplicados
+        assertEquals(6, novData.monthTransactions.size)
+
+        // Prueba de búsqueda por comercio/título
+        fun filterSearch(list: List<TransactionEntity>, query: String): List<TransactionEntity> {
+            val q = query.trim().lowercase(java.util.Locale.getDefault())
+            return list.filter { tx ->
+                tx.title.lowercase(java.util.Locale.getDefault()).contains(q) ||
+                tx.category.lowercase(java.util.Locale.getDefault()).contains(q) ||
+                tx.notes?.lowercase(java.util.Locale.getDefault())?.contains(q) == true ||
+                "%.2f".format(tx.amount).contains(q)
+            }
+        }
+
+        // Búsqueda en Q1
+        val q1Shell = filterSearch(novData.q1Transactions, "Shell")
+        assertEquals(1, q1Shell.size)
+        assertEquals("Gasolina Shell", q1Shell.first().title)
+
+        // Búsqueda de "Comida" en Mes (debe encontrar 2: La Torre y San Martín)
+        val monthFood = filterSearch(novData.monthTransactions, "Comida")
+        assertEquals(2, monthFood.size)
+
+        // Búsqueda en Q2 por nota "[SUPUESTO]"
+        val q2Supuesto = filterSearch(novData.q2Transactions, "supuesto")
+        assertEquals(1, q2Supuesto.size)
+        assertEquals("Farmacia Galeno", q2Supuesto.first().title)
+
+        // Búsqueda por monto
+        val amountSearch = filterSearch(novData.monthTransactions, "450.00")
+        assertEquals(1, amountSearch.size)
+        assertEquals("Supermercado La Torre", amountSearch.first().title)
+
+        // Búsqueda sin coincidencias
+        val noMatch = filterSearch(novData.monthTransactions, "Inexistente")
+        assertTrue(noMatch.isEmpty())
+    }
+
+    @Test
+    fun testMonthlySummaryConsolidationWithoutIncomeDuplication() {
+        fun date(month: Int, day: Int): Long = Calendar.getInstance().apply {
+            clear()
+            set(2026, month, day, 12, 0, 0)
+        }.timeInMillis
+
+        val txList = listOf(
+            TransactionEntity(id = 1, title = "Pago fin de octubre", amount = 5000.0, type = TransactionType.INCOME, category = "Salario", dateMillis = date(Calendar.OCTOBER, 31)),
+            TransactionEntity(id = 2, title = "Gasto Q1", amount = 1500.0, type = TransactionType.EXPENSE, category = "Servicios", dateMillis = date(Calendar.NOVEMBER, 5)),
+            TransactionEntity(id = 3, title = "Pago día 15", amount = 5000.0, type = TransactionType.INCOME, category = "Salario", dateMillis = date(Calendar.NOVEMBER, 15)),
+            TransactionEntity(id = 4, title = "Gasto Q2", amount = 2000.0, type = TransactionType.EXPENSE, category = "Comida", dateMillis = date(Calendar.NOVEMBER, 20))
+        )
+
+        val novData = QuincenaFilterHelper.filterByQuincena(txList, 2026, Calendar.NOVEMBER)
+
+        // Los ingresos se contabilizan exactamente una sola vez
+        assertEquals(5000.0, novData.q1Income, 0.001)
+        assertEquals(5000.0, novData.q2Income, 0.001)
+        assertEquals(10000.0, novData.totalIncome, 0.001)
+        assertEquals(novData.q1Income + novData.q2Income, novData.totalIncome, 0.001)
+
+        // Los gastos reales se descuentan exactamente una vez
+        assertEquals(1500.0, novData.q1Expense, 0.001)
+        assertEquals(2000.0, novData.q2Expense, 0.001)
+        assertEquals(3500.0, novData.totalExpense, 0.001)
+        assertEquals(novData.q1Expense + novData.q2Expense, novData.totalExpense, 0.001)
+
+        // El resumen mensual contiene exactamente 4 transacciones (sin duplicados)
+        assertEquals(4, novData.monthTransactions.size)
+        assertEquals(4, novData.monthTransactions.map { it.id }.distinct().size)
+
+        // El saldo trasladado es saldo inicial, nunca ingreso nuevo
+        val q2Rollover = QuincenaFilterHelper.calculateQuincenaRollover(txList, 2026, Calendar.NOVEMBER, 2)
+        // Q1 tuvo: 5000 ingresos - 1500 gastos = 3500 sobrante
+        assertEquals(3500.0, q2Rollover, 0.001)
+        // Disponible Q2 = 3500 (traspaso) + 5000 (ingreso) - 2000 (gasto) = 6500
+        val q2Available = q2Rollover + novData.q2Income - novData.q2Expense
+        assertEquals(6500.0, q2Available, 0.001)
+    }
+
 
     // =========================================================================
     // FAKES

@@ -3,6 +3,7 @@ package com.example.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.HelpOutline
@@ -41,12 +43,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.R
+import com.example.ui.theme.EmeraldGreen
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.theme.TentativePurple
@@ -69,12 +77,11 @@ fun FinancialSummaryCard(
     isDarkTheme: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    var showExplanationDialog by remember { mutableStateOf(false) }
-    val cardSurface = if (isDarkTheme) Color(0xFF1E261D) else Color(0xFFFFF9E6)
-    val incomeSurface = if (isDarkTheme) Color(0xFF263629) else Color(0xFFEAF2E5)
-    val expenseSurface = if (isDarkTheme) Color(0xFF3A2927) else Color(0xFFFCE8E4)
-    val positiveText = if (isDarkTheme) Color(0xFFA8D5A0) else Color(0xFF2D5A27)
-    val negativeText = if (isDarkTheme) Color(0xFFFF9A91) else Color(0xFFD9534F)
+    val cardSurface = if (isDarkTheme) Color(0xFF201B17) else Color(0xFFFBF6ED)
+    val incomeSurface = if (isDarkTheme) Color(0xFF1B291D).copy(alpha = 0.82f) else Color.White.copy(alpha = 0.85f)
+    val expenseSurface = if (isDarkTheme) Color(0xFF331E1C).copy(alpha = 0.82f) else Color.White.copy(alpha = 0.85f)
+    val positiveText = if (isDarkTheme) Color(0xFFA8D5A0) else Color(0xFF144D1E)
+    val negativeText = if (isDarkTheme) Color(0xFFFF9A91) else Color(0xFFB91C1C)
     val tentativeText = if (isDarkTheme) Color(0xFFD2B6FF) else TentativePurple
     val cautionText = if (isDarkTheme) Color(0xFFFFC078) else Color(0xFF9A4D00)
     val cautionIndicator = if (isDarkTheme) Color(0xFFF5A753) else Color(0xFFE67E22)
@@ -85,41 +92,118 @@ fun FinancialSummaryCard(
             .padding(horizontal = 16.dp, vertical = 6.dp),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = cardSurface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.2.dp,
+            color = if (isDarkTheme) Color(0xFF5A3E26) else Color(0xFFD9A05B).copy(alpha = 0.65f)
+        )
     ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            // Cabecera con título y toggle de supuestos
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text("Balance Familiar", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(
-                    text = if (includeTentativeInBalance) "Saldo Disponible (Con Supuestos)" else "Saldo Neto Confirmado",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (includeTentativeInBalance) tentativeText else MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.SemiBold
-                )
+        Box(modifier = Modifier.fillMaxWidth()) {
+            // Fondo fotográfico del Lago de Amatitlán y Teleférico
+            Image(
+                painter = painterResource(id = R.drawable.img_amatitlan_teleferico_card),
+                contentDescription = "Lago de Amatitlán y Teleférico",
+                contentScale = ContentScale.Crop,
+                alignment = Alignment.Center,
+                modifier = Modifier
+                    .matchParentSize()
+                    .alpha(if (isDarkTheme) 0.68f else 0.74f)
+            )
+
+            // Capa de degradado sutil con tonos artesanales cálidos que garantiza 100% de legibilidad financiera
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = if (isDarkTheme) {
+                                listOf(
+                                    cardSurface.copy(alpha = 0.66f),
+                                    cardSurface.copy(alpha = 0.42f),
+                                    cardSurface.copy(alpha = 0.68f)
+                                )
+                            } else {
+                                listOf(
+                                    cardSurface.copy(alpha = 0.58f),
+                                    cardSurface.copy(alpha = 0.35f),
+                                    cardSurface.copy(alpha = 0.60f)
+                                )
+                            }
+                        )
+                    )
+            )
+
+            Column(modifier = Modifier.padding(20.dp)) {
+                // Cabecera con identidad del Lago y Teleférico de Amatitlán y toggle de supuestos
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.End
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = if (includeTentativeInBalance) "Supuestos ON" else "Supuestos OFF",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = if (includeTentativeInBalance) tentativeText else MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Switch(
-                        checked = includeTentativeInBalance,
-                        onCheckedChange = { onToggleIncludeTentative() },
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Color.White,
-                            checkedTrackColor = if (isDarkTheme) Color(0xFF7B58B5) else TentativePurple,
-                            uncheckedThumbColor = Color.White,
-                            uncheckedTrackColor = if (isDarkTheme) Color(0xFF596356) else Color.LightGray
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isDarkTheme) Color(0xFF422814) else Color(0xFFFEF3C7),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (isDarkTheme) Color(0xFF925225) else Color(0xFFD97706)),
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.AccountBalance,
+                                    contentDescription = null,
+                                    tint = if (isDarkTheme) Color(0xFFFBBF24) else Color(0xFFB45309),
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "RESUMEN DE CAJA · LAGO Y TELEFÉRICO DE AMATITLÁN",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = if (isDarkTheme) Color(0xFFFBBF24) else Color(0xFFB45309),
+                                letterSpacing = 0.5.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = if (includeTentativeInBalance) "Saldo Disponible (Con Supuestos)" else "Saldo Neto Confirmado",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (includeTentativeInBalance) tentativeText else MaterialTheme.colorScheme.onSurface,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(start = 4.dp)
+                    ) {
+                        Text(
+                            text = if (includeTentativeInBalance) "Supuestos ON" else "Supuestos OFF",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (includeTentativeInBalance) tentativeText else MaterialTheme.colorScheme.onSurfaceVariant,
+                            fontWeight = FontWeight.Bold
                         )
-                    )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Switch(
+                            checked = includeTentativeInBalance,
+                            onCheckedChange = { onToggleIncludeTentative() },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = if (isDarkTheme) Color(0xFF7B58B5) else TentativePurple,
+                                uncheckedThumbColor = Color.White,
+                                uncheckedTrackColor = if (isDarkTheme) Color(0xFF596356) else Color.LightGray
+                            )
+                        )
+                    }
                 }
-            }
 
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -192,7 +276,11 @@ fun FinancialSummaryCard(
                 Surface(
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(16.dp),
-                    color = incomeSurface
+                    color = incomeSurface,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (isDarkTheme) Color(0xFF344A36).copy(alpha = 0.7f) else Color(0xFFDCD2BD).copy(alpha = 0.8f)
+                    )
                 ) {
                     Row(
                         modifier = Modifier.padding(12.dp),
@@ -233,7 +321,11 @@ fun FinancialSummaryCard(
                 Surface(
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(16.dp),
-                    color = expenseSurface
+                    color = expenseSurface,
+                    border = androidx.compose.foundation.BorderStroke(
+                        1.dp,
+                        if (isDarkTheme) Color(0xFF4A2B28).copy(alpha = 0.7f) else Color(0xFFDCD2BD).copy(alpha = 0.8f)
+                    )
                 ) {
                     Row(
                         modifier = Modifier.padding(12.dp),
@@ -307,3 +399,5 @@ fun FinancialSummaryCard(
         }
     }
 }
+}
+

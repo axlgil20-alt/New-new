@@ -23,9 +23,10 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.Card
@@ -35,11 +36,15 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -48,6 +53,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -55,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.model.TransactionEntity
+import com.example.data.model.isGastoSupuesto
 import com.example.ui.components.TransactionItemCard
 import com.example.ui.util.FormatUtils
 import com.example.ui.util.QuincenaFilterHelper
@@ -83,6 +90,7 @@ fun PlannedVsRealScreen(
     modifier: Modifier = Modifier
 ) {
     var selectedCycleTab by remember { mutableIntStateOf(0) }
+    var searchQuery by remember { mutableStateOf("") }
     val transactions = uiState.allTransactions
     val quincenaData = remember(transactions, uiState.currentYear, uiState.currentMonthIndex) {
         QuincenaFilterHelper.filterByQuincena(
@@ -112,10 +120,23 @@ fun PlannedVsRealScreen(
     val monthLabel = remember(monthCal) {
         SimpleDateFormat("MMMM yyyy", Locale("es", "ES")).format(monthCal.time).replaceFirstChar { it.uppercase() }
     }
-    val displayList = when (selectedCycleTab) {
+    val rawCycleList = when (selectedCycleTab) {
         1 -> quincenaData.q1Transactions
         2 -> quincenaData.q2Transactions
         else -> quincenaData.monthTransactions
+    }
+    val displayList = remember(rawCycleList, searchQuery) {
+        if (searchQuery.isBlank()) {
+            rawCycleList
+        } else {
+            val q = searchQuery.trim().lowercase(Locale.getDefault())
+            rawCycleList.filter { tx ->
+                tx.title.lowercase(Locale.getDefault()).contains(q) ||
+                tx.category.lowercase(Locale.getDefault()).contains(q) ||
+                tx.notes?.lowercase(Locale.getDefault())?.contains(q) == true ||
+                "%.2f".format(tx.amount).contains(q)
+            }
+        }
     }
     val backgroundScrim = if (displayList.isEmpty()) Color(0x7AF0F8FA) else Color(0xB3F0F8FA)
 
@@ -197,12 +218,12 @@ fun PlannedVsRealScreen(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    listOf("Mes", "1.ª · 1–15", "2.ª · 16–fin").forEachIndexed { index, label ->
+                    listOf("Mes", "1.ª · Fin mes–14", "2.ª · 15–Penúltimo").forEachIndexed { index, label ->
                         FilterChip(
                             selected = selectedCycleTab == index,
                             onClick = { selectedCycleTab = index },
                             label = { Text(label, maxLines = 1, fontWeight = FontWeight.Bold) },
-                            modifier = Modifier.weight(1f).heightIn(min = 44.dp),
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp),
                             colors = FilterChipDefaults.filterChipColors(
                                 containerColor = Color.White,
                                 labelColor = LakeText,
@@ -216,31 +237,11 @@ fun PlannedVsRealScreen(
             }
 
             if (selectedCycleTab == 0) item {
-                val received = when (selectedCycleTab) {
-                    1 -> quincenaData.q1Income
-                    2 -> quincenaData.q2Income
-                    else -> quincenaData.totalIncome
-                }
-                val actualExpenses = when (selectedCycleTab) {
-                    1 -> quincenaData.q1Expense
-                    2 -> quincenaData.q2Expense
-                    else -> quincenaData.totalExpense
-                }
-                val pendingExpenses = when (selectedCycleTab) {
-                    1 -> quincenaData.q1PendingExpense
-                    2 -> quincenaData.q2PendingExpense
-                    else -> quincenaData.totalPendingExpense
-                }
-                val available = when (selectedCycleTab) {
-                    1 -> q1Available
-                    2 -> q2Available
-                    else -> q2Available
-                }
-                val projected = when (selectedCycleTab) {
-                    1 -> q1Projected
-                    2 -> q2Projected
-                    else -> q2Projected
-                }
+                val received = quincenaData.totalIncome
+                val actualExpenses = quincenaData.totalExpense
+                val pendingExpenses = quincenaData.totalPendingExpense
+                val available = q2Available
+                val projected = q2Projected
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     shape = RoundedCornerShape(20.dp),
@@ -250,11 +251,14 @@ fun PlannedVsRealScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(
-                            text = if (selectedCycleTab == 0) "RESUMEN DEL MES · SALDO AL CIERRE DE LA 2.ª QUINCENA" else "RESUMEN DE LA QUINCENA SELECCIONADA",
+                            text = "RESUMEN DEL MES · SALDO AL CIERRE DE LA 2.ª QUINCENA",
                             color = LakeNavy,
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.ExtraBold
                         )
+                        if (q1Opening > 0) {
+                            FinanceLine("Saldo inicial · traspaso", q1Opening, uiState.currencySymbol, uiState.isDiscreetMode, LakeTurquoise, Icons.Default.TrendingUp)
+                        }
                         FinanceLine("Dinero recibido", received, uiState.currencySymbol, uiState.isDiscreetMode, LakeBlue, Icons.Default.Payments)
                         FinanceLine("Gastos reales", actualExpenses, uiState.currencySymbol, uiState.isDiscreetMode, Color(0xFFB42332), Icons.Default.TrendingDown)
                         FinanceLine("Pendientes · proyección", pendingExpenses, uiState.currencySymbol, uiState.isDiscreetMode, Color(0xFF8A5A00), Icons.Default.Schedule)
@@ -287,7 +291,7 @@ fun PlannedVsRealScreen(
             if (selectedCycleTab == 1) {
                 item {
                     CycleFinanceCard(
-                        title = "1.ª quincena · días 1–15",
+                        title = "1.ª quincena · Fin del mes previo al día 14",
                         fundedBy = "Financiada por el pago de fin del mes anterior",
                         opening = q1Opening,
                         received = quincenaData.q1Income,
@@ -302,7 +306,7 @@ fun PlannedVsRealScreen(
             if (selectedCycleTab == 2) {
                 item {
                     CycleFinanceCard(
-                        title = "2.ª quincena · días 16–fin de mes",
+                        title = "2.ª quincena · Día 15 al penúltimo día",
                         fundedBy = "Financiada por el pago recibido el día 15",
                         opening = q2Opening,
                         received = quincenaData.q2Income,
@@ -313,6 +317,49 @@ fun PlannedVsRealScreen(
                         uiState = uiState
                     )
                 }
+            }
+
+            // Barra de Búsqueda integrada dentro del ciclo seleccionado
+            item {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = {
+                        Text(
+                            when (selectedCycleTab) {
+                                1 -> "Buscar en 1.ª quincena..."
+                                2 -> "Buscar en 2.ª quincena..."
+                                else -> "Buscar en el mes..."
+                            },
+                            color = Color(0xFF6B8A99),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(Icons.Default.Search, contentDescription = "Buscar", tint = LakeBlue)
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotBlank()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Default.Clear, contentDescription = "Limpiar búsqueda", tint = Color.Gray)
+                            }
+                        }
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        focusedBorderColor = LakeBlue,
+                        unfocusedBorderColor = Color(0xFF9BD9E2),
+                        focusedTextColor = LakeText,
+                        unfocusedTextColor = LakeText
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 2.dp)
+                        .testTag("quincenas_search_bar")
+                )
             }
 
             item {
@@ -327,8 +374,12 @@ fun PlannedVsRealScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text("Movimientos", color = LakeNavy, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("${displayList.size}", color = Color.White, fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clip(CircleShape).background(LakeBlue).padding(horizontal = 10.dp, vertical = 4.dp))
+                        Text(
+                            "${displayList.size}",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.clip(CircleShape).background(LakeBlue).padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
                     }
                 }
             }
@@ -343,8 +394,21 @@ fun PlannedVsRealScreen(
                         Column(modifier = Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = LakeTurquoise, modifier = Modifier.size(36.dp))
                             Spacer(Modifier.height(8.dp))
-                            Text("Aún no hay movimientos en este ciclo", color = LakeText, fontWeight = FontWeight.Bold)
-                            Text("Los registros nuevos aparecerán aquí automáticamente.", color = Color(0xFF456273), style = MaterialTheme.typography.bodySmall)
+                            if (searchQuery.isNotBlank()) {
+                                Text("No se encontraron movimientos", color = LakeText, fontWeight = FontWeight.Bold)
+                                Text("No hay coincidencias para \"$searchQuery\" en este ciclo.", color = Color(0xFF456273), style = MaterialTheme.typography.bodySmall)
+                                Spacer(Modifier.height(10.dp))
+                                OutlinedButton(
+                                    onClick = { searchQuery = "" },
+                                    shape = RoundedCornerShape(10.dp),
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, LakeBlue)
+                                ) {
+                                    Text("Limpiar búsqueda", color = LakeBlue, fontWeight = FontWeight.Bold)
+                                }
+                            } else {
+                                Text("Aún no hay movimientos en este ciclo", color = LakeText, fontWeight = FontWeight.Bold)
+                                Text("Los registros nuevos aparecerán aquí automáticamente.", color = Color(0xFF456273), style = MaterialTheme.typography.bodySmall)
+                            }
                         }
                     }
                 }
@@ -358,6 +422,10 @@ fun PlannedVsRealScreen(
                         onHighlight = { hex -> onHighlightTransaction(tx, hex) },
                         onToggleVerify = { onToggleVerifyTransaction(tx) },
                         onDecideTentative = { decision -> onDecideTentative(tx, decision) },
+                        onToggleGastoSupuesto = {
+                            val nextDec = if (tx.isGastoSupuesto) "CONFIRM" else "PENDING"
+                            onDecideTentative(tx, nextDec)
+                        },
                         isDiscreetMode = uiState.isDiscreetMode
                     )
                 }

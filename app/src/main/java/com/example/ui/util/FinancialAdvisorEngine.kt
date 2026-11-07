@@ -394,7 +394,7 @@ object FinancialAdvisorEngine {
         // 11. Herramientas del Sistema (Modo Discreto, Excel, FAB)
         if (q.contains("discreto") || q.contains("ojo") || q.contains("privacidad") || q.contains("ocultar")) {
             return "El Modo Discreto (👁️) oculta al instante todos los montos de dinero mostrándolos como 'Q ****.**'.\n\n" +
-                    "Para activarlo o desactivarlo, presiona el ícono del Ojito en la esquina superior derecha del Inicio. ¡Es ideal si vas en camioneta o en la calle!"
+                    "Para activarlo o desactivarlo, presiona el ícono del Ojito en la esquina superior derecha de HOY. ¡Es ideal si vas en camioneta o en la calle!"
         }
 
         if (q.contains("excel") || q.contains("csv") || q.contains("exportar") || q.contains("importar")) {
@@ -403,7 +403,7 @@ object FinancialAdvisorEngine {
         }
 
         if (q.contains("fab") || q.contains("boton") || q.contains("+") || q.contains("mas")) {
-            return "El botón flotante verde (+) en Inicio te permite registrar rápidamente transacciones y gastos hormiga típicos como tortillas, pasaje o recargas con un solo toque."
+            return "El botón flotante verde (+) en HOY te permite registrar rápidamente transacciones y gastos hormiga típicos como tortillas, pasaje o recargas con un solo toque."
         }
 
         // 12. Caso General / Consulta no clasificada
