@@ -2,8 +2,13 @@ package com.example.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.example.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,6 +67,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
@@ -172,28 +178,75 @@ fun PaymentsScreen(
     }
 
     val pageBackground = if (uiState.isDarkTheme) Color(0xFF1B1612) else Color(0xFFFAF5ED)
+    val backgroundScrim = if (uiState.isDarkTheme) Color(0xCC130E0A) else Color(0x66FAF5ED)
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(pageBackground)
     ) {
+        // Fotografía de fondo para el cuerpo inferior: Parque Central (Plaza de la Constitución)
+        Image(
+            painter = painterResource(id = R.drawable.parque_central_card_1793567079147),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize()
+                .alpha(if (uiState.isDarkTheme) 0.22f else 0.40f)
+        )
+        // Velo de contraste general
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(backgroundScrim)
+        )
+
+        // FOTOGRAFÍA HEROICA SUPERIOR DOMINANTE: Palacio Nacional de la Cultura y Plaza de la Constitución
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(350.dp)
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.palacio_nacional_header_1793567078293),
+                contentDescription = "Palacio Nacional de la Cultura y Parque Central, Guatemala",
+                contentScale = ContentScale.Crop,
+                alignment = Alignment.TopCenter,
+                modifier = Modifier.fillMaxSize()
+            )
+            // Gradiente vertical de protección: oscuro arriba para legibilidad de títulos,
+            // transparente en el centro para apreciar nítidamente el Palacio Nacional entre tarjetas,
+            // y desvanecimiento suave hacia el fondo de la pantalla
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0.0f to Color(0xDD031F1A),
+                            0.20f to Color(0x66031F1A),
+                            0.70f to Color(0x33000000),
+                            1.0f to pageBackground
+                        )
+                    )
+            )
+        }
+
         Column(modifier = Modifier.fillMaxSize()) {
-            // Barra superior de PAGOS
+            // Barra superior de PAGOS integrada sobre la fotografía
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Surface(
                             shape = RoundedCornerShape(10.dp),
-                            color = if (uiState.isDarkTheme) Color(0xFF382313) else Color(0xFFFEF3C7),
-                            border = BorderStroke(1.dp, Color(0xFFD97706)),
+                            color = EmeraldGreen,
+                            border = BorderStroke(1.dp, Color(0xFF34D399)),
                             modifier = Modifier.size(38.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     imageVector = Icons.Default.Payments,
                                     contentDescription = null,
-                                    tint = if (uiState.isDarkTheme) Color(0xFFFBBF24) else Color(0xFFB45309),
+                                    tint = Color.White,
                                     modifier = Modifier.size(22.dp)
                                 )
                             }
@@ -204,22 +257,27 @@ fun PaymentsScreen(
                                 text = "PAGOS",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Black,
-                                color = MaterialTheme.colorScheme.onSurface,
+                                color = Color.White,
                                 letterSpacing = 0.5.sp
                             )
                             Text(
                                 text = "Administrador de Compromisos Familiares",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = Color(0xFFE2E8F0)
                             )
                         }
                     }
                 },
                 actions = {
-                    // Botón Directorio de Beneficiarios
+                    // Botón Directorio de Beneficiarios (estilo frosted glass para perfecta lectura sobre la foto)
                     OutlinedButton(
                         onClick = { showBeneficiariesDialog = true },
                         shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color(0x66000000),
+                            contentColor = Color.White
+                        ),
+                        border = BorderStroke(1.dp, Color(0x88FFFFFF)),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                         modifier = Modifier
                             .heightIn(min = 48.dp)
@@ -229,10 +287,11 @@ fun PaymentsScreen(
                         Icon(
                             imageVector = Icons.Default.Business,
                             contentDescription = null,
+                            tint = Color.White,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Beneficiarios", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("Beneficiarios", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     }
 
                     // Botón "+ Nuevo Pago"
@@ -263,7 +322,7 @@ fun PaymentsScreen(
                     .padding(bottom = 76.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // A. RESUMEN SUPERIOR (4 tarjetas métricas claras)
+                // A. RESUMEN SUPERIOR: 4 tarjetas métricas sólidas sobre la fotografía dominante del Palacio Nacional
                 item {
                     Column(
                         modifier = Modifier
@@ -366,8 +425,10 @@ fun PaymentsScreen(
                             Card(
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(14.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (uiState.isDarkTheme) Color(0xFF1B2433) else Color(0xFFEFF6FF)
+                                ),
+                                border = BorderStroke(1.dp, Color(0xFF3B82F6).copy(alpha = 0.5f))
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -394,7 +455,8 @@ fun PaymentsScreen(
                                         Text(
                                             text = "${uiState.upcomingPaymentsCount} Próximos",
                                             style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Bold
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (uiState.isDarkTheme) Color(0xFFBFDBFE) else Color(0xFF1E40AF)
                                         )
                                         Text(
                                             text = "Vencen en 7 días",
@@ -413,11 +475,13 @@ fun PaymentsScreen(
                                 colors = CardDefaults.cardColors(
                                     containerColor = if (overdueCount > 0) {
                                         if (uiState.isDarkTheme) Color(0xFF3A1C1C) else Color(0xFFFEF2F2)
-                                    } else MaterialTheme.colorScheme.surface
+                                    } else {
+                                        if (uiState.isDarkTheme) Color(0xFF1B291D) else Color(0xFFF0FDF4)
+                                    }
                                 ),
                                 border = BorderStroke(
                                     1.dp,
-                                    if (overdueCount > 0) ExpenseRed else MaterialTheme.colorScheme.outlineVariant
+                                    if (overdueCount > 0) ExpenseRed.copy(alpha = 0.6f) else EmeraldGreen.copy(alpha = 0.5f)
                                 )
                             ) {
                                 Row(

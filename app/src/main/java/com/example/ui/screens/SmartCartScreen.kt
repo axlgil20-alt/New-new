@@ -8,9 +8,14 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.example.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -92,6 +97,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -253,18 +259,67 @@ fun SmartCartScreen(
         uiState.smartPantryItems.count { it.getPantryStatus() == "PANTRY_ROJO" }
     }
 
-    Column(
+    val pageBackground = if (uiState.isDarkTheme) Color(0xFF1B1612) else Color(0xFFFAF5ED)
+    val backgroundScrim = if (uiState.isDarkTheme) Color(0xCC130E0A) else Color(0x66FAF5ED)
+
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(pageBackground)
     ) {
-        // 1. CABECERA PRINCIPAL CON IDENTIDAD GUATEMALTECA
-        Surface(
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 2.dp,
-            modifier = Modifier.fillMaxWidth()
+        // Fotografía de fondo para el cuerpo inferior: Mercado de Chichicastenango con velo suave
+        Image(
+            painter = painterResource(id = R.drawable.img_chichicastenango_market),
+            contentDescription = null,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxSize()
+                .alpha(if (uiState.isDarkTheme) 0.22f else 0.40f)
+        )
+        // Velo de contraste general
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(backgroundScrim)
+        )
+
+        // FOTOGRAFÍA HEROICA SUPERIOR DOMINANTE: Mercado tradicional de Chichicastenango, Guatemala
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(350.dp)
         ) {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Image(
+                painter = painterResource(id = R.drawable.img_chichicastenango_market),
+                contentDescription = "Mercado tradicional de Chichicastenango, Guatemala",
+                contentScale = ContentScale.Crop,
+                alignment = Alignment.TopCenter,
+                modifier = Modifier.fillMaxSize()
+            )
+            // Gradiente vertical de protección: oscuro arriba para legibilidad de títulos y controles,
+            // transparente en el centro para apreciar nítidamente el colorido del mercado,
+            // y desvanecimiento suave hacia el fondo de la pantalla
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0.0f to Color(0xDD1B120C),
+                            0.20f to Color(0x661B120C),
+                            0.70f to Color(0x33000000),
+                            1.0f to pageBackground
+                        )
+                    )
+            )
+        }
+
+        Column(modifier = Modifier.fillMaxSize()) {
+            // 1. CABECERA PRINCIPAL INTEGRADA DIRECTAMENTE SOBRE EL MERCADO DE CHICHICASTENANGO
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp)
+            ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -274,6 +329,7 @@ fun SmartCartScreen(
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             color = EmeraldGreen,
+                            border = BorderStroke(1.dp, Color(0xFF34D399)),
                             modifier = Modifier.size(42.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -288,58 +344,58 @@ fun SmartCartScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = "Smart Cart",
+                                text = "SMART CART",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Black,
-                                color = MaterialTheme.colorScheme.onSurface
+                                color = Color.White,
+                                letterSpacing = 0.5.sp
                             )
                             Text(
-                                text = "Supermercado & Despensa Familiar",
+                                text = "Planificá tus compras y ahorrá",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = EmeraldGreen,
+                                color = Color(0xFFFEF3C7),
                                 fontWeight = FontWeight.Bold
                             )
                         }
                     }
 
-                    // Acciones Rápidas de Cabecera (Escáner OCR)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = EmeraldGreen.copy(alpha = 0.12f),
-                            border = BorderStroke(1.dp, EmeraldGreen.copy(alpha = 0.4f)),
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(10.dp))
-                                .clickable { showScannerChoiceDialog = true }
-                                .padding(horizontal = 10.dp, vertical = 6.dp)
-                                .testTag("smart_cart_scan_button")
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Default.CameraAlt,
-                                    contentDescription = "Escanear lista",
-                                    tint = EmeraldGreen,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = "Escanear",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = EmeraldGreen
-                                )
-                            }
+                    // Acciones Rápidas de Cabecera (Escáner OCR) con estilo frosted glass
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = Color(0x66000000),
+                        border = BorderStroke(1.dp, Color(0x88FFFFFF)),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { showScannerChoiceDialog = true }
+                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                            .testTag("smart_cart_scan_button")
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.CameraAlt,
+                                contentDescription = "Escanear lista",
+                                tint = Color.White,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Escanear",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
                 // PESTAÑAS PRINCIPALES: LISTA DEL SÚPER / MI DESPENSA / PLANTILLAS
                 TabRow(
                     selectedTabIndex = selectedTab,
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = EmeraldGreen,
+                    containerColor = Color.Transparent,
+                    contentColor = Color(0xFF34D399),
+                    divider = {},
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Tab(
@@ -349,8 +405,9 @@ fun SmartCartScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = "Lista del Súper",
-                                    fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
-                                    fontSize = 13.sp
+                                    fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 13.sp,
+                                    color = if (selectedTab == 0) Color.White else Color(0xFFE2E8F0)
                                 )
                                 if (pendingCartCount > 0) {
                                     Spacer(modifier = Modifier.width(6.dp))
@@ -381,8 +438,9 @@ fun SmartCartScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = "Mi Despensa",
-                                    fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
-                                    fontSize = 13.sp
+                                    fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 13.sp,
+                                    color = if (selectedTab == 1) Color.White else Color(0xFFE2E8F0)
                                 )
                                 if (redPantryCount > 0) {
                                     Spacer(modifier = Modifier.width(6.dp))
@@ -413,14 +471,15 @@ fun SmartCartScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
                                     text = "Plantillas",
-                                    fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal,
-                                    fontSize = 13.sp
+                                    fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Medium,
+                                    fontSize = 13.sp,
+                                    color = if (selectedTab == 2) Color.White else Color(0xFFE2E8F0)
                                 )
                                 if (uiState.shoppingTemplates.isNotEmpty()) {
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Surface(
                                         shape = CircleShape,
-                                        color = Color(0xFF6366F1),
+                                        color = Color(0xFF818CF8),
                                         modifier = Modifier.size(18.dp)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
@@ -439,7 +498,6 @@ fun SmartCartScreen(
                     )
                 }
             }
-        }
 
         // 2. CONTENIDO SEGÚN LA PESTAÑA ACTIVA
         Box(modifier = Modifier.weight(1f)) {
@@ -509,6 +567,7 @@ fun SmartCartScreen(
             }
         }
     }
+}
 
     // =========================================================================
     // DIÁLOGOS MODALES
@@ -972,7 +1031,7 @@ private fun ShoppingListContent(
                 // RESUMEN FINANCIERO DEL SÚPER (Tarjetas ejecutivas)
                 Card(
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1215,7 +1274,7 @@ private fun ShoppingListContent(
                 item {
                     Card(
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(vertical = 24.dp)
@@ -1342,7 +1401,7 @@ private fun CartItemCard(
     Card(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (item.isChecked) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f) else MaterialTheme.colorScheme.surface
+            containerColor = if (item.isChecked) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
         ),
         border = BorderStroke(
             1.dp,
@@ -1502,7 +1561,7 @@ private fun PantryContent(
         // BANNER DE CONTROL DE EXISTENCIAS
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -1871,7 +1930,7 @@ private fun TemplatesContent(
         // BANNER DE PLANTILLAS
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
             modifier = Modifier.fillMaxWidth()
         ) {

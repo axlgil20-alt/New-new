@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Visibility
@@ -115,6 +116,7 @@ fun InicioScreen(
     onToggleDarkTheme: () -> Unit = {},
     onOpenSmartCartClick: () -> Unit = {},
     onOpenPaymentsClick: () -> Unit = {},
+    onOpenDrawer: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val homeBackground = if (uiState.isDarkTheme) Color(0xFF1D1814) else Color(0xFFFCF7EE)
@@ -184,8 +186,23 @@ fun InicioScreen(
         }
 
         Column(modifier = Modifier.fillMaxSize()) {
-            // TopAppBar Oficial con Identidad Nacional HOY, Controles y Botón "+ Gasto"
+            // TopAppBar Oficial con Identidad Nacional HOY, Botón de Menú Lateral, Controles y Botón "+ Gasto"
             TopAppBar(
+                navigationIcon = {
+                    IconButton(
+                        onClick = onOpenDrawer,
+                        modifier = Modifier
+                            .size(48.dp)
+                            .testTag("open_drawer_button")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Menu,
+                            contentDescription = "Menú lateral",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                },
                 title = {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,

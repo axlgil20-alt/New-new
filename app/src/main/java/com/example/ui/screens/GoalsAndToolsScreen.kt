@@ -478,18 +478,7 @@ fun GoalsAndToolsScreen(
                 )
             }
 
-            // 5. Smart Cart Quetzi (Supermercados)
-            item {
-                ToolActionCard(
-                    title = "Smart Cart Quetzi (Supermercados)",
-                    subtitle = "Planificador y cotizador con cadenas (Walmart, Paiz, La Torre...), autocompletado y checklist en tienda",
-                    icon = Icons.Default.ShoppingCart,
-                    iconColor = Color(0xFF10B981),
-                    onClick = onOpenSmartCart
-                )
-            }
-
-            // 6. Calculadora de Aguinaldo (Decreto 76-78)
+            // 4. Calculadora de Aguinaldo (Decreto 76-78)
             item {
                 ToolActionCard(
                     title = "Calculadora de Aguinaldo (Decreto 76-78)",

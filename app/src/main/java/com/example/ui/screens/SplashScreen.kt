@@ -592,9 +592,9 @@ fun SplashScreen(
 
             Spacer(modifier = Modifier.height(6.dp))
 
-            // 2. MENSAJE COMPLETO DE MARCA
+            // 2. TEXTOS OFICIALES DE INTRODUCCIÓN QUETZI
             Text(
-                text = "De guatemaltecos para guatemaltecos.",
+                text = "Tus finanzas sin clavos.",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFFFDE047), // Dorado maya
@@ -605,24 +605,24 @@ fun SplashScreen(
                     .padding(horizontal = 12.dp)
             )
 
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(3.dp))
 
             Text(
-                text = "Tus finanzas sin clavos.",
+                text = "Tu cuate para organizar el pisto de la casa.",
                 style = MaterialTheme.typography.bodyMedium,
-                fontStyle = FontStyle.Italic,
                 fontWeight = FontWeight.SemiBold,
                 color = Color(0xFFA7F3D0), // Menta esmeralda claro
                 textAlign = TextAlign.Center,
+                lineHeight = 17.sp,
                 modifier = Modifier
                     .alpha(sloganAlpha.value)
                     .padding(horizontal = 12.dp)
             )
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             Text(
-                text = "Cada quetzal cuenta. Cada familia merece herramientas para organizarse, ahorrar y vivir con menos preocupación.",
+                text = "Compras, pagos, ahorro y quincenas en un solo lugar.",
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Normal,
                 color = Color.White.copy(alpha = 0.92f),
@@ -630,10 +630,25 @@ fun SplashScreen(
                 lineHeight = 16.sp,
                 modifier = Modifier
                     .alpha(sloganAlpha.value)
+                    .padding(horizontal = 14.dp)
+            )
+
+            Spacer(modifier = Modifier.height(3.dp))
+
+            Text(
+                text = "Cada quetzal cuenta.",
+                style = MaterialTheme.typography.bodySmall,
+                fontStyle = FontStyle.Italic,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFFDE047), // Dorado maya
+                textAlign = TextAlign.Center,
+                lineHeight = 16.sp,
+                modifier = Modifier
+                    .alpha(sloganAlpha.value)
                     .padding(horizontal = 16.dp)
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // 3. FIRMA OFICIAL EXACTA: MarvGr
             Surface(
