@@ -45,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -82,6 +83,9 @@ fun BeneficiariesDialog(
         notesInput = ""
     }
 
+    val isDialogDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val accentEmeraldText = if (isDialogDark) Color(0xFF6EE7B7) else EmeraldGreen
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -90,11 +94,14 @@ fun BeneficiariesDialog(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
                     Icon(
                         imageVector = Icons.Default.Business,
                         contentDescription = null,
-                        tint = EmeraldGreen,
+                        tint = accentEmeraldText,
                         modifier = Modifier.size(26.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -285,13 +292,14 @@ fun BeneficiariesDialog(
                                     ) {
                                         Surface(
                                             shape = RoundedCornerShape(8.dp),
-                                            color = EmeraldGreen.copy(alpha = 0.15f),
+                                            color = if (isDialogDark) Color(0xFF064E3B) else Color(0xFFD1FAE5),
+                                            border = BorderStroke(1.dp, if (isDialogDark) Color(0xFF34D399) else Color(0xFF059669)),
                                             modifier = Modifier.size(38.dp)
                                         ) {
                                             Icon(
                                                 imageVector = Icons.Default.Person,
                                                 contentDescription = null,
-                                                tint = EmeraldGreen,
+                                                tint = if (isDialogDark) Color(0xFFA7F3D0) else Color(0xFF065F46),
                                                 modifier = Modifier
                                                     .padding(8.dp)
                                                     .size(22.dp)
@@ -329,7 +337,7 @@ fun BeneficiariesDialog(
                                             Icon(
                                                 imageVector = Icons.Default.Edit,
                                                 contentDescription = "Editar",
-                                                tint = MaterialTheme.colorScheme.primary,
+                                                tint = accentEmeraldText,
                                                 modifier = Modifier.size(20.dp)
                                             )
                                         }
@@ -356,10 +364,14 @@ fun BeneficiariesDialog(
         confirmButton = {
             Button(
                 onClick = onDismiss,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = EmeraldGreen,
+                    contentColor = Color.White
+                ),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.heightIn(min = 48.dp)
             ) {
-                Text("Cerrar")
+                Text("Cerrar", color = Color.White, fontWeight = FontWeight.Bold)
             }
         }
     )

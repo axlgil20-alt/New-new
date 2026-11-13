@@ -1,6 +1,8 @@
 package com.example.ui.util
 
 import com.example.data.model.TransactionEntity
+import com.example.data.model.effectiveAmountBigDecimal
+import com.example.data.model.effectiveAmountMinor
 import com.example.data.model.isGastoReal
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -51,10 +53,10 @@ object BudgetLimitCalculator {
                     tx.isGastoReal &&
                     !tx.isSuspectedDuplicate &&
                     tx.dateMillis >= monthStart && tx.dateMillis < monthEndExclusive &&
-                    tx.amount.isFinite() && tx.amount >= 0.0
+                    tx.effectiveAmountMinor >= 0L
             }
             .fold(BigDecimal.ZERO) { total, tx ->
-                total.add(BigDecimal.valueOf(tx.amount).setScale(2, RoundingMode.HALF_UP))
+                total.add(tx.effectiveAmountBigDecimal)
             }
             .setScale(2, RoundingMode.HALF_UP)
     }

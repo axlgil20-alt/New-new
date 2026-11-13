@@ -1,16 +1,21 @@
 package com.example.ui.components
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -75,6 +80,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TransactionItemCard(
     transaction: TransactionEntity,
@@ -121,9 +127,10 @@ fun TransactionItemCard(
     val borderColor = when {
         isSelected -> Color(0xFF0284C7)
         transaction.isSuspectedDuplicate -> Color(0xFFF59E0B) // Borde ámbar para duplicado
-        isDiscarded -> Color(0xFF86EFAC)
+        isDiscarded -> if (isDarkTheme) Color(0xFF34D399).copy(alpha = 0.6f) else Color(0xFF86EFAC)
         isPendingTentative -> TentativePurple
-        transaction.isVerified -> Color(0xFF93C5FD)
+        transaction.isVerified -> if (isDarkTheme) Color(0xFF60A5FA).copy(alpha = 0.7f) else Color(0xFF93C5FD)
+        isDarkTheme -> Color(0xFF334155)
         else -> Color(0xFFE2E8F0)
     }
 
@@ -234,12 +241,12 @@ fun TransactionItemCard(
                     // Checkbox de conciliado
                     IconButton(
                         onClick = onToggleVerify,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(38.dp)
                     ) {
                         Icon(
                             imageVector = if (transaction.isVerified) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
                             contentDescription = if (transaction.isVerified) "Verificado" else "Marcar Revisado",
-                            tint = if (transaction.isVerified) Color(0xFF2563EB) else Color.LightGray,
+                            tint = if (transaction.isVerified) Color(0xFF3B82F6) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                             modifier = Modifier.size(19.dp)
                         )
                     }
@@ -248,12 +255,12 @@ fun TransactionItemCard(
                     Box {
                         IconButton(
                             onClick = { showColorPicker = true },
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(38.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.FormatColorFill,
                                 contentDescription = "Resaltar con color",
-                                tint = if (transaction.highlightColorHex != 0L) Color(transaction.highlightColorHex) else Color.Gray,
+                                tint = if (transaction.highlightColorHex != 0L) Color(transaction.highlightColorHex) else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(19.dp)
                             )
                         }
@@ -288,31 +295,31 @@ fun TransactionItemCard(
                     if (transaction.type == TransactionType.EXPENSE && onToggleGastoSupuesto != null) {
                         IconButton(
                             onClick = onToggleGastoSupuesto,
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(38.dp)
                         ) {
                             Icon(
                                 imageVector = if (isPendingTentative) Icons.Default.CheckCircle else Icons.Default.HelpOutline,
                                 contentDescription = if (isPendingTentative) "Confirmar como real" else "Marcar como supuesto",
-                                tint = if (isPendingTentative) TentativePurple else Color.Gray,
+                                tint = if (isPendingTentative) (if (isDarkTheme) Color(0xFFC4B5FD) else TentativePurple) else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(19.dp)
                             )
                         }
                     }
 
-                    IconButton(onClick = onEdit, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = onEdit, modifier = Modifier.size(38.dp)) {
                         Icon(
                             imageVector = Icons.Default.Edit,
                             contentDescription = "Editar",
-                            tint = Color.Gray,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(18.dp)
                         )
                     }
 
-                    IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = onDelete, modifier = Modifier.size(38.dp)) {
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Eliminar",
-                            tint = Color(0xFFEF4444).copy(alpha = 0.8f),
+                            tint = if (isDarkTheme) Color(0xFFFCA5A5) else Color(0xFFDC2626),
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -335,10 +342,11 @@ fun TransactionItemCard(
                         color = MaterialTheme.colorScheme.onSurface,
                         textDecoration = if (isDiscarded) TextDecoration.LineThrough else TextDecoration.None
                     )
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = "$dateText • ${transaction.familyMember} • ${transaction.paymentMethod}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
 
@@ -355,7 +363,7 @@ fun TransactionItemCard(
                         Text(
                             text = "Gasto Supuesto",
                             style = MaterialTheme.typography.labelSmall,
-                            color = TentativePurple,
+                            color = if (isDarkTheme) Color(0xFFD2B6FF) else TentativePurple,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
@@ -363,12 +371,12 @@ fun TransactionItemCard(
             }
 
             // Fila de Badges y Metadatos (Origen, Estado, Duplicado, Hormiga)
-            Row(
+            FlowRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(top = 6.dp),
+                    .padding(top = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 // Badge de Origen (Excel vs Manual)
                 if (transaction.source == TransactionSource.IMPORTED) {
@@ -514,7 +522,7 @@ fun TransactionItemCard(
 
             // Notas si existen
             if (transaction.notes.isNotBlank()) {
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(6.dp))
                 Text(
                     text = transaction.notes,
                     style = MaterialTheme.typography.bodySmall,
@@ -528,8 +536,8 @@ fun TransactionItemCard(
                 Spacer(modifier = Modifier.height(10.dp))
                 Surface(
                     shape = RoundedCornerShape(14.dp),
-                    color = Color(0xFFFAF5FF),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, TentativePurple.copy(alpha = 0.5f))
+                    color = if (isDarkTheme) Color(0xFF2B1F3D) else Color(0xFFFAF5FF),
+                    border = BorderStroke(1.dp, (if (isDarkTheme) Color(0xFFA78BFA) else TentativePurple).copy(alpha = 0.55f))
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Row(
@@ -539,14 +547,14 @@ fun TransactionItemCard(
                             Icon(
                                 imageVector = Icons.Default.HelpOutline,
                                 contentDescription = null,
-                                tint = TentativePurple,
+                                tint = if (isDarkTheme) Color(0xFFD2B6FF) else TentativePurple,
                                 modifier = Modifier.size(16.dp)
                             )
                             Text(
                                 text = "Gasto Supuesto: ¿Aprobar débito de $currencySymbol${"%,.2f".format(transaction.amount)}?",
                                 style = MaterialTheme.typography.labelMedium,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF581C87)
+                                color = if (isDarkTheme) Color(0xFFE9D5FF) else Color(0xFF581C87)
                             )
                         }
                         Spacer(modifier = Modifier.height(8.dp))
@@ -556,24 +564,26 @@ fun TransactionItemCard(
                         ) {
                             Button(
                                 onClick = { onDecideTentative("CONFIRM") },
-                                colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed),
+                                colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed, contentColor = Color.White),
                                 shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.weight(1f)
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                                modifier = Modifier.weight(1f).heightIn(min = 44.dp)
                             ) {
-                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(15.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Aprobar Gasto Real", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                Text("Aprobar Real", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
 
                             Button(
                                 onClick = { onDecideTentative("DISCARD") },
-                                colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen),
+                                colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen, contentColor = Color.White),
                                 shape = RoundedCornerShape(10.dp),
-                                modifier = Modifier.weight(1f)
+                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                                modifier = Modifier.weight(1f).heightIn(min = 44.dp)
                             ) {
-                                Icon(Icons.Default.ThumbUp, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.ThumbUp, contentDescription = null, modifier = Modifier.size(15.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("Ahorrar / Descartar", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+                                Text("Ahorrar / Descartar", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                             }
                         }
                     }

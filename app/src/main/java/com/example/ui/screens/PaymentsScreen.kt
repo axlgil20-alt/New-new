@@ -69,7 +69,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -85,7 +87,6 @@ import com.example.data.model.isUpcoming
 import com.example.ui.components.AddEditPaymentDialog
 import com.example.ui.components.BeneficiariesDialog
 import com.example.ui.theme.EmeraldGreen
-import com.example.ui.theme.ExpenseRed
 import com.example.ui.util.FormatUtils
 import com.example.ui.viewmodel.BudgetUiState
 import java.text.SimpleDateFormat
@@ -177,8 +178,14 @@ fun PaymentsScreen(
         }
     }
 
-    val pageBackground = if (uiState.isDarkTheme) Color(0xFF1B1612) else Color(0xFFFAF5ED)
-    val backgroundScrim = if (uiState.isDarkTheme) Color(0xCC130E0A) else Color(0x66FAF5ED)
+    val isDark = uiState.isDarkTheme
+    val pageBackground = if (isDark) Color(0xFF14110E) else Color(0xFFFAF5ED)
+    val backgroundScrim = if (isDark) Color(0xD914110E) else Color(0xD1FAF5ED)
+    val cardSurface = if (isDark) Color(0xFF1E293B) else Color.White
+    val cardBorder = if (isDark) Color(0xFF334155) else Color(0xFFD6E4DF)
+    val accentEmeraldText = if (isDark) Color(0xFF6EE7B7) else Color(0xFF065F46)
+    val accentEmeraldTint = if (isDark) Color(0xFF34D399) else EmeraldGreen
+    val heroTextShadow = Shadow(color = Color(0xCC000000), offset = Offset(0f, 2f), blurRadius = 6f)
 
     Box(
         modifier = modifier
@@ -192,9 +199,9 @@ fun PaymentsScreen(
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxSize()
-                .alpha(if (uiState.isDarkTheme) 0.22f else 0.40f)
+                .alpha(if (isDark) 0.14f else 0.20f)
         )
-        // Velo de contraste general
+        // Velo opaco protector para preservar legibilidad sin eliminar la atmósfera del Parque Central
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -214,17 +221,16 @@ fun PaymentsScreen(
                 alignment = Alignment.TopCenter,
                 modifier = Modifier.fillMaxSize()
             )
-            // Gradiente vertical de protección: oscuro arriba para legibilidad de títulos,
-            // transparente en el centro para apreciar nítidamente el Palacio Nacional entre tarjetas,
-            // y desvanecimiento suave hacia el fondo de la pantalla
+            // Gradiente vertical de protección: sólido arriba para lectura nítida de cabecera y botones,
+            // ventana clara en el centro para apreciar el Palacio Nacional, y fusión limpia al fondo
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
-                            0.0f to Color(0xDD031F1A),
-                            0.20f to Color(0x66031F1A),
-                            0.70f to Color(0x33000000),
+                            0.0f to Color(0xEB031F1A),
+                            0.24f to Color(0x9E031F1A),
+                            0.72f to Color(0x33000000),
                             1.0f to pageBackground
                         )
                     )
@@ -239,7 +245,7 @@ fun PaymentsScreen(
                         Surface(
                             shape = RoundedCornerShape(10.dp),
                             color = EmeraldGreen,
-                            border = BorderStroke(1.dp, Color(0xFF34D399)),
+                            border = BorderStroke(1.dp, Color(0xFF6EE7B7)),
                             modifier = Modifier.size(38.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -255,29 +261,33 @@ fun PaymentsScreen(
                         Column {
                             Text(
                                 text = "PAGOS",
-                                style = MaterialTheme.typography.titleLarge,
+                                style = MaterialTheme.typography.titleLarge.copy(shadow = heroTextShadow),
                                 fontWeight = FontWeight.Black,
                                 color = Color.White,
-                                letterSpacing = 0.5.sp
+                                letterSpacing = 0.5.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                text = "Administrador de Compromisos Familiares",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = Color(0xFFE2E8F0)
+                                text = "Compromisos Familiares",
+                                style = MaterialTheme.typography.labelSmall.copy(shadow = heroTextShadow),
+                                color = Color(0xFFF1F5F9),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
                 },
                 actions = {
-                    // Botón Directorio de Beneficiarios (estilo frosted glass para perfecta lectura sobre la foto)
+                    // Botón Directorio de Beneficiarios con fondo sólido institucional de alto contraste
                     OutlinedButton(
                         onClick = { showBeneficiariesDialog = true },
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = Color(0x66000000),
+                            containerColor = if (isDark) Color(0xFF0E2921) else Color(0xFF063729),
                             contentColor = Color.White
                         ),
-                        border = BorderStroke(1.dp, Color(0x88FFFFFF)),
+                        border = BorderStroke(1.2.dp, Color(0xFF6EE7B7)),
                         contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                         modifier = Modifier
                             .heightIn(min = 48.dp)
@@ -291,18 +301,29 @@ fun PaymentsScreen(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Beneficiarios", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(
+                            text = "Beneficiarios",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
 
-                    // Botón "+ Nuevo Pago"
+                    // Botón "+ Pago"
                     Button(
                         onClick = {
                             commitmentToEdit = null
                             showAddEditDialog = true
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = EmeraldGreen,
+                            contentColor = Color.White
+                        ),
+                        border = BorderStroke(1.dp, Color(0xFF6EE7B7)),
                         shape = RoundedCornerShape(10.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                         modifier = Modifier
                             .heightIn(min = 48.dp)
                             .padding(end = 8.dp)
@@ -310,7 +331,7 @@ fun PaymentsScreen(
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Pago", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Text("Pago", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -340,16 +361,17 @@ fun PaymentsScreen(
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(16.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (uiState.isDarkTheme) Color(0xFF261D17) else Color(0xFFFFFBEB)
+                                    containerColor = if (isDark) Color(0xFF261D17) else Color(0xFFFFFBEB)
                                 ),
-                                border = BorderStroke(1.dp, Color(0xFFD97706).copy(alpha = 0.5f))
+                                border = BorderStroke(1.2.dp, if (isDark) Color(0xFFF59E0B) else Color(0xFFD97706)),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
                             ) {
                                 Column(modifier = Modifier.padding(14.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(
                                             imageVector = Icons.Default.Schedule,
                                             contentDescription = null,
-                                            tint = Color(0xFFD97706),
+                                            tint = if (isDark) Color(0xFFFBBF24) else Color(0xFF92400E),
                                             modifier = Modifier.size(16.dp)
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
@@ -357,7 +379,7 @@ fun PaymentsScreen(
                                             text = "Total Pendiente",
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (uiState.isDarkTheme) Color(0xFFFDE68A) else Color(0xFF92400E)
+                                            color = if (isDark) Color(0xFFFDE68A) else Color(0xFF92400E)
                                         )
                                     }
                                     Spacer(modifier = Modifier.height(4.dp))
@@ -365,12 +387,12 @@ fun PaymentsScreen(
                                         text = FormatUtils.formatCurrency(uiState.totalPendingPayments, uiState.currencySymbol, uiState.isDiscreetMode),
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = if (uiState.isDarkTheme) Color(0xFFFDE68A) else Color(0xFF92400E)
+                                        color = if (isDark) Color(0xFFFEF3C7) else Color(0xFF78350F)
                                     )
                                     Text(
                                         text = "Obligaciones por saldar",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = if (isDark) Color(0xFFE2E8F0) else Color(0xFF475569)
                                     )
                                 }
                             }
@@ -380,16 +402,17 @@ fun PaymentsScreen(
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(16.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (uiState.isDarkTheme) Color(0xFF1B291D) else Color(0xFFF0FDF4)
+                                    containerColor = if (isDark) Color(0xFF13261E) else Color(0xFFF0FDF4)
                                 ),
-                                border = BorderStroke(1.dp, EmeraldGreen.copy(alpha = 0.5f))
+                                border = BorderStroke(1.2.dp, if (isDark) Color(0xFF34D399) else Color(0xFF059669)),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
                             ) {
                                 Column(modifier = Modifier.padding(14.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         Icon(
                                             imageVector = Icons.Default.CheckCircle,
                                             contentDescription = null,
-                                            tint = EmeraldGreen,
+                                            tint = if (isDark) Color(0xFF6EE7B7) else Color(0xFF065F46),
                                             modifier = Modifier.size(16.dp)
                                         )
                                         Spacer(modifier = Modifier.width(6.dp))
@@ -397,7 +420,7 @@ fun PaymentsScreen(
                                             text = "Pagado este Mes",
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (uiState.isDarkTheme) Color(0xFFA8D5A0) else Color(0xFF166534)
+                                            color = if (isDark) Color(0xFFA7F3D0) else Color(0xFF065F46)
                                         )
                                     }
                                     Spacer(modifier = Modifier.height(4.dp))
@@ -405,12 +428,12 @@ fun PaymentsScreen(
                                         text = FormatUtils.formatCurrency(uiState.monthPaidPaymentsTotal, uiState.currencySymbol, uiState.isDiscreetMode),
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = if (uiState.isDarkTheme) Color(0xFFA8D5A0) else Color(0xFF166534)
+                                        color = if (isDark) Color(0xFFD1FAE5) else Color(0xFF064E3B)
                                     )
                                     Text(
                                         text = "Ya saldado y real",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = if (isDark) Color(0xFFE2E8F0) else Color(0xFF334155)
                                     )
                                 }
                             }
@@ -426,9 +449,10 @@ fun PaymentsScreen(
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(14.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (uiState.isDarkTheme) Color(0xFF1B2433) else Color(0xFFEFF6FF)
+                                    containerColor = if (isDark) Color(0xFF1B2433) else Color(0xFFEFF6FF)
                                 ),
-                                border = BorderStroke(1.dp, Color(0xFF3B82F6).copy(alpha = 0.5f))
+                                border = BorderStroke(1.2.dp, if (isDark) Color(0xFF60A5FA) else Color(0xFF2563EB)),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -438,13 +462,13 @@ fun PaymentsScreen(
                                 ) {
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
-                                        color = Color(0xFF3B82F6).copy(alpha = 0.15f),
+                                        color = if (isDark) Color(0xFF1E3A8A) else Color(0xFFDBEAFE),
                                         modifier = Modifier.size(36.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.HourglassTop,
                                             contentDescription = null,
-                                            tint = Color(0xFF2563EB),
+                                            tint = if (isDark) Color(0xFFBFDBFE) else Color(0xFF1D4ED8),
                                             modifier = Modifier
                                                 .padding(8.dp)
                                                 .size(20.dp)
@@ -456,12 +480,12 @@ fun PaymentsScreen(
                                             text = "${uiState.upcomingPaymentsCount} Próximos",
                                             style = MaterialTheme.typography.titleSmall,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (uiState.isDarkTheme) Color(0xFFBFDBFE) else Color(0xFF1E40AF)
+                                            color = if (isDark) Color(0xFFDBEAFE) else Color(0xFF1E3A8A)
                                         )
                                         Text(
                                             text = "Vencen en 7 días",
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = if (isDark) Color(0xFFE2E8F0) else Color(0xFF334155)
                                         )
                                     }
                                 }
@@ -469,20 +493,32 @@ fun PaymentsScreen(
 
                             // Vencidos
                             val overdueCount = uiState.overduePaymentsCount
+                            val overdueCardBg = if (overdueCount > 0) {
+                                if (isDark) Color(0xFF3B1518) else Color(0xFFFEF2F2)
+                            } else {
+                                if (isDark) Color(0xFF13261E) else Color(0xFFF0FDF4)
+                            }
+                            val overdueCardBorder = if (overdueCount > 0) {
+                                if (isDark) Color(0xFFF87171) else Color(0xFFDC2626)
+                            } else {
+                                if (isDark) Color(0xFF34D399) else Color(0xFF059669)
+                            }
+                            val overdueIconBg = if (overdueCount > 0) {
+                                if (isDark) Color(0xFF5C1D24) else Color(0xFFFEE2E2)
+                            } else {
+                                if (isDark) Color(0xFF064E3B) else Color(0xFFD1FAE5)
+                            }
+                            val overdueAccentText = if (overdueCount > 0) {
+                                if (isDark) Color(0xFFFECACA) else Color(0xFF991B1B)
+                            } else {
+                                if (isDark) Color(0xFFA7F3D0) else Color(0xFF065F46)
+                            }
                             Card(
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(14.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = if (overdueCount > 0) {
-                                        if (uiState.isDarkTheme) Color(0xFF3A1C1C) else Color(0xFFFEF2F2)
-                                    } else {
-                                        if (uiState.isDarkTheme) Color(0xFF1B291D) else Color(0xFFF0FDF4)
-                                    }
-                                ),
-                                border = BorderStroke(
-                                    1.dp,
-                                    if (overdueCount > 0) ExpenseRed.copy(alpha = 0.6f) else EmeraldGreen.copy(alpha = 0.5f)
-                                )
+                                colors = CardDefaults.cardColors(containerColor = overdueCardBg),
+                                border = BorderStroke(1.2.dp, overdueCardBorder),
+                                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
                             ) {
                                 Row(
                                     modifier = Modifier
@@ -492,13 +528,13 @@ fun PaymentsScreen(
                                 ) {
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
-                                        color = if (overdueCount > 0) ExpenseRed.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant,
+                                        color = overdueIconBg,
                                         modifier = Modifier.size(36.dp)
                                     ) {
                                         Icon(
                                             imageVector = if (overdueCount > 0) Icons.Default.ErrorOutline else Icons.Default.CheckCircle,
                                             contentDescription = null,
-                                            tint = if (overdueCount > 0) ExpenseRed else EmeraldGreen,
+                                            tint = overdueAccentText,
                                             modifier = Modifier
                                                 .padding(8.dp)
                                                 .size(20.dp)
@@ -510,12 +546,12 @@ fun PaymentsScreen(
                                             text = "$overdueCount Vencido(s)",
                                             style = MaterialTheme.typography.titleSmall,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (overdueCount > 0) ExpenseRed else MaterialTheme.colorScheme.onSurface
+                                            color = overdueAccentText
                                         )
                                         Text(
                                             text = if (overdueCount > 0) "Atención requerida" else "Al día",
                                             style = MaterialTheme.typography.labelSmall,
-                                            color = if (overdueCount > 0) ExpenseRed else MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = if (overdueCount > 0) overdueAccentText else (if (isDark) Color(0xFFE2E8F0) else Color(0xFF334155))
                                         )
                                     }
                                 }
@@ -524,69 +560,123 @@ fun PaymentsScreen(
                     }
                 }
 
-                // B. AGENDA DE PAGOS (Chips de filtro)
+                // B. AGENDA DE PAGOS (Contenedor sólido opaco + chips opacos de alto contraste)
                 item {
-                    Column(
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = cardSurface),
+                        border = BorderStroke(1.dp, cardBorder),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 16.dp)
                     ) {
-                        Text(
-                            text = "Agenda de Compromisos",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth()
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 12.dp)
                         ) {
-                            val filters = listOf(
-                                "Todos (${allPayments.size})",
-                                "Hoy",
-                                "Próximos 7 días",
-                                "Este mes",
-                                "Vencidos"
-                            )
-                            items(filters.size) { index ->
-                                FilterChip(
-                                    selected = selectedAgendaFilterIndex == index,
-                                    onClick = { selectedAgendaFilterIndex = index },
-                                    label = { Text(filters[index], fontWeight = FontWeight.SemiBold) },
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = EmeraldGreen,
-                                        selectedLabelColor = Color.White
-                                    ),
-                                    modifier = Modifier.heightIn(min = 48.dp)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.Schedule,
+                                    contentDescription = null,
+                                    tint = accentEmeraldTint,
+                                    modifier = Modifier.size(16.dp)
                                 )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Agenda de Compromisos",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = accentEmeraldText
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            LazyRow(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                val filters = listOf(
+                                    "Todos (${allPayments.size})",
+                                    "Hoy",
+                                    "Próximos 7 días",
+                                    "Este mes",
+                                    "Vencidos"
+                                )
+                                items(filters.size) { index ->
+                                    val isSelected = selectedAgendaFilterIndex == index
+                                    FilterChip(
+                                        selected = isSelected,
+                                        onClick = { selectedAgendaFilterIndex = index },
+                                        label = {
+                                            Text(
+                                                text = filters[index],
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                                maxLines = 1
+                                            )
+                                        },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            containerColor = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                            labelColor = if (isDark) Color(0xFFE2E8F0) else Color(0xFF1E293B),
+                                            selectedContainerColor = EmeraldGreen,
+                                            selectedLabelColor = Color.White
+                                        ),
+                                        border = FilterChipDefaults.filterChipBorder(
+                                            enabled = true,
+                                            selected = isSelected,
+                                            borderColor = if (isDark) Color(0xFF475569) else Color(0xFFCBD5E1),
+                                            selectedBorderColor = if (isDark) Color(0xFF34D399) else EmeraldGreen
+                                        ),
+                                        shape = RoundedCornerShape(10.dp),
+                                        modifier = Modifier.heightIn(min = 48.dp)
+                                    )
+                                }
                             }
                         }
                     }
                 }
 
-                // Buscador de Pagos
+                // Buscador de Pagos con superficie sólida y bordes nítidos
                 item {
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = { searchQuery = it },
-                        placeholder = { Text("Buscar por beneficiario, concepto o monto...") },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = EmeraldGreen) },
+                        placeholder = {
+                            Text(
+                                text = "Buscar por beneficiario, concepto o monto...",
+                                color = if (isDark) Color(0xFF94A3B8) else Color(0xFF64748B)
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                tint = accentEmeraldTint
+                            )
+                        },
                         trailingIcon = {
                             if (searchQuery.isNotBlank()) {
                                 IconButton(
                                     onClick = { searchQuery = "" },
                                     modifier = Modifier.size(48.dp)
                                 ) {
-                                    Icon(Icons.Default.Clear, contentDescription = "Limpiar")
+                                    Icon(
+                                        imageVector = Icons.Default.Clear,
+                                        contentDescription = "Limpiar",
+                                        tint = if (isDark) Color(0xFFE2E8F0) else Color(0xFF475569)
+                                    )
                                 }
                             }
                         },
                         singleLine = true,
                         shape = RoundedCornerShape(14.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = MaterialTheme.colorScheme.surface,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                            focusedContainerColor = cardSurface,
+                            unfocusedContainerColor = cardSurface,
+                            focusedTextColor = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0F172A),
+                            unfocusedTextColor = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0F172A),
+                            focusedBorderColor = accentEmeraldTint,
+                            unfocusedBorderColor = if (isDark) Color(0xFF475569) else Color(0xFFCBD5E1)
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -603,7 +693,9 @@ fun PaymentsScreen(
                                 .fillMaxWidth()
                                 .padding(16.dp),
                             shape = RoundedCornerShape(18.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                            colors = CardDefaults.cardColors(containerColor = cardSurface),
+                            border = BorderStroke(1.dp, cardBorder),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                         ) {
                             Column(
                                 modifier = Modifier
@@ -611,30 +703,50 @@ fun PaymentsScreen(
                                     .padding(24.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.Payments,
-                                    contentDescription = null,
-                                    tint = EmeraldGreen,
-                                    modifier = Modifier.size(42.dp)
+                                Surface(
+                                    shape = CircleShape,
+                                    color = if (isDark) Color(0xFF064E3B) else Color(0xFFD1FAE5),
+                                    modifier = Modifier.size(60.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = Icons.Default.Payments,
+                                            contentDescription = null,
+                                            tint = accentEmeraldText,
+                                            modifier = Modifier.size(32.dp)
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = if (searchQuery.isBlank()) "Sin compromisos pendientes" else "Sin resultados",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0F172A)
                                 )
-                                Spacer(modifier = Modifier.height(10.dp))
+                                Spacer(modifier = Modifier.height(6.dp))
                                 Text(
                                     text = if (searchQuery.isBlank()) "No hay pagos pendientes en este criterio." else "No se encontraron pagos para «$searchQuery».",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = if (isDark) Color(0xFFCBD5E1) else Color(0xFF475569),
+                                    textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                 )
-                                Spacer(modifier = Modifier.height(12.dp))
+                                Spacer(modifier = Modifier.height(14.dp))
                                 Button(
                                     onClick = {
                                         commitmentToEdit = null
                                         showAddEditDialog = true
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen),
-                                    shape = RoundedCornerShape(12.dp)
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = EmeraldGreen,
+                                        contentColor = Color.White
+                                    ),
+                                    shape = RoundedCornerShape(12.dp),
+                                    modifier = Modifier.heightIn(min = 48.dp)
                                 ) {
                                     Icon(Icons.Default.Add, contentDescription = null, tint = Color.White)
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text("Registrar Primer Compromiso", color = Color.White)
+                                    Text("Registrar Primer Compromiso", color = Color.White, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -726,12 +838,32 @@ fun PaymentCommitmentCard(
 
     val dateFormatter = remember { SimpleDateFormat("dd 'de' MMM, yyyy", Locale("es", "GT")) }
 
-    val statusBadgeColor = when {
-        isPaid -> EmeraldGreen
-        isOverdue -> ExpenseRed
-        isToday -> Color(0xFFD97706)
-        isUpcoming -> Color(0xFF2563EB)
-        else -> MaterialTheme.colorScheme.onSurfaceVariant
+    val statusContainerBg = when {
+        isPaid -> if (isDarkTheme) Color(0xFF064E3B) else Color(0xFFD1FAE5)
+        isOverdue -> if (isDarkTheme) Color(0xFF5C1D24) else Color(0xFFFEE2E2)
+        isToday -> if (isDarkTheme) Color(0xFF451A03) else Color(0xFFFEF3C7)
+        isUpcoming -> if (isDarkTheme) Color(0xFF1E3A8A) else Color(0xFFDBEAFE)
+        else -> if (isDarkTheme) Color(0xFF334155) else Color(0xFFF1F5F9)
+    }
+    val statusContentColor = when {
+        isPaid -> if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF065F46)
+        isOverdue -> if (isDarkTheme) Color(0xFFFECACA) else Color(0xFF991B1B)
+        isToday -> if (isDarkTheme) Color(0xFFFDE68A) else Color(0xFF92400E)
+        isUpcoming -> if (isDarkTheme) Color(0xFFBFDBFE) else Color(0xFF1E40AF)
+        else -> if (isDarkTheme) Color(0xFFE2E8F0) else Color(0xFF334155)
+    }
+    val statusBorderColor = when {
+        isPaid -> if (isDarkTheme) Color(0xFF34D399) else Color(0xFF059669)
+        isOverdue -> if (isDarkTheme) Color(0xFFF87171) else Color(0xFFDC2626)
+        isToday -> if (isDarkTheme) Color(0xFFFBBF24) else Color(0xFFD97706)
+        isUpcoming -> if (isDarkTheme) Color(0xFF60A5FA) else Color(0xFF2563EB)
+        else -> if (isDarkTheme) Color(0xFF64748B) else Color(0xFF94A3B8)
+    }
+    val cardBorderColor = when {
+        isOverdue -> if (isDarkTheme) Color(0xFFF87171) else Color(0xFFDC2626)
+        isToday -> if (isDarkTheme) Color(0xFFFBBF24) else Color(0xFFD97706)
+        isPaid -> if (isDarkTheme) Color(0xFF34D399) else Color(0xFF059669)
+        else -> if (isDarkTheme) Color(0xFF334155) else Color(0xFFCBD5E1)
     }
 
     val statusBadgeText = when {
@@ -750,25 +882,21 @@ fun PaymentCommitmentCard(
         else -> Icons.Default.Schedule
     }
 
+    val primaryText = if (isDarkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
+    val secondaryText = if (isDarkTheme) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val accentEmeraldText = if (isDarkTheme) Color(0xFF6EE7B7) else Color(0xFF065F46)
+
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isPaid) {
-                if (isDarkTheme) Color(0xFF1E281F) else Color(0xFFF7FAF7)
+                if (isDarkTheme) Color(0xFF14241D) else Color(0xFFF2FAF6)
             } else {
-                MaterialTheme.colorScheme.surface
+                if (isDarkTheme) Color(0xFF1E293B) else Color.White
             }
         ),
-        border = BorderStroke(
-            1.2.dp,
-            when {
-                isOverdue -> ExpenseRed
-                isToday -> Color(0xFFD97706)
-                isPaid -> EmeraldGreen.copy(alpha = 0.5f)
-                else -> MaterialTheme.colorScheme.outlineVariant
-            }
-        ),
+        border = BorderStroke(1.2.dp, cardBorderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isPaid) 1.dp else 3.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -784,15 +912,16 @@ fun PaymentCommitmentCard(
                 ) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = statusBadgeColor.copy(alpha = 0.15f),
-                        modifier = Modifier.size(34.dp)
+                        color = statusContainerBg,
+                        border = BorderStroke(1.dp, statusBorderColor),
+                        modifier = Modifier.size(36.dp)
                     ) {
                         Icon(
                             imageVector = statusBadgeIcon,
                             contentDescription = null,
-                            tint = statusBadgeColor,
+                            tint = statusContentColor,
                             modifier = Modifier
-                                .padding(7.dp)
+                                .padding(8.dp)
                                 .size(20.dp)
                         )
                     }
@@ -802,30 +931,32 @@ fun PaymentCommitmentCard(
                             text = commitment.beneficiaryName,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = primaryText,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = commitment.category,
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = secondaryText
                         )
                     }
                 }
 
-                // Insignia de Estado
+                Spacer(modifier = Modifier.width(8.dp))
+
+                // Insignia de Estado sólida opaca
                 Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = statusBadgeColor.copy(alpha = 0.15f),
-                    border = BorderStroke(0.8.dp, statusBadgeColor)
+                    shape = RoundedCornerShape(8.dp),
+                    color = statusContainerBg,
+                    border = BorderStroke(1.dp, statusBorderColor)
                 ) {
                     Text(
                         text = statusBadgeText,
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.ExtraBold,
-                        color = statusBadgeColor,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        color = statusContentColor,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
             }
@@ -837,7 +968,7 @@ fun PaymentCommitmentCard(
                 text = commitment.title,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
+                color = primaryText
             )
 
             if (commitment.description.isNotBlank()) {
@@ -845,7 +976,7 @@ fun PaymentCommitmentCard(
                 Text(
                     text = commitment.description,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = secondaryText
                 )
             }
 
@@ -861,13 +992,17 @@ fun PaymentCommitmentCard(
                     Text(
                         text = "Vencimiento",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = secondaryText
                     )
                     Text(
                         text = dateFormatter.format(Date(commitment.dueDateMillis)),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
-                        color = if (isOverdue) ExpenseRed else MaterialTheme.colorScheme.onSurface
+                        color = if (isOverdue) {
+                            if (isDarkTheme) Color(0xFFFCA5A5) else Color(0xFFB91C1C)
+                        } else {
+                            primaryText
+                        }
                     )
                 }
 
@@ -876,7 +1011,7 @@ fun PaymentCommitmentCard(
                         Text(
                             text = "Monto Variable",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color(0xFFD97706),
+                            color = if (isDarkTheme) Color(0xFFFCD34D) else Color(0xFF92400E),
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -884,7 +1019,7 @@ fun PaymentCommitmentCard(
                         text = FormatUtils.formatCurrency(commitment.amount, currencySymbol, isDiscreetMode),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.ExtraBold,
-                        color = if (isPaid) EmeraldGreen else MaterialTheme.colorScheme.onSurface
+                        color = if (isPaid) accentEmeraldText else primaryText
                     )
                 }
             }
@@ -896,7 +1031,7 @@ fun PaymentCommitmentCard(
                     Icon(
                         imageVector = Icons.Default.Repeat,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
+                        tint = accentEmeraldText,
                         modifier = Modifier.size(14.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
@@ -909,7 +1044,7 @@ fun PaymentCommitmentCard(
                     Text(
                         text = "$freqLabel (autoprograma el siguiente vencimiento al pagar)",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = accentEmeraldText,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -931,7 +1066,7 @@ fun PaymentCommitmentCard(
                         Icon(
                             imageVector = Icons.Default.Edit,
                             contentDescription = "Editar",
-                            tint = MaterialTheme.colorScheme.primary,
+                            tint = accentEmeraldText,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -943,7 +1078,7 @@ fun PaymentCommitmentCard(
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Eliminar",
-                            tint = MaterialTheme.colorScheme.error,
+                            tint = if (isDarkTheme) Color(0xFFFCA5A5) else Color(0xFFB91C1C),
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -952,7 +1087,10 @@ fun PaymentCommitmentCard(
                 if (!isPaid) {
                     Button(
                         onClick = onMarkAsPaid,
-                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = EmeraldGreen,
+                            contentColor = Color.White
+                        ),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
                             .heightIn(min = 48.dp)
@@ -970,8 +1108,8 @@ fun PaymentCommitmentCard(
                 } else {
                     Surface(
                         shape = RoundedCornerShape(10.dp),
-                        color = EmeraldGreen.copy(alpha = 0.15f),
-                        border = BorderStroke(1.dp, EmeraldGreen)
+                        color = if (isDarkTheme) Color(0xFF064E3B) else Color(0xFFD1FAE5),
+                        border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFF34D399) else Color(0xFF059669))
                     ) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -980,7 +1118,7 @@ fun PaymentCommitmentCard(
                             Icon(
                                 imageVector = Icons.Default.CheckCircle,
                                 contentDescription = null,
-                                tint = EmeraldGreen,
+                                tint = if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF065F46),
                                 modifier = Modifier.size(16.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
@@ -988,7 +1126,7 @@ fun PaymentCommitmentCard(
                                 text = "Pagado ✓ (Registrado en Historial)",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = EmeraldGreen
+                                color = if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF065F46)
                             )
                         }
                     }

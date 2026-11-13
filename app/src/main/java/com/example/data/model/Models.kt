@@ -1,7 +1,9 @@
 package com.example.data.model
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
+import java.math.BigDecimal
 
 object TransactionType {
     const val INCOME = "INCOME"
@@ -41,7 +43,20 @@ data class CategoryInfo(
     val colorHex: Long
 )
 
-@Entity(tableName = "transactions")
+@Entity(
+    tableName = "transactions",
+    indices = [
+        Index(name = "idx_transactions_accountId", value = ["accountId"]),
+        Index(name = "idx_transactions_entryKind", value = ["entryKind"]),
+        Index(name = "idx_transactions_transferGroupId", value = ["transferGroupId"]),
+        Index(name = "idx_transactions_installmentPlanId", value = ["installmentPlanId"]),
+        Index(
+            name = "idx_transactions_installment_unique",
+            value = ["installmentPlanId", "installmentNumber"],
+            unique = true
+        )
+    ]
+)
 data class TransactionEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0L,
@@ -62,7 +77,15 @@ data class TransactionEntity(
     val tentativeDecision: String = "", // "PENDING", "CONFIRMED", "DISCARDED"
     val externalId: String? = null,
     val importHash: String? = null,
-    val isSuspectedDuplicate: Boolean = false
+    val isSuspectedDuplicate: Boolean = false,
+    // Extensiones Room v13 (Mis Cuentas) — conservan compatibilidad total con datos heredados
+    val amountMinor: Long = MoneyMinorUnits.fromDouble(amount),
+    val accountId: Long? = null,
+    val entryKind: String = TransactionEntryKind.STANDARD,
+    val transferGroupId: String? = null,
+    val counterpartAccountId: Long? = null,
+    val installmentPlanId: Long? = null,
+    val installmentNumber: Int? = null
 )
 
 @Entity(tableName = "budget_limits")
@@ -113,7 +136,13 @@ object PaymentStatus {
     const val CANCELLED = "CANCELLED"
 }
 
-@Entity(tableName = "payment_commitments")
+@Entity(
+    tableName = "payment_commitments",
+    indices = [
+        Index(name = "idx_commitments_creditCardAccountId", value = ["creditCardAccountId"]),
+        Index(name = "idx_commitments_paymentSourceAccountId", value = ["paymentSourceAccountId"])
+    ]
+)
 data class PaymentCommitmentEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0L,
@@ -131,7 +160,14 @@ data class PaymentCommitmentEntity(
     val paidDateMillis: Long? = null,
     val linkedTransactionId: Long? = null,
     val createdAtMillis: Long = System.currentTimeMillis(),
-    val notes: String = ""
+    val notes: String = "",
+    // Extensiones Room v13 (Mis Cuentas)
+    val amountMinor: Long = MoneyMinorUnits.fromDouble(amount),
+    /** Cuenta tarjeta de crédito a la que corresponde este compromiso (null si es recibo/servicio ordinario). */
+    val creditCardAccountId: Long? = null,
+    /** Cuenta propia (efectivo/banco/cooperativa) desde la que se ejecutará el pago (null si aún no se asigna). */
+    val paymentSourceAccountId: Long? = null,
+    val commitmentKind: String = CommitmentKind.BILL
 )
 
 @Entity(tableName = "payment_beneficiaries")
@@ -293,11 +329,70 @@ object FilterPeriod {
     const val YEAR = "YEAR"
 }
 
+val TransactionEntity.isMonetarySynchronized: Boolean
+    get() = MoneyMinorUnits.fromDouble(amount) == amountMinor
+
+fun TransactionEntity.requireMonetarySync(): Long {
+    val legacyMinor = MoneyMinorUnits.fromDouble(amount)
+    check(legacyMinor == amountMinor) {
+        "Desincronización monetaria en TransactionEntity(id=$id): amount=$amount ($legacyMinor centavos) != amountMinor=$amountMinor centavos."
+    }
+    return amountMinor
+}
+
+fun TransactionEntity.withSyncedMinorFromLegacyAmount(): TransactionEntity =
+    copy(amountMinor = MoneyMinorUnits.fromDouble(amount))
+
+fun TransactionEntity.withSyncedLegacyAmountFromMinor(): TransactionEntity =
+    copy(amount = MoneyMinorUnits.toDisplayDouble(amountMinor))
+
+fun TransactionEntity.withExactAmountMinor(minorUnits: Long): TransactionEntity =
+    copy(
+        amountMinor = minorUnits,
+        amount = MoneyMinorUnits.toDisplayDouble(minorUnits)
+    )
+
+val TransactionEntity.effectiveAmountMinor: Long
+    get() = requireMonetarySync()
+
+val TransactionEntity.effectiveAmountBigDecimal: BigDecimal
+    get() = MoneyMinorUnits.toBigDecimal(effectiveAmountMinor)
+
+val PaymentCommitmentEntity.isMonetarySynchronized: Boolean
+    get() = MoneyMinorUnits.fromDouble(amount) == amountMinor
+
+fun PaymentCommitmentEntity.requireMonetarySync(): Long {
+    val legacyMinor = MoneyMinorUnits.fromDouble(amount)
+    check(legacyMinor == amountMinor) {
+        "Desincronización monetaria en PaymentCommitmentEntity(id=$id): amount=$amount ($legacyMinor centavos) != amountMinor=$amountMinor centavos."
+    }
+    return amountMinor
+}
+
+fun PaymentCommitmentEntity.withSyncedMinorFromLegacyAmount(): PaymentCommitmentEntity =
+    copy(amountMinor = MoneyMinorUnits.fromDouble(amount))
+
+fun PaymentCommitmentEntity.withSyncedLegacyAmountFromMinor(): PaymentCommitmentEntity =
+    copy(amount = MoneyMinorUnits.toDisplayDouble(amountMinor))
+
+fun PaymentCommitmentEntity.withExactAmountMinor(minorUnits: Long): PaymentCommitmentEntity =
+    copy(
+        amountMinor = minorUnits,
+        amount = MoneyMinorUnits.toDisplayDouble(minorUnits)
+    )
+
+val PaymentCommitmentEntity.effectiveAmountMinor: Long
+    get() = requireMonetarySync()
+
+val TransactionEntity.affectsBudgetTotals: Boolean
+    get() = TransactionEntryKind.affectsBudget(entryKind)
+
 val TransactionEntity.beneficiary: String
     get() = title
 
 val TransactionEntity.isGastoSupuesto: Boolean
-    get() = (type == TransactionType.EXPENSE) &&
+    get() = affectsBudgetTotals &&
+        (type == TransactionType.EXPENSE) &&
         (tentativeDecision != "CONFIRMED") &&
         (isTentative ||
          tentativeDecision == "PENDING" ||
@@ -307,12 +402,13 @@ val TransactionEntity.isGastoSupuesto: Boolean
          notes.contains("Pendiente", ignoreCase = true))
 
 val TransactionEntity.isGastoReal: Boolean
-    get() = (type == TransactionType.EXPENSE) &&
+    get() = affectsBudgetTotals &&
+        (type == TransactionType.EXPENSE) &&
         (tentativeDecision != "DISCARDED") &&
         !isGastoSupuesto
 
 val TransactionEntity.isIngresoReal: Boolean
-    get() = (type == TransactionType.INCOME)
+    get() = affectsBudgetTotals && (type == TransactionType.INCOME)
 
 val TransactionEntity.status: String
     get() = when {

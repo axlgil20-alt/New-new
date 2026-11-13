@@ -56,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -120,6 +121,9 @@ fun AddEditPaymentDialog(
 
     val dateFormatter = remember { SimpleDateFormat("dd 'de' MMMM, yyyy", Locale("es", "GT")) }
 
+    val isDialogDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val accentEmeraldText = if (isDialogDark) Color(0xFF6EE7B7) else EmeraldGreen
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
@@ -127,7 +131,7 @@ fun AddEditPaymentDialog(
                 Icon(
                     imageVector = Icons.Default.Payments,
                     contentDescription = null,
-                    tint = EmeraldGreen,
+                    tint = accentEmeraldText,
                     modifier = Modifier.size(28.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -151,7 +155,7 @@ fun AddEditPaymentDialog(
                         text = "Beneficiarios Frecuentes",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = accentEmeraldText
                     )
                     LazyRow(
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -264,7 +268,7 @@ fun AddEditPaymentDialog(
                         Icon(
                             imageVector = Icons.Default.CalendarMonth,
                             contentDescription = "Seleccionar fecha",
-                            tint = EmeraldGreen
+                            tint = accentEmeraldText
                         )
                     }
                 }
@@ -308,7 +312,7 @@ fun AddEditPaymentDialog(
                         text = "Frecuencia del Compromiso",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = accentEmeraldText
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -342,7 +346,7 @@ fun AddEditPaymentDialog(
                         text = "Recordatorio",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = accentEmeraldText
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -362,8 +366,9 @@ fun AddEditPaymentDialog(
                                     { Icon(Icons.Default.Notifications, contentDescription = null, modifier = Modifier.size(16.dp)) }
                                 } else null,
                                 colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = MaterialTheme.colorScheme.primary,
-                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimary
+                                    selectedContainerColor = EmeraldGreen,
+                                    selectedLabelColor = Color.White,
+                                    selectedLeadingIconColor = Color.White
                                 )
                             )
                         }

@@ -2,8 +2,13 @@ package com.example.ui.util
 
 import com.example.data.model.TransactionEntity
 import com.example.data.model.TransactionType
+import com.example.data.model.affectsBudgetTotals
+import com.example.data.model.effectiveAmountBigDecimal
+import com.example.data.model.effectiveAmountMinor
 import com.example.data.model.isGastoReal
 import com.example.data.model.isGastoSupuesto
+import com.example.data.model.isIngresoReal
+import java.math.BigDecimal
 import java.util.Calendar
 
 data class BudgetPeriod(
@@ -156,6 +161,7 @@ object QuincenaFilterHelper {
         val monthList = mutableListOf<TransactionEntity>()
 
         for (tx in transactions) {
+            if (!tx.affectsBudgetTotals) continue
             val bp = getBudgetPeriod(tx.dateMillis, tx.type)
             if (bp.year == targetYear && bp.monthIndex == targetMonthIndex) {
                 monthList.add(tx)
@@ -167,32 +173,32 @@ object QuincenaFilterHelper {
             }
         }
 
-        val q1Inc = q1.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-        val q1Exp = q1.filter { it.isGastoReal }.sumOf { it.amount }
-        val q1Pending = q1.filter { it.isGastoSupuesto && it.tentativeDecision != "DISCARDED" }.sumOf { it.amount }
-        val q2Inc = q2.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-        val q2Exp = q2.filter { it.isGastoReal }.sumOf { it.amount }
-        val q2Pending = q2.filter { it.isGastoSupuesto && it.tentativeDecision != "DISCARDED" }.sumOf { it.amount }
-        val totInc = monthList.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-        val totExp = monthList.filter { it.isGastoReal }.sumOf { it.amount }
-        val totPending = monthList.filter { it.isGastoSupuesto && it.tentativeDecision != "DISCARDED" }.sumOf { it.amount }
+        val q1IncBd = q1.filter { it.isIngresoReal }.fold(BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
+        val q1ExpBd = q1.filter { it.isGastoReal }.fold(BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
+        val q1PendingBd = q1.filter { it.isGastoSupuesto && it.tentativeDecision != "DISCARDED" }.fold(BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
+        val q2IncBd = q2.filter { it.isIngresoReal }.fold(BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
+        val q2ExpBd = q2.filter { it.isGastoReal }.fold(BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
+        val q2PendingBd = q2.filter { it.isGastoSupuesto && it.tentativeDecision != "DISCARDED" }.fold(BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
+        val totIncBd = monthList.filter { it.isIngresoReal }.fold(BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
+        val totExpBd = monthList.filter { it.isGastoReal }.fold(BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
+        val totPendingBd = monthList.filter { it.isGastoSupuesto && it.tentativeDecision != "DISCARDED" }.fold(BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
 
         return QuincenaFilteredData(
             q1Transactions = q1,
             q2Transactions = q2,
             monthTransactions = monthList,
-            q1Income = q1Inc,
-            q1Expense = q1Exp,
-            q1PendingExpense = q1Pending,
-            q1Net = q1Inc - q1Exp,
-            q2Income = q2Inc,
-            q2Expense = q2Exp,
-            q2PendingExpense = q2Pending,
-            q2Net = q2Inc - q2Exp,
-            totalIncome = totInc,
-            totalExpense = totExp,
-            totalPendingExpense = totPending,
-            totalNet = totInc - totExp
+            q1Income = q1IncBd.toDouble(),
+            q1Expense = q1ExpBd.toDouble(),
+            q1PendingExpense = q1PendingBd.toDouble(),
+            q1Net = q1IncBd.subtract(q1ExpBd).toDouble(),
+            q2Income = q2IncBd.toDouble(),
+            q2Expense = q2ExpBd.toDouble(),
+            q2PendingExpense = q2PendingBd.toDouble(),
+            q2Net = q2IncBd.subtract(q2ExpBd).toDouble(),
+            totalIncome = totIncBd.toDouble(),
+            totalExpense = totExpBd.toDouble(),
+            totalPendingExpense = totPendingBd.toDouble(),
+            totalNet = totIncBd.subtract(totExpBd).toDouble()
         )
     }
 
@@ -285,12 +291,15 @@ object QuincenaFilterHelper {
             }
             for (j in i + 1 until n) {
                 val tx2 = transactions[j]
+                if (tx1.transferGroupId != null && tx1.transferGroupId == tx2.transferGroupId) continue
+                if (tx1.accountId != null && tx2.accountId != null && tx1.accountId != tx2.accountId) continue
                 val sameType = tx1.type.equals(tx2.type, ignoreCase = true)
-                val sameAmount = kotlin.math.abs(tx1.amount - tx2.amount) < 0.005
+                val sameKind = tx1.entryKind.equals(tx2.entryKind, ignoreCase = true)
+                val sameAmount = tx1.effectiveAmountMinor == tx2.effectiveAmountMinor
                 val sameDay = isSameCalendarDay(tx1.dateMillis, tx2.dateMillis)
                 val sameTitle = tx1.title.trim().equals(tx2.title.trim(), ignoreCase = true)
 
-                if (sameType && sameAmount && sameDay && sameTitle) {
+                if (sameType && sameKind && sameAmount && sameDay && sameTitle) {
                     duplicateIds.add(tx1.id)
                     duplicateIds.add(tx2.id)
                 }
@@ -320,18 +329,19 @@ object QuincenaFilterHelper {
         val targetQ = if (targetQuincena in 1..2) targetQuincena else 1
         val targetKey = periodKey(targetYear, targetMonthIndex, targetQ)
 
-        // Agrupar ingresos y gastos por periodKey según su BudgetPeriod
-        val periodIncomeMap = mutableMapOf<Int, Double>()
-        val periodExpenseMap = mutableMapOf<Int, Double>()
+        // Agrupar ingresos y gastos por periodKey según su BudgetPeriod usando BigDecimal exacto
+        val periodIncomeMap = mutableMapOf<Int, BigDecimal>()
+        val periodExpenseMap = mutableMapOf<Int, BigDecimal>()
 
         for (tx in transactions) {
+            if (!tx.affectsBudgetTotals) continue
             val bp = getBudgetPeriod(tx.dateMillis, tx.type)
             val key = periodKey(bp.year, bp.monthIndex, bp.quincena)
 
-            if (tx.type == TransactionType.INCOME) {
-                periodIncomeMap[key] = (periodIncomeMap[key] ?: 0.0) + tx.amount
+            if (tx.isIngresoReal) {
+                periodIncomeMap[key] = (periodIncomeMap[key] ?: BigDecimal.ZERO).add(tx.effectiveAmountBigDecimal)
             } else if (tx.isGastoReal) {
-                periodExpenseMap[key] = (periodExpenseMap[key] ?: 0.0) + tx.amount
+                periodExpenseMap[key] = (periodExpenseMap[key] ?: BigDecimal.ZERO).add(tx.effectiveAmountBigDecimal)
             }
         }
 
@@ -339,17 +349,17 @@ object QuincenaFilterHelper {
         val allKeys = (periodIncomeMap.keys + periodExpenseMap.keys).distinct().filter { it < targetKey }.sorted()
         if (allKeys.isEmpty()) return 0.0
 
-        var currentRollover = 0.0
+        var currentRollover = BigDecimal.ZERO
         val minKey = allKeys.first()
 
         // Iterar periodo a periodo de forma secuencial encadenada
         for (k in minKey until targetKey) {
-            val inc = periodIncomeMap[k] ?: 0.0
-            val exp = periodExpenseMap[k] ?: 0.0
-            val net = (inc + currentRollover) - exp
-            currentRollover = net.coerceAtLeast(0.0)
+            val inc = periodIncomeMap[k] ?: BigDecimal.ZERO
+            val exp = periodExpenseMap[k] ?: BigDecimal.ZERO
+            val net = inc.add(currentRollover).subtract(exp)
+            currentRollover = if (net.signum() > 0) net else BigDecimal.ZERO
         }
 
-        return currentRollover
+        return currentRollover.toDouble()
     }
 }

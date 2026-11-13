@@ -99,11 +99,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -117,8 +121,6 @@ import com.example.ui.components.GUATEMALA_SUPERMARKETS
 import com.example.ui.components.PantryItemStatus
 import com.example.ui.components.UNIT_OPTIONS
 import com.example.ui.theme.EmeraldGreen
-import com.example.ui.theme.ExpenseRed
-import com.example.ui.theme.IncomeGreen
 import com.example.ui.util.FormatUtils
 import com.example.ui.util.ListScannerHelper
 import com.example.ui.util.ScannedGroceryItem
@@ -259,24 +261,26 @@ fun SmartCartScreen(
         uiState.smartPantryItems.count { it.getPantryStatus() == "PANTRY_ROJO" }
     }
 
-    val pageBackground = if (uiState.isDarkTheme) Color(0xFF1B1612) else Color(0xFFFAF5ED)
-    val backgroundScrim = if (uiState.isDarkTheme) Color(0xCC130E0A) else Color(0x66FAF5ED)
+    val isDark = uiState.isDarkTheme
+    val pageBackground = if (isDark) Color(0xFF14110E) else Color(0xFFFAF5ED)
+    val backgroundScrim = if (isDark) Color(0xD914110E) else Color(0xD1FAF5ED)
+    val heroTextShadow = Shadow(color = Color(0xCC000000), offset = Offset(0f, 2f), blurRadius = 6f)
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(pageBackground)
     ) {
-        // Fotografía de fondo para el cuerpo inferior: Mercado de Chichicastenango con velo suave
+        // Fotografía de fondo para el cuerpo inferior: Mercado de Chichicastenango con velo protector
         Image(
             painter = painterResource(id = R.drawable.img_chichicastenango_market),
             contentDescription = null,
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxSize()
-                .alpha(if (uiState.isDarkTheme) 0.22f else 0.40f)
+                .alpha(if (isDark) 0.14f else 0.18f)
         )
-        // Velo de contraste general
+        // Velo opaco protector para preservar lectura nítida sobre la textura del mercado
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -296,17 +300,16 @@ fun SmartCartScreen(
                 alignment = Alignment.TopCenter,
                 modifier = Modifier.fillMaxSize()
             )
-            // Gradiente vertical de protección: oscuro arriba para legibilidad de títulos y controles,
-            // transparente en el centro para apreciar nítidamente el colorido del mercado,
-            // y desvanecimiento suave hacia el fondo de la pantalla
+            // Gradiente vertical de protección: sólido arriba para lectura nítida,
+            // ventana clara en el centro para apreciar el mercado, y fusión limpia al fondo
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
-                            0.0f to Color(0xDD1B120C),
-                            0.20f to Color(0x661B120C),
-                            0.70f to Color(0x33000000),
+                            0.0f to Color(0xEB140D08),
+                            0.28f to Color(0xA6140D08),
+                            0.72f to Color(0x33000000),
                             1.0f to pageBackground
                         )
                     )
@@ -314,22 +317,27 @@ fun SmartCartScreen(
         }
 
         Column(modifier = Modifier.fillMaxSize()) {
-            // 1. CABECERA PRINCIPAL INTEGRADA DIRECTAMENTE SOBRE EL MERCADO DE CHICHICASTENANGO
+            // 1. CABECERA PRINCIPAL INTEGRADA SOBRE EL MERCADO DE CHICHICASTENANGO
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 4.dp)
+                    .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 6.dp)
             ) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 8.dp)
+                    ) {
                         Surface(
                             shape = RoundedCornerShape(12.dp),
                             color = EmeraldGreen,
-                            border = BorderStroke(1.dp, Color(0xFF34D399)),
+                            border = BorderStroke(1.dp, Color(0xFF6EE7B7)),
                             modifier = Modifier.size(42.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -345,44 +353,53 @@ fun SmartCartScreen(
                         Column {
                             Text(
                                 text = "SMART CART",
-                                style = MaterialTheme.typography.titleLarge,
+                                style = MaterialTheme.typography.titleLarge.copy(shadow = heroTextShadow),
                                 fontWeight = FontWeight.Black,
                                 color = Color.White,
-                                letterSpacing = 0.5.sp
+                                letterSpacing = 0.5.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = "Planificá tus compras y ahorrá",
-                                style = MaterialTheme.typography.bodySmall,
+                                style = MaterialTheme.typography.bodySmall.copy(shadow = heroTextShadow),
                                 color = Color(0xFFFEF3C7),
-                                fontWeight = FontWeight.Bold
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
 
-                    // Acciones Rápidas de Cabecera (Escáner OCR) con estilo frosted glass
+                    // Acción Rápida de Cabecera (Escáner OCR) con fondo sólido institucional
                     Surface(
                         shape = RoundedCornerShape(10.dp),
-                        color = Color(0x66000000),
-                        border = BorderStroke(1.dp, Color(0x88FFFFFF)),
+                        color = if (isDark) Color(0xFF0E2921) else Color(0xFF063729),
+                        border = BorderStroke(1.2.dp, Color(0xFF6EE7B7)),
+                        shadowElevation = 3.dp,
                         modifier = Modifier
+                            .heightIn(min = 48.dp)
                             .clip(RoundedCornerShape(10.dp))
                             .clickable { showScannerChoiceDialog = true }
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
                             .testTag("smart_cart_scan_button")
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+                        ) {
                             Icon(
                                 imageVector = Icons.Default.CameraAlt,
                                 contentDescription = "Escanear lista",
                                 tint = Color.White,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Escanear",
-                                style = MaterialTheme.typography.labelMedium,
+                                style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = Color.White,
+                                maxLines = 1
                             )
                         }
                     }
@@ -390,112 +407,142 @@ fun SmartCartScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // PESTAÑAS PRINCIPALES: LISTA DEL SÚPER / MI DESPENSA / PLANTILLAS
-                TabRow(
-                    selectedTabIndex = selectedTab,
-                    containerColor = Color.Transparent,
-                    contentColor = Color(0xFF34D399),
-                    divider = {},
+                // PESTAÑAS PRINCIPALES CON CONTENEDOR SÓLIDO OPACO DE ALTO CONTRASTE
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = if (isDark) Color(0xFF0F221C) else Color(0xFF063226),
+                    border = BorderStroke(1.2.dp, Color(0xFF34D399)),
+                    shadowElevation = 4.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Tab(
-                        selected = selectedTab == 0,
-                        onClick = { selectedTab = 0 },
-                        text = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "Lista del Súper",
-                                    fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Medium,
-                                    fontSize = 13.sp,
-                                    color = if (selectedTab == 0) Color.White else Color(0xFFE2E8F0)
-                                )
-                                if (pendingCartCount > 0) {
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = EmeraldGreen,
-                                        modifier = Modifier.size(18.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Text(
-                                                text = "$pendingCartCount",
-                                                color = Color.White,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
+                    TabRow(
+                        selectedTabIndex = selectedTab,
+                        containerColor = Color.Transparent,
+                        contentColor = Color.White,
+                        indicator = {},
+                        divider = {},
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Tab(
+                            selected = selectedTab == 0,
+                            onClick = { selectedTab = 0 },
+                            modifier = Modifier
+                                .padding(4.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (selectedTab == 0) EmeraldGreen else Color.Transparent)
+                                .testTag("tab_supermarket_list"),
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "Lista del Súper",
+                                        fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.SemiBold,
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = if (selectedTab == 0) Color.White else Color(0xFFD1FAE5)
+                                    )
+                                    if (pendingCartCount > 0) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = Color(0xFF047857),
+                                            border = BorderStroke(0.8.dp, Color(0xFFA7F3D0)),
+                                            modifier = Modifier.size(18.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Text(
+                                                    text = "$pendingCartCount",
+                                                    color = Color.White,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
-                        },
-                        modifier = Modifier.testTag("tab_supermarket_list")
-                    )
+                        )
 
-                    Tab(
-                        selected = selectedTab == 1,
-                        onClick = { selectedTab = 1 },
-                        text = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "Mi Despensa",
-                                    fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Medium,
-                                    fontSize = 13.sp,
-                                    color = if (selectedTab == 1) Color.White else Color(0xFFE2E8F0)
-                                )
-                                if (redPantryCount > 0) {
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = ExpenseRed,
-                                        modifier = Modifier.size(18.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Text(
-                                                text = "$redPantryCount",
-                                                color = Color.White,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
+                        Tab(
+                            selected = selectedTab == 1,
+                            onClick = { selectedTab = 1 },
+                            modifier = Modifier
+                                .padding(4.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (selectedTab == 1) EmeraldGreen else Color.Transparent)
+                                .testTag("tab_my_pantry"),
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "Mi Despensa",
+                                        fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.SemiBold,
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = if (selectedTab == 1) Color.White else Color(0xFFD1FAE5)
+                                    )
+                                    if (redPantryCount > 0) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = Color(0xFFB91C1C),
+                                            border = BorderStroke(0.8.dp, Color(0xFFFECACA)),
+                                            modifier = Modifier.size(18.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Text(
+                                                    text = "$redPantryCount",
+                                                    color = Color.White,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
-                        },
-                        modifier = Modifier.testTag("tab_my_pantry")
-                    )
+                        )
 
-                    Tab(
-                        selected = selectedTab == 2,
-                        onClick = { selectedTab = 2 },
-                        text = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "Plantillas",
-                                    fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Medium,
-                                    fontSize = 13.sp,
-                                    color = if (selectedTab == 2) Color.White else Color(0xFFE2E8F0)
-                                )
-                                if (uiState.shoppingTemplates.isNotEmpty()) {
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Surface(
-                                        shape = CircleShape,
-                                        color = Color(0xFF818CF8),
-                                        modifier = Modifier.size(18.dp)
-                                    ) {
-                                        Box(contentAlignment = Alignment.Center) {
-                                            Text(
-                                                text = "${uiState.shoppingTemplates.size}",
-                                                color = Color.White,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
+                        Tab(
+                            selected = selectedTab == 2,
+                            onClick = { selectedTab = 2 },
+                            modifier = Modifier
+                                .padding(4.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (selectedTab == 2) EmeraldGreen else Color.Transparent)
+                                .testTag("tab_shopping_templates"),
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "Plantillas",
+                                        fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.SemiBold,
+                                        fontSize = 12.sp,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        color = if (selectedTab == 2) Color.White else Color(0xFFD1FAE5)
+                                    )
+                                    if (uiState.shoppingTemplates.isNotEmpty()) {
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Surface(
+                                            shape = CircleShape,
+                                            color = Color(0xFF4338CA),
+                                            border = BorderStroke(0.8.dp, Color(0xFFC7D2FE)),
+                                            modifier = Modifier.size(18.dp)
+                                        ) {
+                                            Box(contentAlignment = Alignment.Center) {
+                                                Text(
+                                                    text = "${uiState.shoppingTemplates.size}",
+                                                    color = Color.White,
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
-                        },
-                        modifier = Modifier.testTag("tab_shopping_templates")
-                    )
+                        )
+                    }
                 }
             }
 
@@ -509,6 +556,7 @@ fun SmartCartScreen(
                     budgetAmount = uiState.smartCartBudget,
                     currencySymbol = uiState.currencySymbol,
                     isDiscreetMode = uiState.isDiscreetMode,
+                    isDarkTheme = isDark,
                     selectedStoreFilter = cartStoreFilter,
                     searchQuery = cartSearchQuery,
                     onSearchQueryChange = { cartSearchQuery = it },
@@ -535,6 +583,7 @@ fun SmartCartScreen(
                     pantryItems = filteredPantryItems,
                     rawPantryCount = uiState.smartPantryItems.size,
                     redCount = redPantryCount,
+                    isDarkTheme = isDark,
                     selectedStatusFilter = pantryStatusFilter,
                     searchQuery = pantrySearchQuery,
                     onSearchQueryChange = { pantrySearchQuery = it },
@@ -556,6 +605,7 @@ fun SmartCartScreen(
                 2 -> TemplatesContent(
                     templates = uiState.shoppingTemplates,
                     currencySymbol = uiState.currencySymbol,
+                    isDarkTheme = isDark,
                     onApplyTemplate = { id ->
                         onApplyTemplate(id)
                         selectedTab = 0 // Regresar a la lista de compras para ver los productos cargados
@@ -720,7 +770,7 @@ fun SmartCartScreen(
                                 onDeleteItem(showDeleteConfirmItem!!)
                                 showDeleteConfirmItem = null
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed)
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB91C1C), contentColor = Color.White)
                         ) {
                             Text("Eliminar", color = Color.White)
                         }
@@ -764,7 +814,7 @@ fun SmartCartScreen(
                                 onDeletePantryItem(showDeleteConfirmPantry!!)
                                 showDeleteConfirmPantry = null
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed)
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB91C1C), contentColor = Color.White)
                         ) {
                             Text("Eliminar", color = Color.White)
                         }
@@ -808,7 +858,7 @@ fun SmartCartScreen(
                                 onDeleteTemplate(showDeleteConfirmTemplate!!)
                                 showDeleteConfirmTemplate = null
                             },
-                            colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed)
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFB91C1C), contentColor = Color.White)
                         ) {
                             Text("Eliminar", color = Color.White)
                         }
@@ -930,7 +980,8 @@ fun SmartCartScreen(
                         items(scannedItemsToReview) { item ->
                             Card(
                                 shape = RoundedCornerShape(10.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 4.dp)
@@ -992,6 +1043,16 @@ fun SmartCartScreen(
 // SUB-COMPONENTE: CONTENIDO DE LA LISTA DEL SÚPER
 // =============================================================================
 
+private fun accessibleStoreSolidColor(baseColor: Color): Color {
+    // Asegura contraste >= 4.5:1 con texto blanco en insignias y chips seleccionados
+    return when (baseColor.value) {
+        Color(0xFFE65100).value -> Color(0xFFBF360C) // Maxi Despensa naranja oscuro accesible
+        Color(0xFFE53935).value -> Color(0xFFC62828) // La Barata rojo oscuro accesible
+        Color(0xFF0071DC).value -> Color(0xFF005BB5) // Walmart azul oscuro accesible
+        else -> baseColor
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ShoppingListContent(
@@ -1001,6 +1062,7 @@ private fun ShoppingListContent(
     budgetAmount: Double,
     currencySymbol: String,
     isDiscreetMode: Boolean,
+    isDarkTheme: Boolean,
     selectedStoreFilter: String?,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
@@ -1019,6 +1081,15 @@ private fun ShoppingListContent(
     val progress = if (totalEstimated > 0) (checkedTotal / totalEstimated).toFloat().coerceIn(0f, 1f) else 0f
     val difference = budgetAmount - totalEstimated
 
+    val cardSurface = if (isDarkTheme) Color(0xFF1E293B) else Color.White
+    val cardBorder = if (isDarkTheme) Color(0xFF334155) else Color(0xFFD6E4DF)
+    val primaryText = if (isDarkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
+    val secondaryText = if (isDarkTheme) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val accentEmeraldText = if (isDarkTheme) Color(0xFF6EE7B7) else Color(0xFF065F46)
+    val accentEmeraldTint = if (isDarkTheme) Color(0xFF34D399) else EmeraldGreen
+    val incomeText = if (isDarkTheme) Color(0xFF6EE7B7) else Color(0xFF047857)
+    val dangerText = if (isDarkTheme) Color(0xFFFCA5A5) else Color(0xFFB91C1C)
+
     Column(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier
@@ -1028,11 +1099,12 @@ private fun ShoppingListContent(
             item {
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // RESUMEN FINANCIERO DEL SÚPER (Tarjetas ejecutivas)
+                // RESUMEN FINANCIERO DEL SÚPER (Tarjeta ejecutiva sólida opaca)
                 Card(
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                    colors = CardDefaults.cardColors(containerColor = cardSurface),
+                    border = BorderStroke(1.2.dp, cardBorder),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .testTag("smart_cart_budget_card")
@@ -1048,36 +1120,39 @@ private fun ShoppingListContent(
                                     text = "TOTAL ESTIMADO",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = secondaryText
                                 )
                                 Text(
                                     text = FormatUtils.formatCurrency(totalEstimated, currencySymbol, isDiscreetMode),
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Black,
-                                    color = EmeraldGreen
+                                    color = accentEmeraldText
                                 )
                             }
 
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
-                                color = MaterialTheme.colorScheme.surface,
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                                color = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFF475569) else Color(0xFFCBD5E1)),
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(10.dp))
                                     .clickable { onOpenBudgetDialog() }
-                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    .testTag("smart_cart_budget_button")
                             ) {
-                                Column(horizontalAlignment = Alignment.End) {
+                                Column(
+                                    horizontalAlignment = Alignment.End,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                ) {
                                     Text(
                                         text = "Presupuesto asignado",
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        color = secondaryText
                                     )
                                     Text(
                                         text = if (budgetAmount > 0) FormatUtils.formatCurrency(budgetAmount, currencySymbol, isDiscreetMode) else "Sin límite (Fijar)",
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (budgetAmount > 0) MaterialTheme.colorScheme.onSurface else EmeraldGreen
+                                        color = if (budgetAmount > 0) primaryText else accentEmeraldText
                                     )
                                 }
                             }
@@ -1092,13 +1167,13 @@ private fun ShoppingListContent(
                                 Text(
                                     text = if (difference >= 0) "Dentro del presupuesto" else "Exceso proyectado",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = if (difference >= 0) IncomeGreen else ExpenseRed,
+                                    color = if (difference >= 0) incomeText else dangerText,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
                                     text = "${if (difference >= 0) "Restante: " else "Exceso: "}${FormatUtils.formatCurrency(kotlin.math.abs(difference), currencySymbol, isDiscreetMode)}",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = if (difference >= 0) IncomeGreen else ExpenseRed,
+                                    color = if (difference >= 0) incomeText else dangerText,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -1114,12 +1189,13 @@ private fun ShoppingListContent(
                                 Text(
                                     text = "Progreso en carrito",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = secondaryText
                                 )
                                 Text(
                                     text = "${FormatUtils.formatCurrency(checkedTotal, currencySymbol, isDiscreetMode)} (${(progress * 100).toInt()}%)",
                                     style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    color = primaryText
                                 )
                             }
                             Spacer(modifier = Modifier.height(4.dp))
@@ -1127,10 +1203,10 @@ private fun ShoppingListContent(
                                 progress = { progress },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(6.dp)
-                                    .clip(RoundedCornerShape(3.dp)),
-                                color = EmeraldGreen,
-                                trackColor = MaterialTheme.colorScheme.surfaceVariant
+                                    .height(7.dp)
+                                    .clip(RoundedCornerShape(4.dp)),
+                                color = accentEmeraldTint,
+                                trackColor = if (isDarkTheme) Color(0xFF334155) else Color(0xFFE2E8F0)
                             )
                         }
                     }
@@ -1138,61 +1214,87 @@ private fun ShoppingListContent(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // FILTRO DE SUPERMERCADOS DE GUATEMALA
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Storefront,
-                        contentDescription = null,
-                        tint = EmeraldGreen,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "Filtrar por tienda:",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                val storeList = remember {
-                    listOf("Todas") + GUATEMALA_SUPERMARKETS.map { it.name }
-                }
-
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                // FILTRO DE SUPERMERCADOS DE GUATEMALA (Contenedor sólido opaco + chips opacos)
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = cardSurface),
+                    border = BorderStroke(1.dp, cardBorder),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(storeList) { storeName ->
-                        val isSelected = (selectedStoreFilter == null && storeName == "Todas") || selectedStoreFilter == storeName
-                        val supermarketInfo = GUATEMALA_SUPERMARKETS.find { it.name == storeName }
-                        val chipColor = supermarketInfo?.badgeColor ?: EmeraldGreen
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 12.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Storefront,
+                                contentDescription = null,
+                                tint = accentEmeraldTint,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Filtrar por tienda:",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = primaryText
+                            )
+                        }
 
-                        FilterChip(
-                            selected = isSelected,
-                            onClick = { onSelectStoreFilter(storeName) },
-                            label = { Text(storeName, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = chipColor.copy(alpha = 0.18f),
-                                selectedLabelColor = chipColor
-                            ),
-                            border = FilterChipDefaults.filterChipBorder(
-                                enabled = true,
-                                selected = isSelected,
-                                borderColor = if (isSelected) chipColor else MaterialTheme.colorScheme.outlineVariant
-                            ),
-                            shape = RoundedCornerShape(8.dp)
-                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        val storeList = remember {
+                            listOf("Todas") + GUATEMALA_SUPERMARKETS.map { it.name }
+                        }
+
+                        LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            items(storeList) { storeName ->
+                                val isSelected = (selectedStoreFilter == null && storeName == "Todas") || selectedStoreFilter == storeName
+                                val supermarketInfo = GUATEMALA_SUPERMARKETS.find { it.name == storeName }
+                                val solidSelectedColor = accessibleStoreSolidColor(supermarketInfo?.badgeColor ?: EmeraldGreen)
+
+                                FilterChip(
+                                    selected = isSelected,
+                                    onClick = { onSelectStoreFilter(storeName) },
+                                    label = {
+                                        Text(
+                                            text = storeName,
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                            maxLines = 1
+                                        )
+                                    },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        containerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                        labelColor = primaryText,
+                                        selectedContainerColor = solidSelectedColor,
+                                        selectedLabelColor = Color.White
+                                    ),
+                                    border = FilterChipDefaults.filterChipBorder(
+                                        enabled = true,
+                                        selected = isSelected,
+                                        borderColor = if (isDarkTheme) Color(0xFF475569) else Color(0xFFCBD5E1),
+                                        selectedBorderColor = solidSelectedColor
+                                    ),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.heightIn(min = 42.dp)
+                                )
+                            }
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // BARRA DE BÚSQUEDA Y ACCIONES RÁPIDAS
+                // BARRA DE BÚSQUEDA Y BOTÓN AGREGAR (Superficies sólidas opacas)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -1201,72 +1303,123 @@ private fun ShoppingListContent(
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = onSearchQueryChange,
-                        placeholder = { Text("Buscar producto...", fontSize = 12.sp) },
-                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                        placeholder = {
+                            Text(
+                                text = "Buscar producto...",
+                                fontSize = 13.sp,
+                                color = if (isDarkTheme) Color(0xFF94A3B8) else Color(0xFF64748B)
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = null,
+                                tint = accentEmeraldTint,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
                         trailingIcon = {
                             if (searchQuery.isNotBlank()) {
-                                IconButton(onClick = { onSearchQueryChange("") }) {
-                                    Icon(Icons.Default.Clear, contentDescription = "Limpiar", modifier = Modifier.size(16.dp))
+                                IconButton(
+                                    onClick = { onSearchQueryChange("") },
+                                    modifier = Modifier.size(44.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Clear,
+                                        contentDescription = "Limpiar",
+                                        tint = secondaryText,
+                                        modifier = Modifier.size(16.dp)
+                                    )
                                 }
                             }
                         },
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = EmeraldGreen,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                            focusedContainerColor = cardSurface,
+                            unfocusedContainerColor = cardSurface,
+                            focusedTextColor = primaryText,
+                            unfocusedTextColor = primaryText,
+                            focusedBorderColor = accentEmeraldTint,
+                            unfocusedBorderColor = if (isDarkTheme) Color(0xFF475569) else Color(0xFFCBD5E1)
                         ),
                         modifier = Modifier
                             .weight(1f)
-                            .height(48.dp)
+                            .heightIn(min = 52.dp)
                     )
 
                     Button(
                         onClick = onAddItemClick,
-                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = EmeraldGreen,
+                            contentColor = Color.White
+                        ),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
-                            .height(48.dp)
+                            .heightIn(min = 52.dp)
                             .testTag("smart_cart_add_item_button")
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Agregar", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                        Text("Agregar", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
                     }
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // ACCIONES SECUNDARIAS (Guardar como plantilla, Desmarcar, Vaciar)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                // ACCIONES SECUNDARIAS SOBRE BARRA SÓLIDA OPACA (Guardar plantilla, Desmarcar, Vaciar)
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = cardSurface,
+                    border = BorderStroke(1.dp, cardBorder),
+                    shadowElevation = 1.dp,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    TextButton(
-                        onClick = onSaveAsTemplateClick,
-                        modifier = Modifier.testTag("btn_save_as_template")
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.BookmarkBorder, contentDescription = null, modifier = Modifier.size(16.dp), tint = EmeraldGreen)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Guardar plantilla", fontSize = 11.sp, color = EmeraldGreen, fontWeight = FontWeight.Bold)
-                    }
-
-                    Row {
-                        if (cartItems.any { it.isChecked }) {
-                            TextButton(onClick = onClearChecked) {
-                                Text("Desmarcar", fontSize = 11.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
+                        TextButton(
+                            onClick = onSaveAsTemplateClick,
+                            modifier = Modifier
+                                .heightIn(min = 44.dp)
+                                .testTag("btn_save_as_template")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.BookmarkBorder,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = accentEmeraldText
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Guardar plantilla", fontSize = 12.sp, color = accentEmeraldText, fontWeight = FontWeight.Bold)
                         }
-                        if (cartItems.isNotEmpty()) {
-                            TextButton(onClick = onClearAll) {
-                                Text("Vaciar", fontSize = 11.sp, color = ExpenseRed)
+
+                        Row {
+                            if (cartItems.any { it.isChecked }) {
+                                TextButton(
+                                    onClick = onClearChecked,
+                                    modifier = Modifier.heightIn(min = 44.dp)
+                                ) {
+                                    Text("Desmarcar", fontSize = 12.sp, color = secondaryText, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                            if (cartItems.isNotEmpty()) {
+                                TextButton(
+                                    onClick = onClearAll,
+                                    modifier = Modifier.heightIn(min = 44.dp)
+                                ) {
+                                    Text("Vaciar", fontSize = 12.sp, color = dangerText, fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(8.dp))
             }
 
             // LISTA DE PRODUCTOS ACTIVOS
@@ -1274,10 +1427,12 @@ private fun ShoppingListContent(
                 item {
                     Card(
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        colors = CardDefaults.cardColors(containerColor = cardSurface),
+                        border = BorderStroke(1.dp, cardBorder),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 24.dp)
+                            .padding(vertical = 16.dp)
                     ) {
                         Column(
                             modifier = Modifier
@@ -1285,33 +1440,48 @@ private fun ShoppingListContent(
                                 .padding(24.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.ShoppingCart,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                                modifier = Modifier.size(44.dp)
-                            )
-                            Spacer(modifier = Modifier.height(10.dp))
+                            Surface(
+                                shape = CircleShape,
+                                color = if (isDarkTheme) Color(0xFF064E3B) else Color(0xFFD1FAE5),
+                                modifier = Modifier.size(60.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Default.ShoppingCart,
+                                        contentDescription = null,
+                                        tint = accentEmeraldText,
+                                        modifier = Modifier.size(30.dp)
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(12.dp))
                             Text(
                                 text = "Tu lista de compras está vacía",
                                 fontWeight = FontWeight.Bold,
-                                style = MaterialTheme.typography.titleMedium
+                                style = MaterialTheme.typography.titleMedium,
+                                color = primaryText
                             )
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = "Agrega productos manualmente, cárgalos desde una plantilla o utiliza el escáner OCR.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                                color = secondaryText,
+                                textAlign = TextAlign.Center
                             )
                             Spacer(modifier = Modifier.height(14.dp))
                             OutlinedButton(
                                 onClick = onOpenTemplatesTab,
-                                shape = RoundedCornerShape(10.dp)
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.2.dp, accentEmeraldTint),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF0FDF4),
+                                    contentColor = accentEmeraldText
+                                ),
+                                modifier = Modifier.heightIn(min = 48.dp)
                             ) {
-                                Icon(Icons.Default.BookmarkBorder, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.BookmarkBorder, contentDescription = null, tint = accentEmeraldText, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Ver Plantillas Reutilizables")
+                                Text("Ver Plantillas Reutilizables", fontWeight = FontWeight.Bold, color = accentEmeraldText)
                             }
                         }
                     }
@@ -1321,6 +1491,7 @@ private fun ShoppingListContent(
                     CartItemCard(
                         item = item,
                         currencySymbol = currencySymbol,
+                        isDarkTheme = isDarkTheme,
                         onToggleChecked = { onToggleChecked(item) },
                         onEditClick = { onEditItemClick(item) },
                         onDeleteClick = { onDeleteItemClick(item) }
@@ -1334,12 +1505,13 @@ private fun ShoppingListContent(
             }
         }
 
-        // BARRA FIJA INFERIOR PARA CONFIRMAR COMPRA
+        // BARRA FIJA INFERIOR SÓLIDA PARA CONFIRMAR COMPRA
         if (cartItems.isNotEmpty()) {
             Surface(
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 6.dp,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                color = cardSurface,
+                tonalElevation = 0.dp,
+                shadowElevation = 6.dp,
+                border = BorderStroke(1.dp, cardBorder),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
@@ -1354,27 +1526,30 @@ private fun ShoppingListContent(
                         Text(
                             text = if (checkedCount > 0) "$checkedCount en carrito" else "${cartItems.size} productos",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = secondaryText
                         )
                         Text(
                             text = FormatUtils.formatCurrency(if (checkedTotal > 0.0) checkedTotal else totalEstimated, currencySymbol, isDiscreetMode),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Black,
-                            color = EmeraldGreen
+                            color = accentEmeraldText
                         )
                     }
 
                     Button(
                         onClick = onOpenCheckoutDialog,
-                        colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = EmeraldGreen,
+                            contentColor = Color.White
+                        ),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier
-                            .defaultMinSize(minHeight = 44.dp)
+                            .heightIn(min = 48.dp)
                             .testTag("smart_cart_confirm_checkout_button")
                     ) {
-                        Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Confirmar Compra", fontWeight = FontWeight.Bold)
+                        Text("Confirmar Compra", fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
             }
@@ -1390,23 +1565,34 @@ private fun ShoppingListContent(
 private fun CartItemCard(
     item: SmartCartItemEntity,
     currencySymbol: String,
+    isDarkTheme: Boolean,
     onToggleChecked: () -> Unit,
     onEditClick: () -> Unit,
     onDeleteClick: () -> Unit
 ) {
     val subtotal = item.quantity * item.estimatedUnitPrice
     val supermarketInfo = GUATEMALA_SUPERMARKETS.find { it.name.equals(item.storeName, ignoreCase = true) }
-    val storeBadgeColor = supermarketInfo?.badgeColor ?: Color(0xFF4B5563)
+    val storeBadgeColor = accessibleStoreSolidColor(supermarketInfo?.badgeColor ?: Color(0xFF4B5563))
+
+    val cardBg = if (item.isChecked) {
+        if (isDarkTheme) Color(0xFF14241D) else Color(0xFFF0FDF4)
+    } else {
+        if (isDarkTheme) Color(0xFF1E293B) else Color.White
+    }
+    val cardBorder = if (item.isChecked) {
+        if (isDarkTheme) Color(0xFF34D399) else EmeraldGreen
+    } else {
+        if (isDarkTheme) Color(0xFF334155) else Color(0xFFCBD5E1)
+    }
+    val primaryText = if (isDarkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
+    val secondaryText = if (isDarkTheme) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val accentEmeraldText = if (isDarkTheme) Color(0xFF6EE7B7) else Color(0xFF065F46)
 
     Card(
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (item.isChecked) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.surface
-        ),
-        border = BorderStroke(
-            1.dp,
-            if (item.isChecked) EmeraldGreen.copy(alpha = 0.5f) else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
-        ),
+        colors = CardDefaults.cardColors(containerColor = cardBg),
+        border = BorderStroke(1.2.dp, cardBorder),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (item.isChecked) 1.dp else 2.dp),
         modifier = Modifier
             .fillMaxWidth()
             .testTag("cart_item_${item.id}")
@@ -1414,23 +1600,23 @@ private fun CartItemCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(horizontal = 10.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(
                 onClick = onToggleChecked,
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(48.dp)
                     .testTag("cart_item_checkbox_${item.id}")
             ) {
                 Icon(
                     imageVector = if (item.isChecked) Icons.Default.CheckBox else Icons.Default.CheckBoxOutlineBlank,
                     contentDescription = if (item.isChecked) "Comprado" else "Pendiente",
-                    tint = if (item.isChecked) EmeraldGreen else MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = if (item.isChecked) accentEmeraldText else secondaryText
                 )
             }
 
-            Spacer(modifier = Modifier.width(6.dp))
+            Spacer(modifier = Modifier.width(4.dp))
 
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1439,7 +1625,7 @@ private fun CartItemCard(
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
                         textDecoration = if (item.isChecked) TextDecoration.LineThrough else TextDecoration.None,
-                        color = if (item.isChecked) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                        color = if (item.isChecked) secondaryText else primaryText,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
@@ -1450,7 +1636,7 @@ private fun CartItemCard(
                         Text(
                             text = "(${item.brand})",
                             style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = secondaryText,
                             maxLines = 1
                         )
                     }
@@ -1460,42 +1646,41 @@ private fun CartItemCard(
 
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
                         text = "${item.quantity} ${item.unit} x ${FormatUtils.formatCurrency(item.estimatedUnitPrice, currencySymbol, false)}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = secondaryText
                     )
 
                     Text(
                         text = "•",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.outlineVariant
+                        color = secondaryText
                     )
 
                     Text(
                         text = "Subtotal: ${FormatUtils.formatCurrency(subtotal, currencySymbol, false)}",
                         style = MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Bold,
-                        color = if (item.isChecked) MaterialTheme.colorScheme.onSurfaceVariant else EmeraldGreen
+                        color = if (item.isChecked) secondaryText else accentEmeraldText
                     )
                 }
 
                 if (item.storeName.isNotBlank() && item.storeName != "General") {
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(5.dp))
                     Surface(
-                        shape = RoundedCornerShape(4.dp),
-                        color = storeBadgeColor.copy(alpha = 0.12f),
-                        border = BorderStroke(0.8.dp, storeBadgeColor.copy(alpha = 0.4f)),
+                        shape = RoundedCornerShape(6.dp),
+                        color = storeBadgeColor,
                         modifier = Modifier.padding(top = 2.dp)
                     ) {
                         Text(
                             text = item.storeName,
                             style = MaterialTheme.typography.labelSmall,
-                            color = storeBadgeColor,
+                            color = Color.White,
                             fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
                         )
                     }
                 }
@@ -1504,25 +1689,25 @@ private fun CartItemCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(
                     onClick = onEditClick,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(40.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Edit,
                         contentDescription = "Editar",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(16.dp)
+                        tint = accentEmeraldText,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
 
                 IconButton(
                     onClick = onDeleteClick,
-                    modifier = Modifier.size(32.dp)
+                    modifier = Modifier.size(40.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = "Eliminar",
-                        tint = ExpenseRed.copy(alpha = 0.8f),
-                        modifier = Modifier.size(16.dp)
+                        tint = if (isDarkTheme) Color(0xFFFCA5A5) else Color(0xFFB91C1C),
+                        modifier = Modifier.size(18.dp)
                     )
                 }
             }
@@ -1540,6 +1725,7 @@ private fun PantryContent(
     pantryItems: List<SmartCartItemEntity>,
     rawPantryCount: Int,
     redCount: Int,
+    isDarkTheme: Boolean,
     selectedStatusFilter: String?,
     searchQuery: String,
     onSearchQueryChange: (String) -> Unit,
@@ -1551,6 +1737,13 @@ private fun PantryContent(
     onTogglePantryInCart: (SmartCartItemEntity) -> Unit,
     onIncorporateNeedToBuy: () -> Unit
 ) {
+    val cardSurface = if (isDarkTheme) Color(0xFF1E293B) else Color.White
+    val cardBorder = if (isDarkTheme) Color(0xFF334155) else Color(0xFFD6E4DF)
+    val primaryText = if (isDarkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
+    val secondaryText = if (isDarkTheme) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val accentEmeraldText = if (isDarkTheme) Color(0xFF6EE7B7) else Color(0xFF065F46)
+    val accentEmeraldTint = if (isDarkTheme) Color(0xFF34D399) else EmeraldGreen
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1558,11 +1751,12 @@ private fun PantryContent(
     ) {
         Spacer(modifier = Modifier.height(12.dp))
 
-        // BANNER DE CONTROL DE EXISTENCIAS
+        // BANNER DE CONTROL DE EXISTENCIAS (Tarjeta sólida opaca)
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+            colors = CardDefaults.cardColors(containerColor = cardSurface),
+            border = BorderStroke(1.2.dp, cardBorder),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
@@ -1570,79 +1764,110 @@ private fun PantryContent(
                     Icon(
                         imageVector = Icons.Default.Kitchen,
                         contentDescription = null,
-                        tint = EmeraldGreen,
+                        tint = accentEmeraldTint,
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "Control de existencias del hogar",
                         style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = primaryText
                     )
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Monitorea lo que tienes en casa durante la quincena. Cambia el estado a Rojo cuando se agote y repón a la lista del súper con un toque.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = secondaryText
                 )
 
                 if (redCount > 0) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Button(
                         onClick = onIncorporateNeedToBuy,
-                        colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFFB91C1C),
+                            contentColor = Color.White
+                        ),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .defaultMinSize(minHeight = 40.dp)
+                            .heightIn(min = 48.dp)
                             .testTag("pantry_replenish_all_button")
                     ) {
-                        Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Agregar todo lo agotado ($redCount) a la Lista del Súper", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            text = "Agregar todo lo agotado ($redCount) a la Lista del Súper",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
                     }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
-        // FILTRO DE ESTADOS: VERDE, AMARILLO, ROJO
-        val filterStates = listOf("Todos", "Verde", "Amarillo", "Rojo")
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        // FILTRO DE ESTADOS: TODOS, VERDE, AMARILLO, ROJO (Contenedor sólido opaco + chips opacos)
+        Surface(
+            shape = RoundedCornerShape(14.dp),
+            color = cardSurface,
+            border = BorderStroke(1.dp, cardBorder),
+            shadowElevation = 2.dp,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            filterStates.forEach { filter ->
-                val isSelected = (selectedStatusFilter == null && filter == "Todos") || selectedStatusFilter == filter
-                val color = when (filter) {
-                    "Verde" -> IncomeGreen
-                    "Amarillo" -> Color(0xFFF59E0B)
-                    "Rojo" -> ExpenseRed
-                    else -> EmeraldGreen
-                }
-                FilterChip(
-                    selected = isSelected,
-                    onClick = { onSelectStatusFilter(filter) },
-                    label = { Text(filter, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = color.copy(alpha = 0.18f),
-                        selectedLabelColor = color
-                    ),
-                    border = FilterChipDefaults.filterChipBorder(
-                        enabled = true,
+            val filterStates = listOf("Todos", "Verde", "Amarillo", "Rojo")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                filterStates.forEach { filter ->
+                    val isSelected = (selectedStatusFilter == null && filter == "Todos") || selectedStatusFilter == filter
+                    val selectedBg = when (filter) {
+                        "Verde" -> Color(0xFF047857)
+                        "Amarillo" -> Color(0xFFB45309)
+                        "Rojo" -> Color(0xFFB91C1C)
+                        else -> EmeraldGreen
+                    }
+                    FilterChip(
                         selected = isSelected,
-                        borderColor = if (isSelected) color else MaterialTheme.colorScheme.outlineVariant
-                    ),
-                    shape = RoundedCornerShape(8.dp)
-                )
+                        onClick = { onSelectStatusFilter(filter) },
+                        label = {
+                            Text(
+                                text = filter,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                                maxLines = 1
+                            )
+                        },
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                            labelColor = primaryText,
+                            selectedContainerColor = selectedBg,
+                            selectedLabelColor = Color.White
+                        ),
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true,
+                            selected = isSelected,
+                            borderColor = if (isDarkTheme) Color(0xFF475569) else Color(0xFFCBD5E1),
+                            selectedBorderColor = selectedBg
+                        ),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.heightIn(min = 42.dp)
+                    )
+                }
             }
         }
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // BÚSQUEDA Y BOTÓN AGREGAR
+        // BÚSQUEDA Y BOTÓN REGISTRAR (Superficies sólidas opacas)
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -1651,37 +1876,65 @@ private fun PantryContent(
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = onSearchQueryChange,
-                placeholder = { Text("Buscar en despensa...", fontSize = 12.sp) },
-                leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                placeholder = {
+                    Text(
+                        text = "Buscar en despensa...",
+                        fontSize = 13.sp,
+                        color = if (isDarkTheme) Color(0xFF94A3B8) else Color(0xFF64748B)
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = null,
+                        tint = accentEmeraldTint,
+                        modifier = Modifier.size(18.dp)
+                    )
+                },
                 trailingIcon = {
                     if (searchQuery.isNotBlank()) {
-                        IconButton(onClick = { onSearchQueryChange("") }) {
-                            Icon(Icons.Default.Clear, contentDescription = "Limpiar", modifier = Modifier.size(16.dp))
+                        IconButton(
+                            onClick = { onSearchQueryChange("") },
+                            modifier = Modifier.size(44.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Clear,
+                                contentDescription = "Limpiar",
+                                tint = secondaryText,
+                                modifier = Modifier.size(16.dp)
+                            )
                         }
                     }
                 },
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = EmeraldGreen,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                    focusedContainerColor = cardSurface,
+                    unfocusedContainerColor = cardSurface,
+                    focusedTextColor = primaryText,
+                    unfocusedTextColor = primaryText,
+                    focusedBorderColor = accentEmeraldTint,
+                    unfocusedBorderColor = if (isDarkTheme) Color(0xFF475569) else Color(0xFFCBD5E1)
                 ),
                 modifier = Modifier
                     .weight(1f)
-                    .height(48.dp)
+                    .heightIn(min = 52.dp)
             )
 
             Button(
                 onClick = onAddPantryItemClick,
-                colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = EmeraldGreen,
+                    contentColor = Color.White
+                ),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier
-                    .height(48.dp)
+                    .heightIn(min = 52.dp)
                     .testTag("pantry_add_item_button")
             ) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Registrar", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text("Registrar", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = Color.White)
             }
         }
 
@@ -1695,25 +1948,49 @@ private fun PantryContent(
                     .weight(1f),
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Default.Kitchen,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = if (rawPantryCount == 0) "Tu despensa está vacía" else "No hay productos con este filtro",
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Registra los productos que tienes en casa para controlar existencias.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Card(
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = cardSurface),
+                    border = BorderStroke(1.dp, cardBorder),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = if (isDarkTheme) Color(0xFF064E3B) else Color(0xFFD1FAE5),
+                            modifier = Modifier.size(60.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.Kitchen,
+                                    contentDescription = null,
+                                    tint = accentEmeraldText,
+                                    modifier = Modifier.size(30.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = if (rawPantryCount == 0) "Tu despensa está vacía" else "No hay productos con este filtro",
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = primaryText,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Registra los productos que tienes en casa para controlar existencias.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = secondaryText,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
         } else {
@@ -1721,6 +1998,7 @@ private fun PantryContent(
                 items(pantryItems, key = { it.id }) { item ->
                     PantryItemCard(
                         item = item,
+                        isDarkTheme = isDarkTheme,
                         onToggleStatus = { onToggleStatus(item) },
                         onToggleInCart = { onTogglePantryInCart(item) },
                         onEditClick = { onEditPantryItemClick(item) },
@@ -1743,6 +2021,7 @@ private fun PantryContent(
 @Composable
 private fun PantryItemCard(
     item: SmartCartItemEntity,
+    isDarkTheme: Boolean,
     onToggleStatus: () -> Unit,
     onToggleInCart: () -> Unit,
     onEditClick: () -> Unit,
@@ -1751,17 +2030,52 @@ private fun PantryItemCard(
     val status = item.getPantryStatus()
     val isInCart = item.priceSource.contains("+CART")
 
-    val (statusLabel, statusColor, statusBg) = when (status) {
-        "PANTRY_VERDE" -> Triple("Suficiente", IncomeGreen, IncomeGreen.copy(alpha = 0.12f))
-        "PANTRY_AMARILLO" -> Triple("Por agotarse", Color(0xFFF59E0B), Color(0xFFF59E0B).copy(alpha = 0.12f))
-        "PANTRY_ROJO" -> Triple("Agotado", ExpenseRed, ExpenseRed.copy(alpha = 0.12f))
-        else -> Triple("Disponible", IncomeGreen, IncomeGreen.copy(alpha = 0.12f))
+    val (statusLabel, statusDotColor, statusFg, statusBg, statusBorder) = when (status) {
+        "PANTRY_VERDE" -> listOf(
+            "Suficiente",
+            if (isDarkTheme) Color(0xFF34D399) else Color(0xFF059669),
+            if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF065F46),
+            if (isDarkTheme) Color(0xFF064E3B) else Color(0xFFD1FAE5),
+            if (isDarkTheme) Color(0xFF34D399) else Color(0xFF059669)
+        )
+        "PANTRY_AMARILLO" -> listOf(
+            "Por agotarse",
+            if (isDarkTheme) Color(0xFFFBBF24) else Color(0xFFD97706),
+            if (isDarkTheme) Color(0xFFFDE68A) else Color(0xFF92400E),
+            if (isDarkTheme) Color(0xFF451A03) else Color(0xFFFEF3C7),
+            if (isDarkTheme) Color(0xFFFBBF24) else Color(0xFFD97706)
+        )
+        "PANTRY_ROJO" -> listOf(
+            "Agotado",
+            if (isDarkTheme) Color(0xFFF87171) else Color(0xFFDC2626),
+            if (isDarkTheme) Color(0xFFFECACA) else Color(0xFF991B1B),
+            if (isDarkTheme) Color(0xFF5C1D24) else Color(0xFFFEE2E2),
+            if (isDarkTheme) Color(0xFFF87171) else Color(0xFFDC2626)
+        )
+        else -> listOf(
+            "Disponible",
+            if (isDarkTheme) Color(0xFF34D399) else Color(0xFF059669),
+            if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF065F46),
+            if (isDarkTheme) Color(0xFF064E3B) else Color(0xFFD1FAE5),
+            if (isDarkTheme) Color(0xFF34D399) else Color(0xFF059669)
+        )
     }
+
+    val label = statusLabel as String
+    val dotColor = statusDotColor as Color
+    val fgColor = statusFg as Color
+    val bgColor = statusBg as Color
+    val borderColor = statusBorder as Color
+
+    val primaryText = if (isDarkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
+    val secondaryText = if (isDarkTheme) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val accentEmeraldText = if (isDarkTheme) Color(0xFF6EE7B7) else Color(0xFF065F46)
 
     Card(
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, statusColor.copy(alpha = 0.4f)),
+        colors = CardDefaults.cardColors(containerColor = if (isDarkTheme) Color(0xFF1E293B) else Color.White),
+        border = BorderStroke(1.2.dp, borderColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = Modifier
             .fillMaxWidth()
             .testTag("pantry_item_${item.id}")
@@ -1775,7 +2089,7 @@ private fun PantryItemCard(
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                     Surface(
                         shape = CircleShape,
-                        color = statusColor,
+                        color = dotColor,
                         modifier = Modifier.size(10.dp)
                     ) {}
                     Spacer(modifier = Modifier.width(8.dp))
@@ -1783,6 +2097,7 @@ private fun PantryItemCard(
                         text = item.name,
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
+                        color = primaryText,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -1791,17 +2106,27 @@ private fun PantryItemCard(
                         Text(
                             text = "(${item.brand})",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = secondaryText
                         )
                     }
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onEditClick, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.Edit, contentDescription = "Editar", modifier = Modifier.size(16.dp))
+                    IconButton(onClick = onEditClick, modifier = Modifier.size(40.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.Edit,
+                            contentDescription = "Editar",
+                            tint = accentEmeraldText,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
-                    IconButton(onClick = onDeleteClick, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = ExpenseRed.copy(alpha = 0.8f), modifier = Modifier.size(16.dp))
+                    IconButton(onClick = onDeleteClick, modifier = Modifier.size(40.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Eliminar",
+                            tint = if (isDarkTheme) Color(0xFFFCA5A5) else Color(0xFFB91C1C),
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
             }
@@ -1815,33 +2140,35 @@ private fun PantryItemCard(
                 Text(
                     text = "${item.quantity} ${item.unit}${if (item.storeName.isNotBlank() && item.storeName != "General") " • ${item.storeName}" else ""}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = secondaryText
                 )
 
-                // CHIP INTERACTIVO PARA CAMBIAR ESTADO (Verde -> Amarillo -> Rojo)
+                // CHIP INTERACTIVO SÓLIDO PARA CAMBIAR ESTADO (Verde -> Amarillo -> Rojo)
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = statusBg,
-                    border = BorderStroke(1.dp, statusColor.copy(alpha = 0.5f)),
+                    color = bgColor,
+                    border = BorderStroke(1.dp, borderColor),
                     modifier = Modifier
                         .clip(RoundedCornerShape(8.dp))
                         .clickable { onToggleStatus() }
-                        .padding(horizontal = 8.dp, vertical = 4.dp)
                         .testTag("pantry_status_toggle_${item.id}")
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
                         Text(
-                            text = statusLabel,
+                            text = label,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = statusColor
+                            color = fgColor
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Icon(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = "Cambiar estado",
-                            tint = statusColor,
-                            modifier = Modifier.size(12.dp)
+                            tint = fgColor,
+                            modifier = Modifier.size(13.dp)
                         )
                     }
                 }
@@ -1858,20 +2185,27 @@ private fun PantryItemCard(
                     if (isInCart) {
                         Surface(
                             shape = RoundedCornerShape(8.dp),
-                            color = EmeraldGreen.copy(alpha = 0.12f),
-                            border = BorderStroke(1.dp, EmeraldGreen.copy(alpha = 0.4f)),
+                            color = if (isDarkTheme) Color(0xFF064E3B) else Color(0xFFD1FAE5),
+                            border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFF34D399) else Color(0xFF059669)),
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
                                 .clickable { onToggleInCart() }
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Default.Check, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(14.dp))
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = null,
+                                    tint = if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF065F46),
+                                    modifier = Modifier.size(14.dp)
+                                )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
                                     text = "En lista de compras ✓ (Retirar)",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = EmeraldGreen,
+                                    color = if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF065F46),
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -1879,18 +2213,22 @@ private fun PantryItemCard(
                     } else {
                         Button(
                             onClick = onToggleInCart,
-                            colors = ButtonDefaults.buttonColors(containerColor = if (status == "PANTRY_ROJO") ExpenseRed else Color(0xFFD97706)),
-                            shape = RoundedCornerShape(8.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (status == "PANTRY_ROJO") Color(0xFFB91C1C) else Color(0xFFB45309),
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(10.dp),
                             modifier = Modifier
-                                .defaultMinSize(minHeight = 36.dp)
+                                .heightIn(min = 44.dp)
                                 .testTag("btn_add_pantry_to_cart_${item.id}")
                         ) {
-                            Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = "Agregar a la lista del súper",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
                             )
                         }
                     }
@@ -1899,7 +2237,8 @@ private fun PantryItemCard(
                     Text(
                         text = "Existencia suficiente en casa",
                         style = MaterialTheme.typography.labelSmall,
-                        color = IncomeGreen
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (isDarkTheme) Color(0xFF6EE7B7) else Color(0xFF047857)
                     )
                 }
             }
@@ -1915,11 +2254,19 @@ private fun PantryItemCard(
 private fun TemplatesContent(
     templates: List<ShoppingTemplateEntity>,
     currencySymbol: String,
+    isDarkTheme: Boolean,
     onApplyTemplate: (Long) -> Unit,
     onDuplicateTemplate: (Long, String) -> Unit,
     onDeleteTemplate: (ShoppingTemplateEntity) -> Unit,
     onSaveCurrentCartClick: () -> Unit
 ) {
+    val cardSurface = if (isDarkTheme) Color(0xFF1E293B) else Color.White
+    val cardBorder = if (isDarkTheme) Color(0xFF334155) else Color(0xFFD6E4DF)
+    val primaryText = if (isDarkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
+    val secondaryText = if (isDarkTheme) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val accentEmeraldText = if (isDarkTheme) Color(0xFF6EE7B7) else Color(0xFF065F46)
+    val accentEmeraldTint = if (isDarkTheme) Color(0xFF34D399) else EmeraldGreen
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1927,11 +2274,12 @@ private fun TemplatesContent(
     ) {
         Spacer(modifier = Modifier.height(12.dp))
 
-        // BANNER DE PLANTILLAS
+        // BANNER DE PLANTILLAS (Tarjeta sólida opaca)
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+            colors = CardDefaults.cardColors(containerColor = cardSurface),
+            border = BorderStroke(1.2.dp, cardBorder),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
@@ -1939,35 +2287,39 @@ private fun TemplatesContent(
                     Icon(
                         imageVector = Icons.Default.BookmarkBorder,
                         contentDescription = null,
-                        tint = EmeraldGreen,
+                        tint = accentEmeraldTint,
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "Listas de Compras Reutilizables",
                         style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = primaryText
                     )
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = "Aprovecha tus compras habituales. Reutiliza listas de quincena o mes con un solo toque sin crear productos en Mi Despensa.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = secondaryText
                 )
                 Spacer(modifier = Modifier.height(10.dp))
                 Button(
                     onClick = onSaveCurrentCartClick,
-                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = EmeraldGreen,
+                        contentColor = Color.White
+                    ),
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .defaultMinSize(minHeight = 40.dp)
+                        .heightIn(min = 48.dp)
                         .testTag("templates_save_cart_button")
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Guardar lista activa como plantilla", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("Guardar lista activa como plantilla", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
         }
@@ -1981,21 +2333,49 @@ private fun TemplatesContent(
                     .weight(1f),
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Default.BookmarkBorder,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text("No hay plantillas guardadas", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "Arma una lista en el súper y presiona «Guardar plantilla».",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                Card(
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = cardSurface),
+                    border = BorderStroke(1.dp, cardBorder),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp)
+                    ) {
+                        Surface(
+                            shape = CircleShape,
+                            color = if (isDarkTheme) Color(0xFF064E3B) else Color(0xFFD1FAE5),
+                            modifier = Modifier.size(60.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Default.BookmarkBorder,
+                                    contentDescription = null,
+                                    tint = accentEmeraldText,
+                                    modifier = Modifier.size(30.dp)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "No hay plantillas guardadas",
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = primaryText,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = "Arma una lista en el súper y presiona «Guardar plantilla».",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = secondaryText,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             }
         } else {
@@ -2004,6 +2384,7 @@ private fun TemplatesContent(
                     TemplateItemCard(
                         template = template,
                         currencySymbol = currencySymbol,
+                        isDarkTheme = isDarkTheme,
                         onApply = { onApplyTemplate(template.id) },
                         onDuplicate = { onDuplicateTemplate(template.id, "${template.name} (Copia)") },
                         onDelete = { onDeleteTemplate(template) }
@@ -2022,14 +2403,20 @@ private fun TemplatesContent(
 private fun TemplateItemCard(
     template: ShoppingTemplateEntity,
     currencySymbol: String,
+    isDarkTheme: Boolean,
     onApply: () -> Unit,
     onDuplicate: () -> Unit,
     onDelete: () -> Unit
 ) {
+    val primaryText = if (isDarkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
+    val secondaryText = if (isDarkTheme) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val accentEmeraldText = if (isDarkTheme) Color(0xFF6EE7B7) else Color(0xFF065F46)
+
     Card(
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+        colors = CardDefaults.cardColors(containerColor = if (isDarkTheme) Color(0xFF1E293B) else Color.White),
+        border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFF334155) else Color(0xFFCBD5E1)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = Modifier
             .fillMaxWidth()
             .testTag("template_card_${template.id}")
@@ -2044,23 +2431,34 @@ private fun TemplateItemCard(
                     Text(
                         text = template.name,
                         style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = primaryText
                     )
                     if (template.description.isNotBlank()) {
                         Text(
                             text = template.description,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = secondaryText
                         )
                     }
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onDuplicate, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = "Duplicar", modifier = Modifier.size(16.dp))
+                    IconButton(onClick = onDuplicate, modifier = Modifier.size(40.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.ContentCopy,
+                            contentDescription = "Duplicar",
+                            tint = accentEmeraldText,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
-                    IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Default.Delete, contentDescription = "Eliminar", tint = ExpenseRed.copy(alpha = 0.8f), modifier = Modifier.size(16.dp))
+                    IconButton(onClick = onDelete, modifier = Modifier.size(40.dp)) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = "Eliminar",
+                            tint = if (isDarkTheme) Color(0xFFFCA5A5) else Color(0xFFB91C1C),
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
             }
@@ -2075,21 +2473,24 @@ private fun TemplateItemCard(
                 Text(
                     text = "${template.itemCount} productos • Total est: ${FormatUtils.formatCurrency(template.estimatedTotal, currencySymbol, false)}",
                     style = MaterialTheme.typography.bodySmall,
-                    color = EmeraldGreen,
+                    color = accentEmeraldText,
                     fontWeight = FontWeight.Bold
                 )
 
                 Button(
                     onClick = onApply,
-                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen),
-                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = EmeraldGreen,
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(10.dp),
                     modifier = Modifier
-                        .defaultMinSize(minHeight = 36.dp)
+                        .heightIn(min = 44.dp)
                         .testTag("btn_load_template_${template.id}")
                 ) {
-                    Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Cargar a mi Lista", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    Text("Cargar a mi Lista", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
                 }
             }
         }
@@ -2406,31 +2807,53 @@ private fun AddEditPantryItemDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    val isDialogDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
                     val statusOptions = listOf(
-                        Triple("PANTRY_VERDE", "Verde (Suficiente)", IncomeGreen),
-                        Triple("PANTRY_AMARILLO", "Amarillo (Poco)", Color(0xFFF59E0B)),
-                        Triple("PANTRY_ROJO", "Rojo (Agotado)", ExpenseRed)
+                        Triple(
+                            "PANTRY_VERDE",
+                            "Verde (Suficiente)",
+                            if (isDialogDark) Pair(Color(0xFF064E3B), Color(0xFFA7F3D0)) else Pair(Color(0xFFD1FAE5), Color(0xFF065F46))
+                        ),
+                        Triple(
+                            "PANTRY_AMARILLO",
+                            "Amarillo (Poco)",
+                            if (isDialogDark) Pair(Color(0xFF451A03), Color(0xFFFDE68A)) else Pair(Color(0xFFFEF3C7), Color(0xFF92400E))
+                        ),
+                        Triple(
+                            "PANTRY_ROJO",
+                            "Rojo (Agotado)",
+                            if (isDialogDark) Pair(Color(0xFF5C1D24), Color(0xFFFECACA)) else Pair(Color(0xFFFEE2E2), Color(0xFF991B1B))
+                        )
                     )
 
-                    statusOptions.forEach { (code, label, color) ->
+                    statusOptions.forEach { (code, label, palette) ->
                         val isSel = status == code
+                        val (selBg, selFg) = palette
                         Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (isSel) color.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                            border = BorderStroke(1.dp, if (isSel) color else MaterialTheme.colorScheme.outlineVariant),
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isSel) selBg else MaterialTheme.colorScheme.surfaceVariant,
+                            border = BorderStroke(
+                                width = if (isSel) 1.5.dp else 1.dp,
+                                color = if (isSel) selFg else MaterialTheme.colorScheme.outlineVariant
+                            ),
                             modifier = Modifier
                                 .weight(1f)
-                                .clip(RoundedCornerShape(8.dp))
+                                .heightIn(min = 44.dp)
+                                .clip(RoundedCornerShape(10.dp))
                                 .clickable { status = code }
-                                .padding(vertical = 8.dp),
                         ) {
-                            Text(
-                                text = label,
-                                fontSize = 10.sp,
-                                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Normal,
-                                color = if (isSel) color else MaterialTheme.colorScheme.onSurface,
-                                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                            )
+                            Box(
+                                contentAlignment = Alignment.Center,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 11.sp,
+                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSel) selFg else MaterialTheme.colorScheme.onSurface,
+                                    textAlign = TextAlign.Center
+                                )
+                            }
                         }
                     }
                 }

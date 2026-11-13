@@ -23,7 +23,11 @@ class BudgetRepository(
     private val paymentCommitmentDao: com.example.data.local.PaymentCommitmentDao? = null,
     private val beneficiaryDao: com.example.data.local.BeneficiaryDao? = null,
     private val shoppingTemplateDao: com.example.data.local.ShoppingTemplateDao? = null,
-    private val database: AppDatabase? = null
+    private val database: AppDatabase? = null,
+    private val financialAccountDao: com.example.data.local.FinancialAccountDao? = null,
+    private val installmentPlanDao: com.example.data.local.InstallmentPlanDao? = null,
+    private val installmentScheduleDao: com.example.data.local.InstallmentScheduleDao? = null,
+    private val accountLedgerDao: com.example.data.local.AccountLedgerDao? = null
 ) {
     private var lastCheckoutTime: Long = 0L
     private var lastCheckoutSignature: String = ""
@@ -35,6 +39,40 @@ class BudgetRepository(
             block()
         }
     }
+
+    /**
+     * Convierte `amountMinor` en la fuente primaria de verdad en toda escritura.
+     * - Si el registro ya existía y un llamador heredado modificó solo `amount` (ej. `.copy(amount = nuevoValor)`)
+     *   sin actualizar `amountMinor`, sincroniza `amountMinor` desde ese nuevo valor y deriva `amount`.
+     * - En cualquier otro caso, conserva `amountMinor` como verdad primaria y deriva `amount` con `toDisplayDouble`.
+     */
+    internal suspend fun normalizeTransactionForWrite(tx: TransactionEntity): TransactionEntity {
+        if (tx.id > 0L) {
+            val existing = accountLedgerDao?.getTransactionById(tx.id)
+                ?: transactionDao.getAllTransactionsList().find { it.id == tx.id }
+            if (existing != null && tx.amountMinor == existing.amountMinor) {
+                val legacyMinor = MoneyMinorUnits.fromDouble(tx.amount)
+                if (legacyMinor != existing.amountMinor) {
+                    return tx.withExactAmountMinor(legacyMinor)
+                }
+            }
+        }
+        return tx.withSyncedLegacyAmountFromMinor()
+    }
+
+    internal suspend fun normalizeCommitmentForWrite(commitment: PaymentCommitmentEntity): PaymentCommitmentEntity {
+        if (commitment.id > 0L && paymentCommitmentDao != null) {
+            val existing = paymentCommitmentDao.getCommitmentById(commitment.id)
+            if (existing != null && commitment.amountMinor == existing.amountMinor) {
+                val legacyMinor = MoneyMinorUnits.fromDouble(commitment.amount)
+                if (legacyMinor != existing.amountMinor) {
+                    return commitment.withExactAmountMinor(legacyMinor)
+                }
+            }
+        }
+        return commitment.withSyncedLegacyAmountFromMinor()
+    }
+
     val allTransactions: Flow<List<TransactionEntity>> = transactionDao.getAllTransactions()
     val allBudgets: Flow<List<BudgetLimitEntity>> = budgetDao.getAllBudgets()
     val allGoals: Flow<List<SavingsGoalEntity>> = savingsGoalDao.getAllGoals()
@@ -50,20 +88,55 @@ class BudgetRepository(
     fun getTransactionsBetween(startMillis: Long, endMillis: Long): Flow<List<TransactionEntity>> =
         transactionDao.getTransactionsBetween(startMillis, endMillis)
 
-    suspend fun insertTransaction(tx: TransactionEntity): Long = transactionDao.insertTransaction(tx)
-    suspend fun updateTransaction(tx: TransactionEntity) = transactionDao.updateTransaction(tx)
-    suspend fun deleteTransaction(tx: TransactionEntity) = transactionDao.deleteTransaction(tx)
-    suspend fun deleteTransactionById(id: Long) = transactionDao.deleteById(id)
-    suspend fun deleteTransactionsByIds(ids: List<Long>) = runInTransaction {
-        if (ids.isNotEmpty()) {
-            transactionDao.deleteByIds(ids)
+    suspend fun insertTransaction(tx: TransactionEntity): Long =
+        transactionDao.insertTransaction(normalizeTransactionForWrite(tx))
+
+    suspend fun updateTransaction(tx: TransactionEntity) =
+        transactionDao.updateTransaction(normalizeTransactionForWrite(tx))
+
+    suspend fun deleteTransaction(tx: TransactionEntity) = runInTransaction {
+        val groupId = tx.transferGroupId
+        if (groupId != null && accountLedgerDao != null) {
+            accountLedgerDao.deleteByTransferGroup(groupId)
+        } else {
+            transactionDao.deleteTransaction(tx)
         }
     }
+
+    suspend fun deleteTransactionById(id: Long) = runInTransaction {
+        val existing = accountLedgerDao?.getTransactionById(id)
+            ?: transactionDao.getAllTransactionsList().find { it.id == id }
+        val groupId = existing?.transferGroupId
+        if (groupId != null && accountLedgerDao != null) {
+            accountLedgerDao.deleteByTransferGroup(groupId)
+        } else {
+            transactionDao.deleteById(id)
+        }
+    }
+
+    suspend fun deleteTransactionsByIds(ids: List<Long>) = runInTransaction {
+        if (ids.isEmpty()) return@runInTransaction
+        if (accountLedgerDao != null) {
+            val all = transactionDao.getAllTransactionsList()
+            val groupIds = all.asSequence()
+                .filter { it.id in ids && it.transferGroupId != null }
+                .mapNotNull { it.transferGroupId }
+                .distinct()
+                .toList()
+            for (groupId in groupIds) {
+                accountLedgerDao.deleteByTransferGroup(groupId)
+            }
+        }
+        transactionDao.deleteByIds(ids)
+    }
+
     suspend fun markTransactionsAsLegitimate(ids: List<Long>) = runInTransaction {
         val all = transactionDao.getAllTransactionsList()
         for (tx in all) {
             if (tx.id in ids && tx.isSuspectedDuplicate) {
-                transactionDao.updateTransaction(tx.copy(isSuspectedDuplicate = false))
+                transactionDao.updateTransaction(
+                    normalizeTransactionForWrite(tx).copy(isSuspectedDuplicate = false)
+                )
             }
         }
     }
@@ -378,15 +451,17 @@ class BudgetRepository(
         amount: Double,
         storeName: String,
         purchasedItemNames: List<String>,
-        updatePantryOnCheckout: Boolean = true
+        updatePantryOnCheckout: Boolean = true,
+        accountId: Long? = null
     ): Boolean {
-        if (amount <= 0.0 && purchasedItemNames.isEmpty()) {
+        val amountMinor = MoneyMinorUnits.fromDouble(amount)
+        if (amountMinor <= 0L && purchasedItemNames.isEmpty()) {
             return false
         }
 
         // Deduplicación contra doble clic o taps repetidos rápidos (ventana de 2.5 segundos)
         val now = System.currentTimeMillis()
-        val signature = "$storeName-$amount-${purchasedItemNames.sorted().joinToString(",")}-$updatePantryOnCheckout"
+        val signature = "$storeName-$amountMinor-${purchasedItemNames.sorted().joinToString(",")}-$updatePantryOnCheckout-${accountId ?: -1L}"
         if (now - lastCheckoutTime < 2500L && signature == lastCheckoutSignature) {
             return false
         }
@@ -394,14 +469,19 @@ class BudgetRepository(
         lastCheckoutSignature = signature
 
         return runInTransaction {
+            val account = if (accountId != null) financialAccountDao?.getAccountById(accountId) else null
+            val displayAmount = MoneyMinorUnits.toDisplayDouble(amountMinor)
             val tx = TransactionEntity(
                 title = if (title.isBlank()) "Súper $storeName (Smart Cart)" else title.trim(),
-                amount = amount,
+                amount = displayAmount,
                 type = TransactionType.EXPENSE,
                 category = "Alimentación & Súper",
                 dateMillis = System.currentTimeMillis(),
-                paymentMethod = "Efectivo",
-                notes = "Compra completada con Smart Cart Quetzi en $storeName"
+                paymentMethod = account?.name ?: "Efectivo",
+                notes = "Compra completada con Smart Cart Quetzi en $storeName",
+                amountMinor = amountMinor,
+                accountId = account?.id ?: accountId,
+                entryKind = TransactionEntryKind.STANDARD
             )
             transactionDao.insertTransaction(tx)
 
@@ -673,38 +753,49 @@ class BudgetRepository(
     suspend fun createPaymentCommitment(commitment: PaymentCommitmentEntity): Long = runInTransaction {
         if (paymentCommitmentDao == null) return@runInTransaction 0L
 
+        val normalizedCommitment = normalizeCommitmentForWrite(commitment)
+        val exactMinor = normalizedCommitment.amountMinor
+        val displayAmount = MoneyMinorUnits.toDisplayDouble(exactMinor)
+
         // 1. Crear gasto supuesto vinculado en Room: refleja la obligación en proyecciones y quincenas sin descontar saldo real
-        val txTitle = if (commitment.beneficiaryName.isNotBlank() && !commitment.title.contains(commitment.beneficiaryName, ignoreCase = true)) {
-            "${commitment.beneficiaryName} - ${commitment.title}".trim()
+        val txTitle = if (normalizedCommitment.beneficiaryName.isNotBlank() &&
+            !normalizedCommitment.title.contains(normalizedCommitment.beneficiaryName, ignoreCase = true)
+        ) {
+            "${normalizedCommitment.beneficiaryName} - ${normalizedCommitment.title}".trim()
         } else {
-            commitment.title.ifBlank { commitment.beneficiaryName }
+            normalizedCommitment.title.ifBlank { normalizedCommitment.beneficiaryName }
         }
 
+        val isCardStatement = normalizedCommitment.commitmentKind == CommitmentKind.CREDIT_CARD_STATEMENT
         val tentativeTx = TransactionEntity(
             title = txTitle,
-            amount = commitment.amount,
+            amount = displayAmount,
             type = TransactionType.EXPENSE,
-            category = commitment.category,
-            dateMillis = commitment.dueDateMillis,
+            category = normalizedCommitment.category,
+            dateMillis = normalizedCommitment.dueDateMillis,
             isTentative = true,
             tentativeDecision = "PENDING",
-            notes = if (commitment.description.isNotBlank()) "[PENDIENTE] ${commitment.description}" else "[PENDIENTE] Pago programado"
+            notes = if (normalizedCommitment.description.isNotBlank()) "[PENDIENTE] ${normalizedCommitment.description}" else "[PENDIENTE] Pago programado",
+            amountMinor = exactMinor,
+            accountId = normalizedCommitment.paymentSourceAccountId,
+            entryKind = if (isCardStatement) TransactionEntryKind.TRANSFER_OUT else TransactionEntryKind.STANDARD,
+            counterpartAccountId = if (isCardStatement) normalizedCommitment.creditCardAccountId else null
         )
         val linkedId = transactionDao.insertTransaction(tentativeTx)
 
         // 2. Guardar el compromiso con el identificador estable de la transacción
-        val toSave = commitment.copy(linkedTransactionId = linkedId)
+        val toSave = normalizedCommitment.copy(linkedTransactionId = linkedId)
         val savedId = paymentCommitmentDao.insertCommitment(toSave)
 
         // 3. Si el beneficiario no existe en el directorio, guardarlo automáticamente
-        if (beneficiaryDao != null && commitment.beneficiaryName.isNotBlank()) {
+        if (beneficiaryDao != null && normalizedCommitment.beneficiaryName.isNotBlank()) {
             val existing = beneficiaryDao.getAllBeneficiariesList()
-            if (existing.none { it.name.trim().equals(commitment.beneficiaryName.trim(), ignoreCase = true) }) {
+            if (existing.none { it.name.trim().equals(normalizedCommitment.beneficiaryName.trim(), ignoreCase = true) }) {
                 beneficiaryDao.insertBeneficiary(
                     BeneficiaryEntity(
-                        name = commitment.beneficiaryName.trim(),
-                        category = commitment.category,
-                        defaultDescription = commitment.description.trim()
+                        name = normalizedCommitment.beneficiaryName.trim(),
+                        category = normalizedCommitment.category,
+                        defaultDescription = normalizedCommitment.description.trim()
                     )
                 )
             }
@@ -715,7 +806,8 @@ class BudgetRepository(
 
     suspend fun markPaymentAsPaid(commitmentId: Long): Boolean = runInTransaction {
         if (paymentCommitmentDao == null) return@runInTransaction false
-        val commitment = paymentCommitmentDao.getCommitmentById(commitmentId) ?: return@runInTransaction false
+        val rawCommitment = paymentCommitmentDao.getCommitmentById(commitmentId) ?: return@runInTransaction false
+        val commitment = normalizeCommitmentForWrite(rawCommitment)
 
         // PROTECCIÓN CONTRA DUPLICADOS: Si ya fue confirmado, retornar false de inmediato sin descontar doble
         if (commitment.isPaid || commitment.status == PaymentStatus.PAID) {
@@ -723,38 +815,97 @@ class BudgetRepository(
         }
 
         val now = System.currentTimeMillis()
+        val exactMinor = commitment.amountMinor
+        val displayAmount = MoneyMinorUnits.toDisplayDouble(exactMinor)
+        val isCardStatementSettlement =
+            commitment.commitmentKind == CommitmentKind.CREDIT_CARD_STATEMENT &&
+                commitment.creditCardAccountId != null &&
+                commitment.paymentSourceAccountId != null
 
-        // 1. Actualizar el movimiento vinculado en REGISTROS a GASTO REAL CONFIRMADO
-        val linkedId = commitment.linkedTransactionId
-        if (linkedId != null) {
-            val allTxs = transactionDao.getAllTransactionsList()
-            val existingTx = allTxs.find { it.id == linkedId }
-            if (existingTx != null) {
-                val cleanNotes = existingTx.notes.replace("[PENDIENTE]", "")
-                    .replace("Pendiente", "", ignoreCase = true)
-                    .replace("[SUPUESTO]", "")
-                    .replace("Supuesto", "", ignoreCase = true)
-                    .trim()
-                val confirmedTx = existingTx.copy(
-                    isTentative = false,
-                    tentativeDecision = "CONFIRMED",
-                    isVerified = true,
-                    notes = if (cleanNotes.isNotBlank()) "$cleanNotes (Pagado)" else "Pago realizado"
-                )
-                transactionDao.updateTransaction(confirmedTx)
-            } else {
-                val newRealTx = TransactionEntity(
-                    title = commitment.title.ifBlank { commitment.beneficiaryName },
-                    amount = commitment.amount,
-                    type = TransactionType.EXPENSE,
-                    category = commitment.category,
-                    dateMillis = now,
-                    isTentative = false,
-                    tentativeDecision = "CONFIRMED",
-                    isVerified = true,
-                    notes = "Pago realizado a ${commitment.beneficiaryName}"
-                )
-                transactionDao.insertTransaction(newRealTx)
+        var resultingLinkedTxId = commitment.linkedTransactionId
+
+        if (isCardStatementSettlement) {
+            // Liquidación atómica de tarjeta: dos patas enlazadas que ajustan saldos sin duplicar gastos en presupuesto
+            val linkedId = commitment.linkedTransactionId
+            if (linkedId != null) {
+                transactionDao.deleteById(linkedId)
+            }
+            val transferGroupId = "ccstmt_${commitment.id}_${java.util.UUID.randomUUID()}"
+            val sourceAccount = commitment.paymentSourceAccountId?.let { financialAccountDao?.getAccountById(it) }
+            val cardAccount = commitment.creditCardAccountId?.let { financialAccountDao?.getAccountById(it) }
+            val outTx = TransactionEntity(
+                title = "Pago tarjeta ${cardAccount?.name ?: commitment.title}".trim(),
+                amount = displayAmount,
+                type = TransactionType.EXPENSE,
+                category = commitment.category,
+                dateMillis = now,
+                paymentMethod = sourceAccount?.name ?: "Cuenta",
+                notes = "Liquidación de estado de cuenta (${commitment.beneficiaryName})",
+                isVerified = true,
+                isTentative = false,
+                tentativeDecision = "CONFIRMED",
+                amountMinor = exactMinor,
+                accountId = commitment.paymentSourceAccountId,
+                entryKind = TransactionEntryKind.TRANSFER_OUT,
+                transferGroupId = transferGroupId,
+                counterpartAccountId = commitment.creditCardAccountId
+            )
+            val cardPaymentTx = TransactionEntity(
+                title = "Abono ${cardAccount?.name ?: commitment.title}".trim(),
+                amount = displayAmount,
+                type = TransactionType.INCOME,
+                category = commitment.category,
+                dateMillis = now,
+                paymentMethod = sourceAccount?.name ?: "Transferencia",
+                notes = "Pago de estado de cuenta desde ${sourceAccount?.name ?: "cuenta propia"}",
+                isVerified = true,
+                isTentative = false,
+                tentativeDecision = "CONFIRMED",
+                amountMinor = exactMinor,
+                accountId = commitment.creditCardAccountId,
+                entryKind = TransactionEntryKind.CARD_PAYMENT,
+                transferGroupId = transferGroupId,
+                counterpartAccountId = commitment.paymentSourceAccountId
+            )
+            transactionDao.insertTransaction(outTx)
+            resultingLinkedTxId = transactionDao.insertTransaction(cardPaymentTx)
+        } else {
+            // 1. Actualizar el movimiento vinculado en REGISTROS a GASTO REAL CONFIRMADO
+            val linkedId = commitment.linkedTransactionId
+            if (linkedId != null) {
+                val allTxs = transactionDao.getAllTransactionsList()
+                val existingTx = allTxs.find { it.id == linkedId }
+                if (existingTx != null) {
+                    val cleanNotes = existingTx.notes.replace("[PENDIENTE]", "")
+                        .replace("Pendiente", "", ignoreCase = true)
+                        .replace("[SUPUESTO]", "")
+                        .replace("Supuesto", "", ignoreCase = true)
+                        .trim()
+                    val confirmedTx = existingTx.withExactAmountMinor(exactMinor).copy(
+                        isTentative = false,
+                        tentativeDecision = "CONFIRMED",
+                        isVerified = true,
+                        accountId = existingTx.accountId ?: commitment.paymentSourceAccountId,
+                        notes = if (cleanNotes.isNotBlank()) "$cleanNotes (Pagado)" else "Pago realizado"
+                    )
+                    transactionDao.updateTransaction(confirmedTx)
+                } else {
+                    val newRealTx = TransactionEntity(
+                        title = commitment.title.ifBlank { commitment.beneficiaryName },
+                        amount = displayAmount,
+                        type = TransactionType.EXPENSE,
+                        category = commitment.category,
+                        dateMillis = now,
+                        isTentative = false,
+                        tentativeDecision = "CONFIRMED",
+                        isVerified = true,
+                        notes = "Pago realizado a ${commitment.beneficiaryName}",
+                        amountMinor = exactMinor,
+                        accountId = commitment.paymentSourceAccountId,
+                        entryKind = TransactionEntryKind.STANDARD
+                    )
+                    resultingLinkedTxId = transactionDao.insertTransaction(newRealTx)
+                }
             }
         }
 
@@ -762,7 +913,8 @@ class BudgetRepository(
         val updatedCommitment = commitment.copy(
             isPaid = true,
             status = PaymentStatus.PAID,
-            paidDateMillis = now
+            paidDateMillis = now,
+            linkedTransactionId = resultingLinkedTxId
         )
         paymentCommitmentDao.updateCommitment(updatedCommitment)
 
@@ -774,15 +926,20 @@ class BudgetRepository(
             } else {
                 commitment.title.ifBlank { commitment.beneficiaryName }
             }
+            val isCardStmt = commitment.commitmentKind == CommitmentKind.CREDIT_CARD_STATEMENT
             val nextTentativeTx = TransactionEntity(
                 title = nextTitle,
-                amount = commitment.amount,
+                amount = displayAmount,
                 type = TransactionType.EXPENSE,
                 category = commitment.category,
                 dateMillis = nextDueDate,
                 isTentative = true,
                 tentativeDecision = "PENDING",
-                notes = if (commitment.description.isNotBlank()) "[PENDIENTE] ${commitment.description}" else "[PENDIENTE] Pago programado"
+                notes = if (commitment.description.isNotBlank()) "[PENDIENTE] ${commitment.description}" else "[PENDIENTE] Pago programado",
+                amountMinor = exactMinor,
+                accountId = commitment.paymentSourceAccountId,
+                entryKind = if (isCardStmt) TransactionEntryKind.TRANSFER_OUT else TransactionEntryKind.STANDARD,
+                counterpartAccountId = if (isCardStmt) commitment.creditCardAccountId else null
             )
             val nextLinkedTxId = transactionDao.insertTransaction(nextTentativeTx)
             val nextCommitment = commitment.copy(
@@ -802,23 +959,26 @@ class BudgetRepository(
 
     suspend fun updatePaymentCommitment(commitment: PaymentCommitmentEntity) = runInTransaction {
         if (paymentCommitmentDao == null) return@runInTransaction
-        // Si el compromiso aún está pendiente, actualizar la transacción vinculada
-        if (!commitment.isPaid && commitment.linkedTransactionId != null) {
+        val normalized = normalizeCommitmentForWrite(commitment)
+        // Si el compromiso aún está pendiente, actualizar la transacción vinculada manteniendo paridad monetaria exacta
+        if (!normalized.isPaid && normalized.linkedTransactionId != null) {
             val allTxs = transactionDao.getAllTransactionsList()
-            val existingTx = allTxs.find { it.id == commitment.linkedTransactionId }
+            val existingTx = allTxs.find { it.id == normalized.linkedTransactionId }
             if (existingTx != null) {
-                val updatedTx = existingTx.copy(
-                    title = if (commitment.beneficiaryName.isNotBlank() && !commitment.title.contains(commitment.beneficiaryName, ignoreCase = true)) {
-                        "${commitment.beneficiaryName} - ${commitment.title}".trim()
-                    } else commitment.title,
-                    amount = commitment.amount,
-                    category = commitment.category,
-                    dateMillis = commitment.dueDateMillis
+                val updatedTx = existingTx.withExactAmountMinor(normalized.amountMinor).copy(
+                    title = if (normalized.beneficiaryName.isNotBlank() &&
+                        !normalized.title.contains(normalized.beneficiaryName, ignoreCase = true)
+                    ) {
+                        "${normalized.beneficiaryName} - ${normalized.title}".trim()
+                    } else normalized.title,
+                    category = normalized.category,
+                    dateMillis = normalized.dueDateMillis,
+                    accountId = normalized.paymentSourceAccountId ?: existingTx.accountId
                 )
                 transactionDao.updateTransaction(updatedTx)
             }
         }
-        paymentCommitmentDao.updateCommitment(commitment)
+        paymentCommitmentDao.updateCommitment(normalized)
     }
 
     suspend fun deletePaymentCommitment(commitment: PaymentCommitmentEntity) = runInTransaction {
@@ -879,6 +1039,9 @@ class BudgetRepository(
         smartCartDao.clearAll()
         paymentCommitmentDao?.clearAll()
         beneficiaryDao?.clearAll()
+        installmentScheduleDao?.clearAll()
+        installmentPlanDao?.clearAll()
+        financialAccountDao?.clearAll()
     }
 
     fun parseCsvLine(line: String): List<String> {
@@ -926,8 +1089,9 @@ class BudgetRepository(
         // 1. Tipo de transacción (INCOME vs EXPENSE)
         if (!existing.type.equals(incomingType, ignoreCase = true)) return false
 
-        // 2. Monto con tolerancia de coma flotante
-        if (kotlin.math.abs(existing.amount - incomingAmount) > 0.005) return false
+        // 2. Monto exacto en unidades menores
+        val incomingMinor = MoneyMinorUnits.fromDouble(incomingAmount)
+        if (existing.effectiveAmountMinor != incomingMinor) return false
 
         // 3. Mismo día calendario local
         if (!com.example.ui.util.QuincenaFilterHelper.isSameCalendarDay(existing.dateMillis, incomingDateMillis)) {
@@ -958,11 +1122,18 @@ class BudgetRepository(
         return true
     }
 
-    suspend fun importFromCsv(csvText: String): ImportSummary {
+    suspend fun importFromCsv(
+        csvText: String,
+        targetAccountId: Long? = null
+    ): ImportSummary {
         val parsedList = com.example.ui.util.ExcelXlsxReader.parseTransactionsFromText(csvText)
         if (parsedList.isEmpty()) return ImportSummary(0, 0, 0, 0, 0)
 
         return runInTransaction {
+            val targetAccount = if (targetAccountId != null) {
+                financialAccountDao?.getAccountById(targetAccountId)
+            } else null
+
             val existing = transactionDao.getAllTransactionsList().toMutableList()
             val toInsert = mutableListOf<TransactionEntity>()
             var dupCount = 0
@@ -973,16 +1144,20 @@ class BudgetRepository(
             val signatureCounts = mutableMapOf<String, Int>()
 
             for (parsed in parsedList) {
-                if (parsed.amount <= 0.0 || parsed.title.isBlank()) {
+                val parsedMinor = MoneyMinorUnits.fromDouble(parsed.amount)
+                if (parsedMinor <= 0L || parsed.title.isBlank()) {
                     errCount++
                     continue
                 }
+                val displayAmount = MoneyMinorUnits.toDisplayDouble(parsedMinor)
+                val formattedAmountStr = MoneyMinorUnits.toBigDecimal(parsedMinor).toPlainString()
 
                 val cal = Calendar.getInstance().apply { timeInMillis = parsed.dateMillis }
                 val y = cal.get(Calendar.YEAR)
                 val m = cal.get(Calendar.MONTH) + 1
                 val d = cal.get(Calendar.DAY_OF_MONTH)
-                val baseSig = "${parsed.type.uppercase()}|${"%.2f".format(Locale.US, parsed.amount)}|$y-$m-$d|${parsed.title.trim().lowercase(Locale.ROOT)}"
+                val accountPrefix = if (targetAccountId != null) "ACC$targetAccountId|" else ""
+                val baseSig = "$accountPrefix${parsed.type.uppercase()}|$formattedAmountStr|$y-$m-$d|${parsed.title.trim().lowercase(Locale.ROOT)}"
                 val occIndex = (signatureCounts[baseSig] ?: 0) + 1
                 signatureCounts[baseSig] = occIndex
                 val generatedHash = "$baseSig|#$occIndex"
@@ -1004,15 +1179,16 @@ class BudgetRepository(
                 // 3. Detección heurística por campos equivalentes (reserva consumible de existentes)
                 val matchByFieldsIdx = if (matchByIdIdx == -1 && matchByHashIdx == -1) {
                     existing.indexOfFirst {
-                        matchesExistingTransaction(
-                            existing = it,
-                            incomingTitle = parsed.title,
-                            incomingAmount = parsed.amount,
-                            incomingType = parsed.type,
-                            incomingCategory = parsed.category,
-                            incomingDateMillis = parsed.dateMillis,
-                            incomingNotes = parsed.notes
-                        )
+                        (targetAccountId == null || it.accountId == null || it.accountId == targetAccountId) &&
+                            matchesExistingTransaction(
+                                existing = it,
+                                incomingTitle = parsed.title,
+                                incomingAmount = displayAmount,
+                                incomingType = parsed.type,
+                                incomingCategory = parsed.category,
+                                incomingDateMillis = parsed.dateMillis,
+                                incomingNotes = parsed.notes
+                            )
                     }
                 } else -1
 
@@ -1027,11 +1203,12 @@ class BudgetRepository(
                     existing.removeAt(matchedIdx)
                     dupCount++
                 } else {
-                    // Verificar si existe una coincidencia probable en BD (mismo día y monto) para marcarla como posible duplicado
+                    // Verificar si existe una coincidencia probable en BD (mismo día y monto exacto) para marcarla como posible duplicado
                     val hasProbableMatch = existing.any {
                         it.type.equals(parsed.type, ignoreCase = true) &&
-                        kotlin.math.abs(it.amount - parsed.amount) < 0.005 &&
-                        com.example.ui.util.QuincenaFilterHelper.isSameCalendarDay(it.dateMillis, parsed.dateMillis)
+                            (targetAccountId == null || it.accountId == null || it.accountId == targetAccountId) &&
+                            it.effectiveAmountMinor == parsedMinor &&
+                            com.example.ui.util.QuincenaFilterHelper.isSameCalendarDay(it.dateMillis, parsed.dateMillis)
                     }
 
                     if (hasProbableMatch) {
@@ -1041,14 +1218,18 @@ class BudgetRepository(
                     toInsert.add(
                         TransactionEntity(
                             title = parsed.title.trim(),
-                            amount = parsed.amount,
+                            amount = displayAmount,
                             type = parsed.type,
                             category = parsed.category.trim(),
                             dateMillis = parsed.dateMillis,
+                            paymentMethod = targetAccount?.name ?: "Efectivo",
                             notes = parsed.notes.trim(),
                             externalId = parsed.externalId?.trim()?.ifBlank { null },
                             importHash = generatedHash,
-                            isSuspectedDuplicate = hasProbableMatch
+                            isSuspectedDuplicate = hasProbableMatch,
+                            amountMinor = parsedMinor,
+                            accountId = targetAccountId,
+                            entryKind = TransactionEntryKind.STANDARD
                         )
                     )
                 }

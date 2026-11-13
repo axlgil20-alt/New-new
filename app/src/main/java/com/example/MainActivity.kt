@@ -96,6 +96,7 @@ import com.example.ui.screens.PlannedVsRealScreen
 import com.example.ui.screens.SplashScreen
 import com.example.ui.screens.TransactionsScreen
 import com.example.ui.theme.PresupuestoTheme
+import com.example.ui.util.TermsAcceptanceManager
 import com.example.ui.viewmodel.BudgetViewModel
 
 class MainActivity : ComponentActivity() {
@@ -136,9 +137,9 @@ class MainActivity : ComponentActivity() {
                 selectedTab = 0
             }
 
-            val prefs = remember { getSharedPreferences("quetzi_prefs", MODE_PRIVATE) }
-            var showFirstLaunchTerms by remember {
-                mutableStateOf(!prefs.getBoolean("has_accepted_terms_v1", false))
+            val prefs = remember { getSharedPreferences(TermsAcceptanceManager.PREFS_NAME, MODE_PRIVATE) }
+            var requiresTermsAcceptance by remember {
+                mutableStateOf(TermsAcceptanceManager.requiresAcceptance(prefs))
             }
 
             // Observar mensajes para mostrar Feedback Toast
@@ -157,6 +158,27 @@ class MainActivity : ComponentActivity() {
                     SplashScreen(
                         onContinue = { showSplashScreen = false }
                     )
+                } else if (requiresTermsAcceptance) {
+                    BackHandler(enabled = true) {
+                        // Impide omitir los términos mediante el botón Atrás del sistema
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.background)
+                    ) {
+                        TermsAndPrivacyDialog(
+                            isMandatory = true,
+                            termsVersion = TermsAcceptanceManager.CURRENT_TERMS_VERSION,
+                            onAccept = {
+                                TermsAcceptanceManager.recordAcceptance(prefs)
+                                requiresTermsAcceptance = false
+                            },
+                            onDeclineAndExit = {
+                                finishAffinity()
+                            }
+                        )
+                    }
                 } else {
                     ModalNavigationDrawer(
                         drawerState = drawerState,
@@ -823,16 +845,6 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                    // Modal de Términos y Privacidad (Aparición Única en Primer Inicio)
-                    if (showFirstLaunchTerms) {
-                        TermsAndPrivacyDialog(
-                            onAccept = {
-                                prefs.edit().putBoolean("has_accepted_terms_v1", true).apply()
-                                showFirstLaunchTerms = false
-                            }
-                        )
-                    }
-
                     // Modales del Menú Lateral
                     if (showNotificationsDialog) {
                         NotificationsSettingsDialog(onDismiss = { showNotificationsDialog = false })
@@ -845,7 +857,10 @@ class MainActivity : ComponentActivity() {
                     if (showTermsDialog) {
                         TermsAndPrivacyDialog(
                             onAccept = { showTermsDialog = false },
-                            onDismiss = { showTermsDialog = false }
+                            onDismiss = { showTermsDialog = false },
+                            isMandatory = false,
+                            termsVersion = TermsAcceptanceManager.CURRENT_TERMS_VERSION,
+                            acceptanceRecord = TermsAcceptanceManager.getAcceptanceRecord(prefs)
                         )
                     }
 

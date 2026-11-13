@@ -244,7 +244,11 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             paymentCommitmentDao = db.paymentCommitmentDao(),
             beneficiaryDao = db.beneficiaryDao(),
             shoppingTemplateDao = db.shoppingTemplateDao(),
-            database = db
+            database = db,
+            financialAccountDao = db.financialAccountDao(),
+            installmentPlanDao = db.installmentPlanDao(),
+            installmentScheduleDao = db.installmentScheduleDao(),
+            accountLedgerDao = db.accountLedgerDao()
         )
         viewModelScope.launch {
             repository.deduplicateItemsIfAny()
@@ -388,8 +392,14 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         val cartItems = plans.cartItems
 
         val totalDbCount = txList.size
-        val allTimeInc = txList.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-        val allTimeExp = txList.filter { it.type == TransactionType.EXPENSE }.sumOf { it.amount }
+        val allTimeInc = txList
+            .filter { it.isIngresoReal }
+            .fold(java.math.BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
+            .toDouble()
+        val allTimeExp = txList
+            .filter { it.type == TransactionType.EXPENSE && it.affectsBudgetTotals }
+            .fold(java.math.BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
+            .toDouble()
 
         // Identificación confiable de duplicados en el conjunto de datos
         val duplicateIds = com.example.ui.util.QuincenaFilterHelper.findDuplicateTransactionIds(txList)
@@ -428,56 +438,71 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             matchesDate && matchesQuincena
         }
 
-        // 2. Calcular montos confirmados, supuestos y descartados del periodo base
-        var confirmedIncome = 0.0
-        var confirmedExpense = 0.0
-        var tentativeExpensePending = 0.0
-        var tentativeIncomePending = 0.0
-        var discardedTentativeSavings = 0.0
-        val catMap = mutableMapOf<String, Double>()
+        // 2. Calcular montos confirmados, supuestos y descartados del periodo base con BigDecimal exacto
+        var confirmedIncomeBd = java.math.BigDecimal.ZERO
+        var confirmedExpenseBd = java.math.BigDecimal.ZERO
+        var tentativeExpensePendingBd = java.math.BigDecimal.ZERO
+        var tentativeIncomePendingBd = java.math.BigDecimal.ZERO
+        var discardedTentativeSavingsBd = java.math.BigDecimal.ZERO
+        val catMapBd = mutableMapOf<String, java.math.BigDecimal>()
 
         for (tx in periodTx) {
+            if (!tx.affectsBudgetTotals) continue
             val isTentative = tx.isTentative
             val decision = tx.tentativeDecision
+            val txAmtBd = tx.effectiveAmountBigDecimal
 
             when {
                 isTentative && decision == "DISCARDED" -> {
-                    discardedTentativeSavings += tx.amount
+                    discardedTentativeSavingsBd = discardedTentativeSavingsBd.add(txAmtBd)
                 }
                 isTentative && (decision.isBlank() || decision == "PENDING") -> {
                     if (tx.type == TransactionType.EXPENSE) {
-                        tentativeExpensePending += tx.amount
+                        tentativeExpensePendingBd = tentativeExpensePendingBd.add(txAmtBd)
                     } else {
-                        tentativeIncomePending += tx.amount
+                        tentativeIncomePendingBd = tentativeIncomePendingBd.add(txAmtBd)
                     }
                 }
                 else -> {
-                    if (tx.type == TransactionType.INCOME) {
-                        confirmedIncome += tx.amount
-                    } else {
-                        confirmedExpense += tx.amount
-                        catMap[tx.category] = (catMap[tx.category] ?: 0.0) + tx.amount
+                    if (tx.isIngresoReal) {
+                        confirmedIncomeBd = confirmedIncomeBd.add(txAmtBd)
+                    } else if (tx.type == TransactionType.EXPENSE) {
+                        confirmedExpenseBd = confirmedExpenseBd.add(txAmtBd)
+                        catMapBd[tx.category] = (catMapBd[tx.category] ?: java.math.BigDecimal.ZERO).add(txAmtBd)
                     }
                 }
             }
         }
 
-        val confirmedNet = confirmedIncome - confirmedExpense
-        val simulatedNet = confirmedNet - tentativeExpensePending + tentativeIncomePending + discardedTentativeSavings
+        val confirmedIncome = confirmedIncomeBd.toDouble()
+        val confirmedExpense = confirmedExpenseBd.toDouble()
+        val tentativeExpensePending = tentativeExpensePendingBd.toDouble()
+        val tentativeIncomePending = tentativeIncomePendingBd.toDouble()
+        val discardedTentativeSavings = discardedTentativeSavingsBd.toDouble()
 
-        val activeTotalExpense = if (filters.includeTentative) {
-            confirmedExpense + tentativeExpensePending
+        val confirmedNet = confirmedIncomeBd.subtract(confirmedExpenseBd).toDouble()
+        val simulatedNet = confirmedIncomeBd
+            .subtract(confirmedExpenseBd)
+            .subtract(tentativeExpensePendingBd)
+            .add(tentativeIncomePendingBd)
+            .add(discardedTentativeSavingsBd)
+            .toDouble()
+
+        val activeTotalExpenseBd = if (filters.includeTentative) {
+            confirmedExpenseBd.add(tentativeExpensePendingBd)
         } else {
-            confirmedExpense
+            confirmedExpenseBd
         }
 
-        val activeTotalIncome = if (filters.includeTentative) {
-            confirmedIncome + tentativeIncomePending + discardedTentativeSavings
+        val activeTotalIncomeBd = if (filters.includeTentative) {
+            confirmedIncomeBd.add(tentativeIncomePendingBd).add(discardedTentativeSavingsBd)
         } else {
-            confirmedIncome
+            confirmedIncomeBd
         }
 
-        val activeNetBalance = activeTotalIncome - activeTotalExpense
+        val activeTotalExpense = activeTotalExpenseBd.toDouble()
+        val activeTotalIncome = activeTotalIncomeBd.toDouble()
+        val activeNetBalance = activeTotalIncomeBd.subtract(activeTotalExpenseBd).toDouble()
 
         val savingsRate = if (activeTotalIncome > 0) {
             ((activeNetBalance / activeTotalIncome) * 100).coerceIn(-100.0, 100.0)
@@ -485,12 +510,14 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             0.0
         }
 
-        val totalCategorized = catMap.values.sum()
-        val catStats: List<CategoryExpenseStat> = catMap.map { (cat, amount) ->
+        val totalCategorizedBd = catMapBd.values.fold(java.math.BigDecimal.ZERO) { acc, v -> acc.add(v) }
+        val totalCategorized = totalCategorizedBd.toDouble()
+        val catStats: List<CategoryExpenseStat> = catMapBd.map { (cat, amountBd) ->
+            val amt = amountBd.toDouble()
             CategoryExpenseStat(
                 category = cat,
-                totalAmount = amount,
-                percentageOfTotal = if (totalCategorized > 0) (amount / totalCategorized) * 100 else 0.0
+                totalAmount = amt,
+                percentageOfTotal = if (totalCategorized > 0) (amt / totalCategorized) * 100 else 0.0
             )
         }.sortedByDescending { stat: CategoryExpenseStat -> stat.totalAmount }
 
@@ -508,7 +535,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 TransactionType.EXPENSE -> tx.type == TransactionType.EXPENSE
                 TransactionType.INCOME -> tx.type == TransactionType.INCOME
                 "SAVING" -> tx.category.contains("Ahorro", ignoreCase = true) || tx.notes.contains("Ahorro", ignoreCase = true)
-                "TRANSFER" -> tx.category.contains("Transferencia", ignoreCase = true) || tx.title.contains("Transferencia", ignoreCase = true)
+                "TRANSFER" -> com.example.data.model.TransactionEntryKind.isTransferOrSettlement(tx.entryKind) ||
+                    tx.category.contains("Transferencia", ignoreCase = true) ||
+                    tx.title.contains("Transferencia", ignoreCase = true)
                 else -> tx.type == filters.type
             }
             val matchesCategory = filters.category == null || tx.category.equals(filters.category, ignoreCase = true)
@@ -561,27 +590,42 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             )
         } else 0.0
 
-        // Métricas financieras calculadas estrictamente sobre el conjunto filtrado
-        val filteredRealInc = filtered.filter { it.type == TransactionType.INCOME }.sumOf { it.amount }
-        val filteredConfirmedExp = filtered.filter { it.isGastoReal }.sumOf { it.amount }
-        val filteredSupuestoExp = filtered.filter { it.isGastoSupuesto }.sumOf { it.amount }
-        val filteredTotalBothExp = filteredConfirmedExp + filteredSupuestoExp
+        // Métricas financieras calculadas estrictamente sobre el conjunto filtrado usando BigDecimal exacto
+        val filteredRealIncBd = filtered.filter { it.isIngresoReal }
+            .fold(java.math.BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
+        val filteredConfirmedExpBd = filtered.filter { it.isGastoReal }
+            .fold(java.math.BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
+        val filteredSupuestoExpBd = filtered.filter { it.isGastoSupuesto }
+            .fold(java.math.BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
+        val filteredTotalBothExpBd = filteredConfirmedExpBd.add(filteredSupuestoExpBd)
+        val rolloverBd = java.math.BigDecimal.valueOf(rolloverAmt)
 
-        val totalAmountToSpendVal = filteredRealInc + rolloverAmt
-        val filteredRealRemaining = totalAmountToSpendVal - filteredConfirmedExp
-        val filteredProjectedRemaining = totalAmountToSpendVal - filteredTotalBothExp
+        val totalAmountToSpendBd = filteredRealIncBd.add(rolloverBd)
+        val filteredRealRemainingBd = totalAmountToSpendBd.subtract(filteredConfirmedExpBd)
+        val filteredProjectedRemainingBd = totalAmountToSpendBd.subtract(filteredTotalBothExpBd)
 
-        val filteredRealNet = totalAmountToSpendVal - filteredConfirmedExp
-        val filteredProjNet = totalAmountToSpendVal - filteredTotalBothExp
+        val filteredRealInc = filteredRealIncBd.toDouble()
+        val filteredConfirmedExp = filteredConfirmedExpBd.toDouble()
+        val filteredSupuestoExp = filteredSupuestoExpBd.toDouble()
+        val filteredTotalBothExp = filteredTotalBothExpBd.toDouble()
+        val totalAmountToSpendVal = totalAmountToSpendBd.toDouble()
+        val filteredRealRemaining = filteredRealRemainingBd.toDouble()
+        val filteredProjectedRemaining = filteredProjectedRemainingBd.toDouble()
+        val filteredRealNet = filteredRealRemaining
+        val filteredProjNet = filteredProjectedRemaining
 
-        val filteredCatMap = mutableMapOf<String, Double>()
+        val filteredCatMapBd = mutableMapOf<String, java.math.BigDecimal>()
         for (tx in filtered) {
-            if (tx.type == TransactionType.EXPENSE && tx.status != TransactionStatus.DISCARDED) {
-                filteredCatMap[tx.category] = (filteredCatMap[tx.category] ?: 0.0) + tx.amount
+            if (tx.type == TransactionType.EXPENSE && tx.affectsBudgetTotals && tx.status != TransactionStatus.DISCARDED) {
+                filteredCatMapBd[tx.category] = (filteredCatMapBd[tx.category] ?: java.math.BigDecimal.ZERO)
+                    .add(tx.effectiveAmountBigDecimal)
             }
         }
-        val totFilteredExp = filteredCatMap.values.sum()
-        val filteredCatStats = filteredCatMap.map { (cat, amt) ->
+        val totFilteredExp = filteredCatMapBd.values
+            .fold(java.math.BigDecimal.ZERO) { acc, v -> acc.add(v) }
+            .toDouble()
+        val filteredCatStats = filteredCatMapBd.map { (cat, amtBd) ->
+            val amt = amtBd.toDouble()
             CategoryExpenseStat(
                 category = cat,
                 totalAmount = amt,
@@ -654,7 +698,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         val beneficiaries = plans.beneficiaries
 
         val nowTime = System.currentTimeMillis()
-        val totalPendingPaymentsVal = payments.filter { !it.isPaid && it.status != PaymentStatus.PAID }.sumOf { it.amount }
+        val totalPendingPaymentsVal = payments
+            .filter { !it.isPaid && it.status != PaymentStatus.PAID }
+            .fold(java.math.BigDecimal.ZERO) { acc, p -> acc.add(MoneyMinorUnits.toBigDecimal(p.effectiveAmountMinor)) }
+            .toDouble()
         val upcomingPaymentsCountVal = payments.count { it.isUpcoming(nowTime, 7) }
         val overduePaymentsCountVal = payments.count { it.isOverdue(nowTime) }
 
@@ -679,7 +726,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             val end = cal.timeInMillis
             Pair(start, end)
         }
-        val monthPaidPaymentsTotalVal = payments.filter { it.isPaid && (it.paidDateMillis ?: 0L) in monthStartMillis..monthEndMillis }.sumOf { it.amount }
+        val monthPaidPaymentsTotalVal = payments
+            .filter { it.isPaid && (it.paidDateMillis ?: 0L) in monthStartMillis..monthEndMillis }
+            .fold(java.math.BigDecimal.ZERO) { acc, p -> acc.add(MoneyMinorUnits.toBigDecimal(p.effectiveAmountMinor)) }
+            .toDouble()
 
         val nextUpcomingPaymentVal = payments.filter { !it.isPaid && it.status != PaymentStatus.PAID }
             .minByOrNull { it.dueDateMillis }
@@ -1009,18 +1059,21 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     // ACCESO RÁPIDO CHAPÍN: Guarda gastos reales inmediatos desde el FAB
     fun addChapinQuickExpense(title: String, amount: Double, category: String, notes: String = "Gasto rápido Chapín") {
         viewModelScope.launch {
+            val amountMinor = MoneyMinorUnits.fromDouble(amount.coerceAtLeast(0.0))
+            val displayAmount = MoneyMinorUnits.toDisplayDouble(amountMinor)
             val tx = TransactionEntity(
                 title = title,
-                amount = amount,
+                amount = displayAmount,
                 type = TransactionType.EXPENSE,
                 category = category,
                 dateMillis = System.currentTimeMillis(),
                 isAntExpense = true,
-                notes = notes
+                notes = notes,
+                amountMinor = amountMinor
             )
             repository.insertTransaction(tx)
             celebrationTriggerFlow.value = System.currentTimeMillis()
-            showToast("¡Listo! Se guardó Q${"%.2f".format(amount)} en $title.")
+            showToast("¡Listo! Se guardó Q${"%.2f".format(displayAmount)} en $title.")
         }
     }
 
@@ -1476,17 +1529,19 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         notes: String = ""
     ) {
         viewModelScope.launch {
+            val amountMinor = MoneyMinorUnits.fromDouble(amount.coerceAtLeast(0.0))
             val commitment = PaymentCommitmentEntity(
                 title = title.trim(),
                 beneficiaryName = beneficiaryName.trim(),
                 description = description.trim(),
-                amount = amount.coerceAtLeast(0.0),
+                amount = MoneyMinorUnits.toDisplayDouble(amountMinor),
                 dueDateMillis = dueDateMillis,
                 category = category,
                 frequency = frequency,
                 isVariableAmount = isVariableAmount,
                 reminderDaysBefore = reminderDaysBefore,
-                notes = notes.trim()
+                notes = notes.trim(),
+                amountMinor = amountMinor
             )
             val savedId = repository.createPaymentCommitment(commitment)
             if (reminderDaysBefore >= 0) {
