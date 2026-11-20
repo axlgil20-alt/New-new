@@ -263,59 +263,46 @@ fun SmartCartScreen(
     }
 
     val isDark = uiState.isDarkTheme
-    val pageBackground = if (isDark) Color(0xFF14110E) else Color(0xFFFAF5ED)
-    val backgroundScrim = if (isDark) Color(0xEE14110E) else Color(0xECFAF5ED)
-    val heroTextShadow = Shadow(color = Color(0xCC000000), offset = Offset(0f, 2f), blurRadius = 6f)
+    val pageBackground = if (isDark) Color(0xFF120E0B) else Color(0xFFF6F0E6)
+    val screenScrimBrush = if (isDark) {
+        Brush.verticalGradient(
+            0.0f to Color(0xC80E0A07),
+            0.16f to Color(0x880E0A07),
+            0.34f to Color(0x74120E0B),
+            1.0f to Color(0x84120E0B)
+        )
+    } else {
+        Brush.verticalGradient(
+            0.0f to Color(0xB4140D08),
+            0.14f to Color(0x62140D08),
+            0.28f to Color(0x26FAF5ED),
+            0.65f to Color(0x20FAF5ED),
+            1.0f to Color(0x2CFAF5ED)
+        )
+    }
+    val heroTextShadow = Shadow(color = Color(0xD9000000), offset = Offset(0f, 2f), blurRadius = 6f)
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(pageBackground)
     ) {
-        // Fotografía de fondo para el cuerpo inferior: Mercado de Chichicastenango con velo protector
+        // Fotografía continua de toda la pantalla: Mercado tradicional de Chichicastenango, Guatemala
         Image(
             painter = painterResource(id = R.drawable.img_chichicastenango_market),
-            contentDescription = null,
+            contentDescription = "Mercado tradicional de Chichicastenango, Guatemala",
             contentScale = ContentScale.Crop,
+            alignment = Alignment.Center,
             modifier = Modifier
                 .fillMaxSize()
-                .alpha(if (isDark) 0.12f else 0.14f)
+                .alpha(if (isDark) 0.64f else 0.92f)
         )
-        // Velo opaco protector para preservar lectura nítida sobre la textura del mercado
+        // Protección localizada en la cabecera y velo ligero en el cuerpo para mantener lectura y color del mercado
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(backgroundScrim)
+                .background(screenScrimBrush)
         )
-
-        // FOTOGRAFÍA HEROICA SUPERIOR DOMINANTE: Mercado tradicional de Chichicastenango, Guatemala
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(350.dp)
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.img_chichicastenango_market),
-                contentDescription = "Mercado tradicional de Chichicastenango, Guatemala",
-                contentScale = ContentScale.Crop,
-                alignment = Alignment.TopCenter,
-                modifier = Modifier.fillMaxSize()
-            )
-            // Gradiente vertical de protección: sólido arriba para lectura nítida,
-            // ventana clara en el centro para apreciar el mercado, y fusión limpia al fondo
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            0.0f to Color(0xEB140D08),
-                            0.28f to Color(0xA6140D08),
-                            0.72f to Color(0x33000000),
-                            1.0f to pageBackground
-                        )
-                    )
-            )
-        }
 
         Column(modifier = Modifier.fillMaxSize()) {
             // 1. CABECERA PRINCIPAL INTEGRADA SOBRE EL MERCADO DE CHICHICASTENANGO
@@ -408,10 +395,10 @@ fun SmartCartScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // PESTAÑAS PRINCIPALES CON CONTENEDOR SÓLIDO OPACO DE ALTO CONTRASTE
+                // PESTAÑAS PRINCIPALES CON CONTENEDOR SÓLIDO DE ALTO CONTRASTE
                 Surface(
                     shape = RoundedCornerShape(14.dp),
-                    color = if (isDark) Color(0xFF0F221C) else Color(0xFF063226),
+                    color = (if (isDark) Color(0xFF0F221C) else Color(0xFF063226)).copy(alpha = 0.91f),
                     border = BorderStroke(1.2.dp, Color(0xFF34D399)),
                     shadowElevation = 4.dp,
                     modifier = Modifier.fillMaxWidth()
@@ -1082,7 +1069,10 @@ private fun ShoppingListContent(
     val progress = if (totalEstimated > 0) (checkedTotal / totalEstimated).toFloat().coerceIn(0f, 1f) else 0f
     val difference = budgetAmount - totalEstimated
 
-    val cardSurface = if (isDarkTheme) Color(0xFF1E293B) else Color.White
+    val primaryCardSurface = if (isDarkTheme) Color(0xFF1E293B).copy(alpha = 0.90f) else Color.White.copy(alpha = 0.91f)
+    val secondaryCardSurface = if (isDarkTheme) Color(0xFF1E293B).copy(alpha = 0.85f) else Color.White.copy(alpha = 0.86f)
+    val searchFieldSurface = if (isDarkTheme) Color(0xFF1E293B).copy(alpha = 0.88f) else Color.White.copy(alpha = 0.88f)
+    val bottomBarSurface = if (isDarkTheme) Color(0xFF1E293B).copy(alpha = 0.92f) else Color.White.copy(alpha = 0.92f)
     val cardBorder = if (isDarkTheme) Color(0xFF334155) else Color(0xFFD6E4DF)
     val primaryText = if (isDarkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
     val secondaryText = if (isDarkTheme) Color(0xFFCBD5E1) else Color(0xFF475569)
@@ -1098,12 +1088,12 @@ private fun ShoppingListContent(
                 .padding(horizontal = 16.dp)
         ) {
             item {
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // RESUMEN FINANCIERO DEL SÚPER (Tarjeta ejecutiva sólida opaca)
+                // RESUMEN FINANCIERO DEL SÚPER (Tarjeta ejecutiva de alta legibilidad sobre el mercado)
                 Card(
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = cardSurface),
+                    colors = CardDefaults.cardColors(containerColor = primaryCardSurface),
                     border = BorderStroke(1.2.dp, cardBorder),
                     elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
                     modifier = Modifier
@@ -1213,12 +1203,12 @@ private fun ShoppingListContent(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // FILTRO DE SUPERMERCADOS DE GUATEMALA (Contenedor sólido opaco + chips opacos)
+                // FILTRO DE SUPERMERCADOS DE GUATEMALA (Superficie secundaria translúcida)
                 Card(
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = cardSurface),
+                    colors = CardDefaults.cardColors(containerColor = secondaryCardSurface),
                     border = BorderStroke(1.dp, cardBorder),
                     elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -1274,7 +1264,7 @@ private fun ShoppingListContent(
                                         )
                                     },
                                     colors = FilterChipDefaults.filterChipColors(
-                                        containerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                        containerColor = if (isDarkTheme) Color(0xFF0F172A).copy(alpha = 0.85f) else Color(0xFFF8FAFC).copy(alpha = 0.88f),
                                         labelColor = primaryText,
                                         selectedContainerColor = solidSelectedColor,
                                         selectedLabelColor = Color.White
@@ -1337,8 +1327,8 @@ private fun ShoppingListContent(
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = cardSurface,
-                            unfocusedContainerColor = cardSurface,
+                            focusedContainerColor = searchFieldSurface,
+                            unfocusedContainerColor = searchFieldSurface,
                             focusedTextColor = primaryText,
                             unfocusedTextColor = primaryText,
                             focusedBorderColor = accentEmeraldTint,
@@ -1368,10 +1358,10 @@ private fun ShoppingListContent(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // ACCIONES SECUNDARIAS SOBRE BARRA SÓLIDA OPACA (Guardar plantilla, Desmarcar, Vaciar)
+                // ACCIONES SECUNDARIAS SOBRE BARRA TRANSLÚCIDA (Guardar plantilla, Desmarcar, Vaciar)
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = cardSurface,
+                    color = secondaryCardSurface,
                     border = BorderStroke(1.dp, cardBorder),
                     shadowElevation = 1.dp,
                     modifier = Modifier.fillMaxWidth()
@@ -1428,17 +1418,17 @@ private fun ShoppingListContent(
                 item {
                     Card(
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = cardSurface),
+                        colors = CardDefaults.cardColors(containerColor = secondaryCardSurface),
                         border = BorderStroke(1.dp, cardBorder),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(vertical = 16.dp)
+                            .padding(vertical = 4.dp)
                     ) {
                         Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(24.dp),
+                                .padding(horizontal = 20.dp, vertical = 18.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Surface(
@@ -1502,14 +1492,14 @@ private fun ShoppingListContent(
             }
 
             item {
-                Spacer(modifier = Modifier.height(80.dp))
+                Spacer(modifier = Modifier.height(24.dp))
             }
         }
 
-        // BARRA FIJA INFERIOR SÓLIDA PARA CONFIRMAR COMPRA
+        // BARRA FIJA INFERIOR PARA CONFIRMAR COMPRA
         if (cartItems.isNotEmpty()) {
             Surface(
-                color = cardSurface,
+                color = bottomBarSurface,
                 tonalElevation = 0.dp,
                 shadowElevation = 6.dp,
                 border = BorderStroke(1.dp, cardBorder),
@@ -1575,11 +1565,11 @@ private fun CartItemCard(
     val supermarketInfo = GUATEMALA_SUPERMARKETS.find { it.name.equals(item.storeName, ignoreCase = true) }
     val storeBadgeColor = accessibleStoreSolidColor(supermarketInfo?.badgeColor ?: Color(0xFF4B5563))
 
-    val cardBg = if (item.isChecked) {
+    val cardBg = (if (item.isChecked) {
         if (isDarkTheme) Color(0xFF14241D) else Color(0xFFF0FDF4)
     } else {
         if (isDarkTheme) Color(0xFF1E293B) else Color.White
-    }
+    }).copy(alpha = if (isDarkTheme) 0.89f else 0.91f)
     val cardBorder = if (item.isChecked) {
         if (isDarkTheme) Color(0xFF34D399) else EmeraldGreen
     } else {
@@ -1738,7 +1728,8 @@ private fun PantryContent(
     onTogglePantryInCart: (SmartCartItemEntity) -> Unit,
     onIncorporateNeedToBuy: () -> Unit
 ) {
-    val cardSurface = if (isDarkTheme) Color(0xFF1E293B) else Color.White
+    val secondaryCardSurface = if (isDarkTheme) Color(0xFF1E293B).copy(alpha = 0.85f) else Color.White.copy(alpha = 0.86f)
+    val searchFieldSurface = if (isDarkTheme) Color(0xFF1E293B).copy(alpha = 0.88f) else Color.White.copy(alpha = 0.88f)
     val cardBorder = if (isDarkTheme) Color(0xFF334155) else Color(0xFFD6E4DF)
     val primaryText = if (isDarkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
     val secondaryText = if (isDarkTheme) Color(0xFFCBD5E1) else Color(0xFF475569)
@@ -1750,12 +1741,12 @@ private fun PantryContent(
             .fillMaxSize()
             .padding(horizontal = 16.dp)
     ) {
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
-        // BANNER DE CONTROL DE EXISTENCIAS (Tarjeta sólida opaca)
+        // BANNER DE CONTROL DE EXISTENCIAS (Superficie secundaria translúcida)
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = cardSurface),
+            colors = CardDefaults.cardColors(containerColor = secondaryCardSurface),
             border = BorderStroke(1.2.dp, cardBorder),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
             modifier = Modifier.fillMaxWidth()
@@ -1812,10 +1803,10 @@ private fun PantryContent(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // FILTRO DE ESTADOS: TODOS, VERDE, AMARILLO, ROJO (Contenedor sólido opaco + chips opacos)
+        // FILTRO DE ESTADOS: TODOS, VERDE, AMARILLO, ROJO (Superficie secundaria translúcida)
         Surface(
             shape = RoundedCornerShape(14.dp),
-            color = cardSurface,
+            color = secondaryCardSurface,
             border = BorderStroke(1.dp, cardBorder),
             shadowElevation = 2.dp,
             modifier = Modifier.fillMaxWidth()
@@ -1848,7 +1839,7 @@ private fun PantryContent(
                             )
                         },
                         colors = FilterChipDefaults.filterChipColors(
-                            containerColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                            containerColor = if (isDarkTheme) Color(0xFF0F172A).copy(alpha = 0.85f) else Color(0xFFF8FAFC).copy(alpha = 0.88f),
                             labelColor = primaryText,
                             selectedContainerColor = selectedBg,
                             selectedLabelColor = Color.White
@@ -1868,7 +1859,7 @@ private fun PantryContent(
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        // BÚSQUEDA Y BOTÓN REGISTRAR (Superficies sólidas opacas)
+        // BÚSQUEDA Y BOTÓN REGISTRAR
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -1896,7 +1887,7 @@ private fun PantryContent(
                     if (searchQuery.isNotBlank()) {
                         IconButton(
                             onClick = { onSearchQueryChange("") },
-                            modifier = Modifier.size(44.dp)
+                            modifier = Modifier.size(48.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Clear,
@@ -1910,8 +1901,8 @@ private fun PantryContent(
                 singleLine = true,
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedContainerColor = cardSurface,
-                    unfocusedContainerColor = cardSurface,
+                    focusedContainerColor = searchFieldSurface,
+                    unfocusedContainerColor = searchFieldSurface,
                     focusedTextColor = primaryText,
                     unfocusedTextColor = primaryText,
                     focusedBorderColor = accentEmeraldTint,
@@ -1943,25 +1934,19 @@ private fun PantryContent(
 
         // LISTA DE PRODUCTOS EN DESPENSA
         if (pantryItems.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = secondaryCardSurface),
+                border = BorderStroke(1.dp, cardBorder),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Card(
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = cardSurface),
-                    border = BorderStroke(1.dp, cardBorder),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                    modifier = Modifier.fillMaxWidth()
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 18.dp)
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp)
-                    ) {
                         Surface(
                             shape = CircleShape,
                             color = if (isDarkTheme) Color(0xFF064E3B) else Color(0xFFD1FAE5),
@@ -1993,7 +1978,6 @@ private fun PantryContent(
                         )
                     }
                 }
-            }
         } else {
             LazyColumn(modifier = Modifier.weight(1f)) {
                 items(pantryItems, key = { it.id }) { item ->
@@ -2074,7 +2058,9 @@ private fun PantryItemCard(
 
     Card(
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = if (isDarkTheme) Color(0xFF1E293B) else Color.White),
+        colors = CardDefaults.cardColors(
+            containerColor = (if (isDarkTheme) Color(0xFF1E293B) else Color.White).copy(alpha = if (isDarkTheme) 0.89f else 0.91f)
+        ),
         border = BorderStroke(1.2.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = Modifier
@@ -2261,7 +2247,7 @@ private fun TemplatesContent(
     onDeleteTemplate: (ShoppingTemplateEntity) -> Unit,
     onSaveCurrentCartClick: () -> Unit
 ) {
-    val cardSurface = if (isDarkTheme) Color(0xFF1E293B) else Color.White
+    val secondaryCardSurface = if (isDarkTheme) Color(0xFF1E293B).copy(alpha = 0.85f) else Color.White.copy(alpha = 0.86f)
     val cardBorder = if (isDarkTheme) Color(0xFF334155) else Color(0xFFD6E4DF)
     val primaryText = if (isDarkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
     val secondaryText = if (isDarkTheme) Color(0xFFCBD5E1) else Color(0xFF475569)
@@ -2273,12 +2259,12 @@ private fun TemplatesContent(
             .fillMaxSize()
             .padding(horizontal = 16.dp)
     ) {
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
-        // BANNER DE PLANTILLAS (Tarjeta sólida opaca)
+        // BANNER DE PLANTILLAS (Superficie secundaria translúcida)
         Card(
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = cardSurface),
+            colors = CardDefaults.cardColors(containerColor = secondaryCardSurface),
             border = BorderStroke(1.2.dp, cardBorder),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
             modifier = Modifier.fillMaxWidth()
@@ -2325,58 +2311,51 @@ private fun TemplatesContent(
             }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         if (templates.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center
+            Card(
+                shape = RoundedCornerShape(18.dp),
+                colors = CardDefaults.cardColors(containerColor = secondaryCardSurface),
+                border = BorderStroke(1.dp, cardBorder),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Card(
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = cardSurface),
-                    border = BorderStroke(1.dp, cardBorder),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                    modifier = Modifier.fillMaxWidth()
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 18.dp)
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp)
+                    Surface(
+                        shape = CircleShape,
+                        color = if (isDarkTheme) Color(0xFF064E3B) else Color(0xFFD1FAE5),
+                        modifier = Modifier.size(56.dp)
                     ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = if (isDarkTheme) Color(0xFF064E3B) else Color(0xFFD1FAE5),
-                            modifier = Modifier.size(60.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.BookmarkBorder,
-                                    contentDescription = null,
-                                    tint = accentEmeraldText,
-                                    modifier = Modifier.size(30.dp)
-                                )
-                            }
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.BookmarkBorder,
+                                contentDescription = null,
+                                tint = accentEmeraldText,
+                                modifier = Modifier.size(28.dp)
+                            )
                         }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Text(
-                            text = "No hay plantillas guardadas",
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = primaryText,
-                            textAlign = TextAlign.Center
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "Arma una lista en el súper y presiona «Guardar plantilla».",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = secondaryText,
-                            textAlign = TextAlign.Center
-                        )
                     }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "No hay plantillas guardadas",
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = primaryText,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "Arma una lista en el súper y presiona «Guardar plantilla».",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = secondaryText,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         } else {
@@ -2415,7 +2394,9 @@ private fun TemplateItemCard(
 
     Card(
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = if (isDarkTheme) Color(0xFF1E293B) else Color.White),
+        colors = CardDefaults.cardColors(
+            containerColor = (if (isDarkTheme) Color(0xFF1E293B) else Color.White).copy(alpha = if (isDarkTheme) 0.89f else 0.91f)
+        ),
         border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFF334155) else Color(0xFFCBD5E1)),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
         modifier = Modifier

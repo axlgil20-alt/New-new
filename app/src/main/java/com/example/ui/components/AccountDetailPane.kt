@@ -87,7 +87,8 @@ fun AccountDetailPane(
 ) {
     val isCard = AccountType.isCreditCard(account.accountType)
     val sdf = remember { SimpleDateFormat("dd MMM yyyy", Locale("es", "GT")) }
-    val cardBg = if (isDarkTheme) Color(0xFF1E293B) else Color.White
+    val cardBg = if (isDarkTheme) Color(0xFF1E293B).copy(alpha = 0.88f) else Color.White.copy(alpha = 0.90f)
+    val subSurfaceBg = if (isDarkTheme) Color(0xFF0F172A).copy(alpha = 0.84f) else Color(0xFFF8FAFC).copy(alpha = 0.88f)
     val cardBorder = if (isDarkTheme) Color(0xFF334155) else Color(0xFFCBD5E1)
     val primaryText = if (isDarkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
     val secondaryText = if (isDarkTheme) Color(0xFFCBD5E1) else Color(0xFF475569)
@@ -172,7 +173,7 @@ fun AccountDetailPane(
                     if (statement != null) {
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                            color = subSurfaceBg,
                             border = BorderStroke(1.dp, cardBorder),
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -287,7 +288,7 @@ fun AccountDetailPane(
                             val posted = items.count { it.status == InstallmentChargeStatus.POSTED }
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
-                                color = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                color = subSurfaceBg,
                                 border = BorderStroke(1.dp, cardBorder),
                                 modifier = Modifier.fillMaxWidth().clickable { onOpenPlanDetail(plan) }
                             ) {
@@ -343,7 +344,7 @@ fun AccountDetailPane(
                         }
                         Surface(
                             shape = RoundedCornerShape(10.dp),
-                            color = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                            color = subSurfaceBg,
                             border = BorderStroke(1.dp, cardBorder),
                             modifier = Modifier.fillMaxWidth()
                         ) {

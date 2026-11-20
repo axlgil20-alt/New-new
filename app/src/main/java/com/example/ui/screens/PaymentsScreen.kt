@@ -12,6 +12,7 @@ import com.example.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,6 +22,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -40,7 +45,9 @@ import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -60,6 +67,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -87,6 +95,8 @@ import com.example.data.model.isUpcoming
 import com.example.data.model.withExactAmountMinor
 import com.example.ui.components.AddEditPaymentDialog
 import com.example.ui.components.BeneficiariesDialog
+import com.example.ui.components.PaymentCommitmentStack
+import com.example.ui.components.PaymentCommitmentStackLogic
 import com.example.ui.theme.EmeraldGreen
 import com.example.ui.util.FormatUtils
 import com.example.ui.viewmodel.BudgetUiState
@@ -129,6 +139,10 @@ fun PaymentsScreen(
     var showAddEditDialog by remember { mutableStateOf(false) }
     var commitmentToEdit by remember { mutableStateOf<PaymentCommitmentEntity?>(null) }
     var showBeneficiariesDialog by remember { mutableStateOf(false) }
+    var selectedCommitmentId by remember { mutableStateOf<Long?>(null) }
+    var commitmentForDetail by remember { mutableStateOf<PaymentCommitmentEntity?>(null) }
+    var commitmentForPayConfirmation by remember { mutableStateOf<PaymentCommitmentEntity?>(null) }
+    var showFullCommitmentsList by remember { mutableStateOf(true) }
 
     val now = remember { System.currentTimeMillis() }
     val (todayStart, todayEnd) = remember(now) { com.example.ui.util.QuincenaFilterHelper.getDayRange(now) }
@@ -183,60 +197,107 @@ fun PaymentsScreen(
         }
     }
 
+    val sortedDisplayList = remember(displayList, now) {
+        PaymentCommitmentStackLogic.sortCommitmentsForStack(displayList, now)
+    }
+
+    LaunchedEffect(sortedDisplayList) {
+        selectedCommitmentId = PaymentCommitmentStackLogic.resolveSelectedCommitmentId(
+            commitments = sortedDisplayList,
+            currentSelectedId = selectedCommitmentId
+        )
+    }
+
+    val swipeResetKey = remember(
+        selectedAgendaFilterIndex,
+        searchQuery,
+        allPayments.size,
+        allPayments.count { it.isPaid }
+    ) {
+        "${selectedAgendaFilterIndex}|${searchQuery}|${allPayments.size}|${allPayments.count { it.isPaid }}"
+    }
+
     val isDark = uiState.isDarkTheme
-    val pageBackground = if (isDark) Color(0xFF14110E) else Color(0xFFFAF5ED)
-    val backgroundScrim = if (isDark) Color(0xEE14110E) else Color(0xECFAF5ED)
-    val cardSurface = if (isDark) Color(0xFF1E293B) else Color.White
+    val pageBackground = if (isDark) Color(0xFF101418) else Color(0xFFF6F1E7)
+    val backgroundScrimBrush = if (isDark) {
+        Brush.verticalGradient(
+            0.0f to Color(0x780D1318),
+            0.5f to Color(0x700D1318),
+            1.0f to Color(0x820D1318)
+        )
+    } else {
+        Brush.verticalGradient(
+            0.0f to Color(0x28FAF5ED),
+            0.5f to Color(0x22FAF5ED),
+            1.0f to Color(0x2CFAF5ED)
+        )
+    }
+    val secondaryCardSurface = if (isDark) Color(0xFF1E293B).copy(alpha = 0.85f) else Color.White.copy(alpha = 0.86f)
+    val searchFieldSurface = if (isDark) Color(0xFF1E293B).copy(alpha = 0.88f) else Color.White.copy(alpha = 0.88f)
     val cardBorder = if (isDark) Color(0xFF334155) else Color(0xFFD6E4DF)
     val accentEmeraldText = if (isDark) Color(0xFF6EE7B7) else Color(0xFF065F46)
     val accentEmeraldTint = if (isDark) Color(0xFF34D399) else EmeraldGreen
-    val heroTextShadow = Shadow(color = Color(0xCC000000), offset = Offset(0f, 2f), blurRadius = 6f)
+    val heroTextShadow = Shadow(color = Color(0xD9000000), offset = Offset(0f, 2f), blurRadius = 6f)
 
     Box(
         modifier = modifier
             .fillMaxSize()
             .background(pageBackground)
     ) {
-        // Fotografía de fondo para el cuerpo inferior: Parque Central (Plaza de la Constitución)
+        // Fotografía de fondo a pantalla completa: Parque Central de Antigua Guatemala
         Image(
-            painter = painterResource(id = R.drawable.parque_central_card_1793567079147),
-            contentDescription = null,
+            painter = painterResource(id = R.drawable.img_antigua_parque_central_1795208568243),
+            contentDescription = "Parque Central de Antigua Guatemala",
             contentScale = ContentScale.Crop,
+            alignment = Alignment.Center,
             modifier = Modifier
                 .fillMaxSize()
-                .alpha(if (isDark) 0.12f else 0.15f)
+                .alpha(if (isDark) 0.62f else 0.92f)
         )
-        // Velo opaco protector para preservar legibilidad sin eliminar la atmósfera del Parque Central
+        // Velo ligero para balancear contraste sin ocultar el Parque Central
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(backgroundScrim)
+                .background(backgroundScrimBrush)
         )
 
-        // FOTOGRAFÍA HEROICA SUPERIOR DOMINANTE: Palacio Nacional de la Cultura y Plaza de la Constitución
+        // FOTOGRAFÍA DE ENCABEZADO: Palacio Nacional de la Cultura de Guatemala
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(350.dp)
+                .height(232.dp)
+                .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+                .drawWithContent {
+                    drawContent()
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            0.0f to Color.Black,
+                            0.74f to Color.Black,
+                            1.0f to Color.Transparent
+                        ),
+                        blendMode = BlendMode.DstIn
+                    )
+                }
         ) {
             Image(
                 painter = painterResource(id = R.drawable.palacio_nacional_header_1793567078293),
-                contentDescription = "Palacio Nacional de la Cultura y Parque Central, Guatemala",
+                contentDescription = "Palacio Nacional de la Cultura, Guatemala",
                 contentScale = ContentScale.Crop,
                 alignment = Alignment.TopCenter,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxSize()
+                    .alpha(if (isDark) 0.86f else 0.98f)
             )
-            // Gradiente vertical de protección: sólido arriba para lectura nítida de cabecera y botones,
-            // ventana clara en el centro para apreciar el Palacio Nacional, y fusión limpia al fondo
+            // Protección localizada únicamente detrás del TopAppBar para lectura nítida sin tapar el edificio
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
-                            0.0f to Color(0xEB031F1A),
-                            0.24f to Color(0x9E031F1A),
-                            0.72f to Color(0x33000000),
-                            1.0f to pageBackground
+                            0.0f to Color(0xB8031F1A),
+                            0.36f to Color(0x52031F1A),
+                            0.75f to Color(0x14000000),
+                            1.0f to Color.Transparent
                         )
                     )
             )
@@ -343,12 +404,11 @@ fun PaymentsScreen(
             )
 
             LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = 76.dp),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(top = 42.dp, bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // A. RESUMEN SUPERIOR: 4 tarjetas métricas sólidas sobre la fotografía dominante del Palacio Nacional
+                // A. RESUMEN SUPERIOR: 4 tarjetas métricas con alta legibilidad sobre Palacio Nacional y Parque Central de Antigua
                 item {
                     Column(
                         modifier = Modifier
@@ -366,7 +426,7 @@ fun PaymentsScreen(
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(16.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (isDark) Color(0xFF261D17) else Color(0xFFFFFBEB)
+                                    containerColor = (if (isDark) Color(0xFF261D17) else Color(0xFFFFFBEB)).copy(alpha = if (isDark) 0.89f else 0.91f)
                                 ),
                                 border = BorderStroke(1.2.dp, if (isDark) Color(0xFFF59E0B) else Color(0xFFD97706)),
                                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
@@ -407,7 +467,7 @@ fun PaymentsScreen(
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(16.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (isDark) Color(0xFF13261E) else Color(0xFFF0FDF4)
+                                    containerColor = (if (isDark) Color(0xFF13261E) else Color(0xFFF0FDF4)).copy(alpha = if (isDark) 0.89f else 0.91f)
                                 ),
                                 border = BorderStroke(1.2.dp, if (isDark) Color(0xFF34D399) else Color(0xFF059669)),
                                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
@@ -454,7 +514,7 @@ fun PaymentsScreen(
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(14.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = if (isDark) Color(0xFF1B2433) else Color(0xFFEFF6FF)
+                                    containerColor = (if (isDark) Color(0xFF1B2433) else Color(0xFFEFF6FF)).copy(alpha = if (isDark) 0.89f else 0.91f)
                                 ),
                                 border = BorderStroke(1.2.dp, if (isDark) Color(0xFF60A5FA) else Color(0xFF2563EB)),
                                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
@@ -498,11 +558,11 @@ fun PaymentsScreen(
 
                             // Vencidos
                             val overdueCount = uiState.overduePaymentsCount
-                            val overdueCardBg = if (overdueCount > 0) {
+                            val overdueCardBg = (if (overdueCount > 0) {
                                 if (isDark) Color(0xFF3B1518) else Color(0xFFFEF2F2)
                             } else {
                                 if (isDark) Color(0xFF13261E) else Color(0xFFF0FDF4)
-                            }
+                            }).copy(alpha = if (isDark) 0.89f else 0.91f)
                             val overdueCardBorder = if (overdueCount > 0) {
                                 if (isDark) Color(0xFFF87171) else Color(0xFFDC2626)
                             } else {
@@ -565,11 +625,11 @@ fun PaymentsScreen(
                     }
                 }
 
-                // B. AGENDA DE PAGOS (Contenedor sólido opaco + chips opacos de alto contraste)
+                // B. AGENDA DE PAGOS (Superficie secundaria translúcida + chips legibles)
                 item {
                     Card(
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = cardSurface),
+                        colors = CardDefaults.cardColors(containerColor = secondaryCardSurface),
                         border = BorderStroke(1.dp, cardBorder),
                         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
                         modifier = Modifier
@@ -621,7 +681,7 @@ fun PaymentsScreen(
                                             )
                                         },
                                         colors = FilterChipDefaults.filterChipColors(
-                                            containerColor = if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                                            containerColor = if (isDark) Color(0xFF0F172A).copy(alpha = 0.85f) else Color(0xFFF8FAFC).copy(alpha = 0.88f),
                                             labelColor = if (isDark) Color(0xFFE2E8F0) else Color(0xFF1E293B),
                                             selectedContainerColor = EmeraldGreen,
                                             selectedLabelColor = Color.White
@@ -676,8 +736,8 @@ fun PaymentsScreen(
                         singleLine = true,
                         shape = RoundedCornerShape(14.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = cardSurface,
-                            unfocusedContainerColor = cardSurface,
+                            focusedContainerColor = searchFieldSurface,
+                            unfocusedContainerColor = searchFieldSurface,
                             focusedTextColor = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0F172A),
                             unfocusedTextColor = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0F172A),
                             focusedBorderColor = accentEmeraldTint,
@@ -690,22 +750,23 @@ fun PaymentsScreen(
                     )
                 }
 
-                // C. LISTA DE COMPROMISOS DE PAGO
-                if (displayList.isEmpty()) {
+                // C. STACK INTELIGENTE + LISTA COMPLETA SINCRONIZADA DE COMPROMISOS DE PAGO
+                if (sortedDisplayList.isEmpty()) {
                     item {
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
+                                .padding(horizontal = 16.dp, vertical = 4.dp)
+                                .testTag("payments_empty_state_card"),
                             shape = RoundedCornerShape(18.dp),
-                            colors = CardDefaults.cardColors(containerColor = cardSurface),
+                            colors = CardDefaults.cardColors(containerColor = secondaryCardSurface),
                             border = BorderStroke(1.dp, cardBorder),
                             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
                         ) {
                             Column(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(24.dp),
+                                    .padding(horizontal = 20.dp, vertical = 18.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
                                 Surface(
@@ -757,26 +818,155 @@ fun PaymentsScreen(
                         }
                     }
                 } else {
-                    items(displayList, key = { it.id }) { commitment ->
-                        PaymentCommitmentCard(
-                            commitment = commitment,
+                    item {
+                        PaymentCommitmentStack(
+                            commitments = sortedDisplayList,
+                            selectedCommitmentId = selectedCommitmentId,
+                            accountNameById = accountNameById,
                             currencySymbol = uiState.currencySymbol,
                             isDiscreetMode = uiState.isDiscreetMode,
                             isDarkTheme = uiState.isDarkTheme,
-                            onMarkAsPaid = { onMarkAsPaid(commitment.id) },
-                            onEdit = {
+                            nowMillis = now,
+                            resetActionsKey = swipeResetKey,
+                            onSelectCommitment = { id -> selectedCommitmentId = id },
+                            onRequestPay = { commitment -> commitmentForPayConfirmation = commitment },
+                            onViewDetail = { commitment ->
+                                selectedCommitmentId = commitment.id
+                                commitmentForDetail = commitment
+                            },
+                            onEditCommitment = { commitment ->
+                                selectedCommitmentId = commitment.id
                                 commitmentToEdit = commitment
                                 showAddEditDialog = true
                             },
-                            onDelete = { onDeletePayment(commitment) },
-                            creditCardAccountName = commitment.creditCardAccountId?.let { accountNameById[it] },
-                            paymentSourceAccountName = commitment.paymentSourceAccountId?.let { accountNameById[it] },
                             modifier = Modifier.padding(horizontal = 16.dp)
                         )
+                    }
+
+                    if (sortedDisplayList.size > 1) {
+                        item {
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = secondaryCardSurface,
+                                border = BorderStroke(1.dp, cardBorder),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "Todos los compromisos (${sortedDisplayList.size})",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0F172A),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    FilterChip(
+                                        selected = showFullCommitmentsList,
+                                        onClick = { showFullCommitmentsList = !showFullCommitmentsList },
+                                        label = {
+                                            Text(
+                                                text = if (showFullCommitmentsList) "Ocultar lista" else "Mostrar todos",
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        },
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = EmeraldGreen,
+                                            selectedLabelColor = Color.White
+                                        ),
+                                        modifier = Modifier.heightIn(min = 48.dp).testTag("toggle_payments_full_list")
+                                    )
+                                }
+                            }
+                        }
+
+                        if (showFullCommitmentsList) {
+                            items(sortedDisplayList, key = { it.id }) { commitment ->
+                                val isSelected = commitment.id == selectedCommitmentId
+                                PaymentCommitmentCard(
+                                    commitment = commitment,
+                                    currencySymbol = uiState.currencySymbol,
+                                    isDiscreetMode = uiState.isDiscreetMode,
+                                    isDarkTheme = uiState.isDarkTheme,
+                                    isHighlighted = isSelected,
+                                    onCardClick = { selectedCommitmentId = commitment.id },
+                                    onViewDetail = {
+                                        selectedCommitmentId = commitment.id
+                                        commitmentForDetail = commitment
+                                    },
+                                    onMarkAsPaid = {
+                                        selectedCommitmentId = commitment.id
+                                        commitmentForPayConfirmation = commitment
+                                    },
+                                    onEdit = {
+                                        selectedCommitmentId = commitment.id
+                                        commitmentToEdit = commitment
+                                        showAddEditDialog = true
+                                    },
+                                    onDelete = { onDeletePayment(commitment) },
+                                    creditCardAccountName = commitment.creditCardAccountId?.let { accountNameById[it] },
+                                    paymentSourceAccountName = commitment.paymentSourceAccountId?.let { accountNameById[it] },
+                                    modifier = Modifier.padding(horizontal = 16.dp)
+                                )
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+
+    // Modal Confirmación Segura de Pago (previene ejecución directa por swipe y protege contra duplicados)
+    commitmentForPayConfirmation?.let { target ->
+        val latest = allPayments.firstOrNull { it.id == target.id } ?: target
+        ConfirmPaymentDialog(
+            commitment = latest,
+            currencySymbol = uiState.currencySymbol,
+            isDiscreetMode = uiState.isDiscreetMode,
+            isDarkTheme = uiState.isDarkTheme,
+            creditCardAccountName = latest.creditCardAccountId?.let { accountNameById[it] },
+            paymentSourceAccountName = latest.paymentSourceAccountId?.let { accountNameById[it] },
+            onDismiss = { commitmentForPayConfirmation = null },
+            onConfirmPay = {
+                if (PaymentCommitmentStackLogic.canPayCommitment(latest)) {
+                    onMarkAsPaid(latest.id)
+                }
+                commitmentForPayConfirmation = null
+            }
+        )
+    }
+
+    // Modal Detalle de Compromiso
+    commitmentForDetail?.let { target ->
+        val latest = allPayments.firstOrNull { it.id == target.id } ?: target
+        PaymentCommitmentDetailDialog(
+            commitment = latest,
+            currencySymbol = uiState.currencySymbol,
+            isDiscreetMode = uiState.isDiscreetMode,
+            isDarkTheme = uiState.isDarkTheme,
+            creditCardAccountName = latest.creditCardAccountId?.let { accountNameById[it] },
+            paymentSourceAccountName = latest.paymentSourceAccountId?.let { accountNameById[it] },
+            onDismiss = { commitmentForDetail = null },
+            onRequestPay = {
+                commitmentForDetail = null
+                commitmentForPayConfirmation = latest
+            },
+            onEdit = {
+                commitmentForDetail = null
+                commitmentToEdit = latest
+                showAddEditDialog = true
+            },
+            onDelete = {
+                commitmentForDetail = null
+                onDeletePayment(latest)
+            }
+        )
     }
 
     // Modal Crear / Editar Pago
@@ -850,6 +1040,9 @@ fun PaymentCommitmentCard(
     onDelete: () -> Unit,
     creditCardAccountName: String? = null,
     paymentSourceAccountName: String? = null,
+    isHighlighted: Boolean = false,
+    onCardClick: (() -> Unit)? = null,
+    onViewDetail: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val now = remember { System.currentTimeMillis() }
@@ -882,6 +1075,7 @@ fun PaymentCommitmentCard(
         else -> if (isDarkTheme) Color(0xFF64748B) else Color(0xFF94A3B8)
     }
     val cardBorderColor = when {
+        isHighlighted -> EmeraldGreen
         isOverdue -> if (isDarkTheme) Color(0xFFF87171) else Color(0xFFDC2626)
         isToday -> if (isDarkTheme) Color(0xFFFBBF24) else Color(0xFFD97706)
         isPaid -> if (isDarkTheme) Color(0xFF34D399) else Color(0xFF059669)
@@ -909,16 +1103,21 @@ fun PaymentCommitmentCard(
     val accentEmeraldText = if (isDarkTheme) Color(0xFF6EE7B7) else Color(0xFF065F46)
 
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .then(
+                if (onCardClick != null) Modifier.clickable { onCardClick() } else Modifier
+            )
+            .testTag("payment_list_card_${commitment.id}"),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isPaid) {
-                if (isDarkTheme) Color(0xFF14241D) else Color(0xFFF2FAF6)
+                if (isDarkTheme) Color(0xFF14241D).copy(alpha = 0.90f) else Color(0xFFF2FAF6).copy(alpha = 0.92f)
             } else {
-                if (isDarkTheme) Color(0xFF1E293B) else Color.White
+                if (isDarkTheme) Color(0xFF1E293B).copy(alpha = 0.89f) else Color.White.copy(alpha = 0.91f)
             }
         ),
-        border = BorderStroke(1.2.dp, cardBorderColor),
+        border = BorderStroke(if (isHighlighted) 2.dp else 1.2.dp, cardBorderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = if (isPaid) 1.dp else 3.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -1074,7 +1273,11 @@ fun PaymentCommitmentCard(
                         )
                     }
                     Text(
-                        text = FormatUtils.formatCurrency(commitment.amount, currencySymbol, isDiscreetMode),
+                        text = FormatUtils.formatCurrency(
+                            PaymentCommitmentStackLogic.displayAmountForCommitment(commitment),
+                            currencySymbol,
+                            isDiscreetMode
+                        ),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.ExtraBold,
                         color = if (isPaid) accentEmeraldText else primaryText
@@ -1117,6 +1320,20 @@ fun PaymentCommitmentCard(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Row {
+                    if (onViewDetail != null) {
+                        IconButton(
+                            onClick = onViewDetail,
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Visibility,
+                                contentDescription = "Ver detalle",
+                                tint = secondaryText,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+
                     IconButton(
                         onClick = onEdit,
                         modifier = Modifier.size(48.dp)
@@ -1192,4 +1409,247 @@ fun PaymentCommitmentCard(
             }
         }
     }
+}
+
+@Composable
+private fun ConfirmPaymentDialog(
+    commitment: PaymentCommitmentEntity,
+    currencySymbol: String,
+    isDiscreetMode: Boolean,
+    isDarkTheme: Boolean,
+    creditCardAccountName: String?,
+    paymentSourceAccountName: String?,
+    onDismiss: () -> Unit,
+    onConfirmPay: () -> Unit
+) {
+    val dateFormatter = remember { SimpleDateFormat("dd 'de' MMM, yyyy", Locale("es", "GT")) }
+    val dialogBg = if (isDarkTheme) Color(0xFF1E293B) else Color.White
+    val primaryText = if (isDarkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
+    val secondaryText = if (isDarkTheme) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val canPay = PaymentCommitmentStackLogic.canPayCommitment(commitment)
+    val displayAmount = PaymentCommitmentStackLogic.displayAmountForCommitment(commitment)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = dialogBg,
+        titleContentColor = primaryText,
+        modifier = Modifier.testTag("confirm_payment_dialog"),
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Payments, contentDescription = null, tint = EmeraldGreen)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Confirmar Pago", fontWeight = FontWeight.Bold)
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = commitment.beneficiaryName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Black,
+                    color = primaryText
+                )
+                Text(
+                    text = commitment.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = secondaryText
+                )
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
+                    border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFF334155) else Color(0xFFCBD5E1)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(
+                            text = "Monto a confirmar: ${FormatUtils.formatCurrency(displayAmount, currencySymbol, isDiscreetMode)}",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = if (isDarkTheme) Color(0xFF6EE7B7) else Color(0xFF065F46)
+                        )
+                        Text(
+                            text = "Vencimiento: ${dateFormatter.format(Date(commitment.dueDateMillis))}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = secondaryText
+                        )
+                        if (!paymentSourceAccountName.isNullOrBlank()) {
+                            Text(
+                                text = "Cuenta de origen: $paymentSourceAccountName",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = primaryText
+                            )
+                        }
+                        if (!creditCardAccountName.isNullOrBlank()) {
+                            Text(
+                                text = "Tarjeta vinculada: $creditCardAccountName",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = primaryText
+                            )
+                        }
+                    }
+                }
+                if (commitment.frequency != PaymentFrequency.ONCE) {
+                    Text(
+                        text = "Compromiso recurrente: al confirmar se programará automáticamente el siguiente vencimiento.",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (isDarkTheme) Color(0xFF6EE7B7) else Color(0xFF065F46)
+                    )
+                }
+                if (!canPay) {
+                    Text(
+                        text = "Este compromiso ya fue confirmado previamente.",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isDarkTheme) Color(0xFFFCA5A5) else Color(0xFFB91C1C)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirmPay,
+                enabled = canPay,
+                colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen, contentColor = Color.White),
+                modifier = Modifier.heightIn(min = 48.dp).testTag("confirm_payment_execute_button")
+            ) {
+                Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Confirmar Pago", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            OutlinedButton(
+                onClick = onDismiss,
+                modifier = Modifier.heightIn(min = 48.dp)
+            ) {
+                Text("Cancelar")
+            }
+        }
+    )
+}
+
+@Composable
+private fun PaymentCommitmentDetailDialog(
+    commitment: PaymentCommitmentEntity,
+    currencySymbol: String,
+    isDiscreetMode: Boolean,
+    isDarkTheme: Boolean,
+    creditCardAccountName: String?,
+    paymentSourceAccountName: String?,
+    onDismiss: () -> Unit,
+    onRequestPay: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    val dateFormatter = remember { SimpleDateFormat("dd 'de' MMM, yyyy", Locale("es", "GT")) }
+    val dialogBg = if (isDarkTheme) Color(0xFF1E293B) else Color.White
+    val primaryText = if (isDarkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
+    val secondaryText = if (isDarkTheme) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val canPay = PaymentCommitmentStackLogic.canPayCommitment(commitment)
+    val displayAmount = PaymentCommitmentStackLogic.displayAmountForCommitment(commitment)
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = dialogBg,
+        titleContentColor = primaryText,
+        modifier = Modifier.testTag("payment_detail_dialog"),
+        title = {
+            Column {
+                Text(commitment.beneficiaryName, fontWeight = FontWeight.Black)
+                Text(commitment.category, style = MaterialTheme.typography.labelSmall, color = secondaryText)
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(commitment.title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = primaryText)
+                if (commitment.description.isNotBlank()) {
+                    Text(commitment.description, style = MaterialTheme.typography.bodySmall, color = secondaryText)
+                }
+                Text(
+                    text = "Monto: ${FormatUtils.formatCurrency(displayAmount, currencySymbol, isDiscreetMode)}",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = if (isDarkTheme) Color(0xFF6EE7B7) else Color(0xFF065F46)
+                )
+                Text(
+                    text = "Vencimiento: ${dateFormatter.format(Date(commitment.dueDateMillis))}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = primaryText
+                )
+                Text(
+                    text = "Estado: ${if (commitment.isPaid || commitment.status == PaymentStatus.PAID) "Pagado" else "Pendiente"}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = secondaryText
+                )
+                if (!creditCardAccountName.isNullOrBlank()) {
+                    Text("Tarjeta: $creditCardAccountName", style = MaterialTheme.typography.bodySmall, color = primaryText)
+                }
+                if (!paymentSourceAccountName.isNullOrBlank()) {
+                    Text("Cuenta origen: $paymentSourceAccountName", style = MaterialTheme.typography.bodySmall, color = primaryText)
+                }
+                if (commitment.notes.isNotBlank()) {
+                    Text("Notas: ${commitment.notes}", style = MaterialTheme.typography.bodySmall, color = secondaryText)
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onEdit,
+                        modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("detail_edit_payment_button")
+                    ) {
+                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Editar")
+                    }
+                    OutlinedButton(
+                        onClick = onDelete,
+                        modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("detail_delete_payment_button")
+                    ) {
+                        Icon(
+                            Icons.Default.Delete,
+                            contentDescription = null,
+                            tint = if (isDarkTheme) Color(0xFFFCA5A5) else Color(0xFFB91C1C),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Eliminar", color = if (isDarkTheme) Color(0xFFFCA5A5) else Color(0xFFB91C1C))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            if (canPay) {
+                Button(
+                    onClick = onRequestPay,
+                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen, contentColor = Color.White),
+                    modifier = Modifier.heightIn(min = 48.dp).testTag("detail_pay_payment_button")
+                ) {
+                    Text("Pagar Ahora", fontWeight = FontWeight.Bold)
+                }
+            } else {
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen, contentColor = Color.White),
+                    modifier = Modifier.heightIn(min = 48.dp)
+                ) {
+                    Text("Cerrar", fontWeight = FontWeight.Bold)
+                }
+            }
+        },
+        dismissButton = {
+            if (canPay) {
+                OutlinedButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.heightIn(min = 48.dp)
+                ) {
+                    Text("Cerrar")
+                }
+            }
+        }
+    )
 }
