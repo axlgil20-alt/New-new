@@ -100,6 +100,7 @@ fun GoalsAndToolsScreen(
     onOpenQuincenas: () -> Unit = {},
     onOpenLimits: () -> Unit = {},
     onOpenSmartCart: () -> Unit = {},
+    onOpenAccounts: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -443,6 +444,16 @@ fun GoalsAndToolsScreen(
                     icon = Icons.Default.AutoAwesome,
                     iconColor = Color(0xFF10B981),
                     onClick = onOpenAdvisor
+                )
+            }
+
+            item {
+                ToolActionCard(
+                    title = "Mis Cuentas y Visacuotas",
+                    subtitle = "Efectivo, bancos, cooperativas, tarjetas de crédito, ciclos y cuotas",
+                    icon = Icons.Default.AccountBalance,
+                    iconColor = Color(0xFF10B981),
+                    onClick = onOpenAccounts
                 )
             }
 

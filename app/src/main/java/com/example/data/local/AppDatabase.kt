@@ -230,17 +230,96 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         fun getDatabase(context: Context): AppDatabase {
-            return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    AppDatabase::class.java,
-                    "budget_app_database"
-                )
-                    .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
-                    .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-                    .build()
-                INSTANCE = instance
-                instance
+            val current = INSTANCE
+            if (current != null && current.isOpen) {
+                return current
+            }
+            return synchronized(this) {
+                val existing = INSTANCE
+                if (existing != null && existing.isOpen) {
+                    existing
+                } else {
+                    val instance = Room.databaseBuilder(
+                        context.applicationContext,
+                        AppDatabase::class.java,
+                        "budget_app_database"
+                    )
+                        .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                        .addCallback(object : RoomDatabase.Callback() {
+                            override fun onOpen(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                                super.onOpen(db)
+                                reconcileLegacyMonetaryParity(db)
+                            }
+                        })
+                        .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
+                        .build()
+                    INSTANCE = instance
+                    instance
+                }
+            }
+        }
+
+        internal fun closeAndResetInstanceForTesting() {
+            synchronized(this) {
+                INSTANCE?.close()
+                INSTANCE = null
+            }
+        }
+
+        /**
+         * Garantiza paridad exacta entre `amountMinor` y `amount` al abrir SQLite (por ejemplo tras
+         * migración v12->v13 con `ROUND(amount*100.0)` en valores `.xx5` o ediciones previas a Etapa 2).
+         */
+        internal fun reconcileLegacyMonetaryParity(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+            reconcileTableParity(db, "transactions")
+            reconcileTableParity(db, "payment_commitments")
+        }
+
+        private fun reconcileTableParity(
+            db: androidx.sqlite.db.SupportSQLiteDatabase,
+            tableName: String
+        ) {
+            var hasAmountMinor = false
+            db.query("PRAGMA table_info(`$tableName`)").use { cursor ->
+                val nameCol = cursor.getColumnIndex("name")
+                while (cursor.moveToNext()) {
+                    if (nameCol >= 0 && cursor.getString(nameCol) == "amountMinor") {
+                        hasAmountMinor = true
+                        break
+                    }
+                }
+            }
+            if (!hasAmountMinor) return
+
+            val updates = ArrayList<Triple<Long, Long, Double>>()
+            db.query("SELECT id, amount, amountMinor FROM `$tableName`").use { cursor ->
+                val idCol = cursor.getColumnIndexOrThrow("id")
+                val amtCol = cursor.getColumnIndexOrThrow("amount")
+                val minorCol = cursor.getColumnIndexOrThrow("amountMinor")
+                while (cursor.moveToNext()) {
+                    val id = cursor.getLong(idCol)
+                    val legacyAmount = cursor.getDouble(amtCol)
+                    val storedMinor = cursor.getLong(minorCol)
+                    val expectedMinor = com.example.data.model.MoneyMinorUnits.fromDouble(legacyAmount)
+                    if (expectedMinor != storedMinor) {
+                        val syncedDisplay = com.example.data.model.MoneyMinorUnits.toDisplayDouble(expectedMinor)
+                        updates.add(Triple(id, expectedMinor, syncedDisplay))
+                    }
+                }
+            }
+            if (updates.isEmpty()) return
+
+            db.beginTransaction()
+            try {
+                for ((id, exactMinor, syncedDisplay) in updates) {
+                    db.execSQL(
+                        "UPDATE `$tableName` SET amountMinor = ?, amount = ? WHERE id = ?",
+                        arrayOf<Any>(exactMinor, syncedDisplay, id)
+                    )
+                }
+                db.setTransactionSuccessful()
+            } finally {
+                db.endTransaction()
             }
         }
     }

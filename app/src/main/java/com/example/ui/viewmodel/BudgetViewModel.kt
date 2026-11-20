@@ -1526,7 +1526,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         frequency: String = PaymentFrequency.ONCE,
         isVariableAmount: Boolean = false,
         reminderDaysBefore: Int = 1,
-        notes: String = ""
+        notes: String = "",
+        creditCardAccountId: Long? = null,
+        paymentSourceAccountId: Long? = null
     ) {
         viewModelScope.launch {
             val amountMinor = MoneyMinorUnits.fromDouble(amount.coerceAtLeast(0.0))
@@ -1541,7 +1543,14 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 isVariableAmount = isVariableAmount,
                 reminderDaysBefore = reminderDaysBefore,
                 notes = notes.trim(),
-                amountMinor = amountMinor
+                amountMinor = amountMinor,
+                creditCardAccountId = creditCardAccountId,
+                paymentSourceAccountId = paymentSourceAccountId,
+                commitmentKind = if (creditCardAccountId != null) {
+                    com.example.data.model.CommitmentKind.CREDIT_CARD_STATEMENT
+                } else {
+                    com.example.data.model.CommitmentKind.BILL
+                }
             )
             val savedId = repository.createPaymentCommitment(commitment)
             if (reminderDaysBefore >= 0) {

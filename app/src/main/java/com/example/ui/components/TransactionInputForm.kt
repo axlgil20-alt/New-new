@@ -51,13 +51,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import com.example.data.model.AccountType
 import com.example.data.model.DefaultData
+import com.example.data.model.FinancialAccountEntity
+import com.example.data.model.MoneyMinorUnits
 import com.example.data.model.TransactionEntity
 import com.example.data.model.TransactionType
+import com.example.data.model.withExactAmountMinor
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
 import com.example.ui.theme.TentativePurple
@@ -72,17 +77,28 @@ fun TransactionInputForm(
     initialTransaction: TransactionEntity? = null,
     currencySymbol: String = "Q ",
     isAntExpenseInitial: Boolean = false,
+    accounts: List<FinancialAccountEntity> = emptyList(),
+    initialAccountId: Long? = null,
     onCancel: () -> Unit,
     onSave: (TransactionEntity) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val isDarkSurface = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val activeAccounts = remember(accounts) { accounts.filter { !it.isArchived } }
     var title by remember { mutableStateOf(initialTransaction?.title ?: "") }
     var amountText by remember { mutableStateOf(initialTransaction?.amount?.let { "%.2f".format(it) } ?: "") }
     var type by remember { mutableStateOf(initialTransaction?.type ?: TransactionType.EXPENSE) }
     var category by remember { mutableStateOf(initialTransaction?.category ?: (if (type == TransactionType.INCOME) "Ingreso" else "Alimentación & Súper")) }
     var familyMember by remember { mutableStateOf(initialTransaction?.familyMember ?: "Todos") }
-    var paymentMethod by remember { mutableStateOf(initialTransaction?.paymentMethod ?: "Efectivo") }
+    var paymentMethod by remember {
+        mutableStateOf(
+            initialTransaction?.paymentMethod
+                ?: activeAccounts.firstOrNull { it.id == initialAccountId }?.name
+                ?: "Efectivo"
+        )
+    }
+    var selectedAccountId by remember { mutableStateOf(initialTransaction?.accountId ?: initialAccountId) }
     var notes by remember { mutableStateOf(initialTransaction?.notes ?: "") }
     var isAntExpense by remember { mutableStateOf(initialTransaction?.isAntExpense ?: isAntExpenseInitial) }
     var isTentative by remember { mutableStateOf(initialTransaction?.isTentative ?: false) }
@@ -91,6 +107,7 @@ fun TransactionInputForm(
 
     var categoryDropdownExpanded by remember { mutableStateOf(false) }
     var memberDropdownExpanded by remember { mutableStateOf(false) }
+    var accountDropdownExpanded by remember { mutableStateOf(false) }
 
     val sdf = remember { SimpleDateFormat("dd 'de' MMMM, yyyy", Locale("es", "ES")) }
     val displayDate = sdf.format(Date(dateMillis))
@@ -160,10 +177,20 @@ fun TransactionInputForm(
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                color = if (isTentative) Color(0xFFEDE9FE) else Color(0xFFF8FAFC),
+                color = when {
+                    isTentative && isDarkSurface -> Color(0xFF2E1E4A)
+                    isTentative -> Color(0xFFEDE9FE)
+                    isDarkSurface -> Color(0xFF1E293B)
+                    else -> Color(0xFFF8FAFC)
+                },
                 border = androidx.compose.foundation.BorderStroke(
                     width = if (isTentative) 1.5.dp else 1.dp,
-                    color = if (isTentative) TentativePurple else Color(0xFFE2E8F0)
+                    color = when {
+                        isTentative && isDarkSurface -> Color(0xFFA78BFA)
+                        isTentative -> TentativePurple
+                        isDarkSurface -> Color(0xFF475569)
+                        else -> Color(0xFFE2E8F0)
+                    }
                 )
             ) {
                 Row(
@@ -179,7 +206,11 @@ fun TransactionInputForm(
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
-                                .background(if (isTentative) TentativePurple else Color(0xFFCBD5E1)),
+                                .background(
+                                    if (isTentative) TentativePurple
+                                    else if (isDarkSurface) Color(0xFF475569)
+                                    else Color(0xFFCBD5E1)
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
@@ -195,12 +226,16 @@ fun TransactionInputForm(
                                 text = "Transacción Supuesta (Simulación)",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = if (isTentative) TentativePurple else MaterialTheme.colorScheme.onSurface
+                                color = when {
+                                    isTentative && isDarkSurface -> Color(0xFFDDD6FE)
+                                    isTentative -> TentativePurple
+                                    else -> MaterialTheme.colorScheme.onSurface
+                                }
                             )
                             Text(
                                 text = "¿Dudas si comprar o si te alcanzará? Se mostrará en púrpura y podrás confirmarla o descartarla sumándola como ahorro.",
                                 style = MaterialTheme.typography.bodySmall,
-                                color = Color.Gray
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     }
@@ -311,6 +346,56 @@ fun TransactionInputForm(
             }
         }
 
+        // Cuenta asociada (Mis Cuentas - Opcional)
+        val isLinkedEntry = initialTransaction?.transferGroupId != null || initialTransaction?.installmentPlanId != null
+        if (activeAccounts.isNotEmpty() && !isLinkedEntry) {
+            val selectedAccount = activeAccounts.firstOrNull { it.id == selectedAccountId }
+            val accountLabel = selectedAccount?.let { acc ->
+                "${acc.name} (${AccountUiMeta.displayTypeLabel(acc.accountType)})"
+            } ?: "Sin asignar (solo presupuesto general)"
+            ExposedDropdownMenuBox(
+                expanded = accountDropdownExpanded,
+                onExpandedChange = { accountDropdownExpanded = !accountDropdownExpanded },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = accountLabel,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Cuenta / Tarjeta (Mis Cuentas)") },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = accountDropdownExpanded) },
+                    modifier = Modifier
+                        .menuAnchor()
+                        .fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                ExposedDropdownMenu(
+                    expanded = accountDropdownExpanded,
+                    onDismissRequest = { accountDropdownExpanded = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Sin asignar (solo presupuesto)") },
+                        onClick = {
+                            selectedAccountId = null
+                            accountDropdownExpanded = false
+                        }
+                    )
+                    activeAccounts.forEach { acc ->
+                        DropdownMenuItem(
+                            text = {
+                                Text("${acc.name} · ${AccountUiMeta.displayTypeLabel(acc.accountType)}")
+                            },
+                            onClick = {
+                                selectedAccountId = acc.id
+                                paymentMethod = acc.name
+                                accountDropdownExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
         // Selector de Fecha
         OutlinedTextField(
             value = displayDate,
@@ -397,19 +482,22 @@ fun TransactionInputForm(
                 onClick = {
                     val amountVal = amountText.toDoubleOrNull() ?: 0.0
                     if (title.isNotBlank() && amountVal > 0) {
-                        val entity = (initialTransaction ?: TransactionEntity(
-                            title = title,
-                            amount = amountVal,
+                        val exactMinor = MoneyMinorUnits.fromDouble(amountVal)
+                        val base = initialTransaction ?: TransactionEntity(
+                            title = title.trim(),
+                            amount = MoneyMinorUnits.toDisplayDouble(exactMinor),
+                            amountMinor = exactMinor,
                             type = type,
                             category = category,
                             dateMillis = dateMillis
-                        )).copy(
+                        )
+                        val entity = base.withExactAmountMinor(exactMinor).copy(
                             title = title.trim(),
-                            amount = amountVal,
                             type = type,
                             category = category,
                             familyMember = familyMember,
                             paymentMethod = paymentMethod,
+                            accountId = selectedAccountId,
                             notes = notes.trim(),
                             isAntExpense = isAntExpense,
                             isTentative = isTentative,

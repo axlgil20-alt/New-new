@@ -62,8 +62,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.model.AccountType
 import com.example.data.model.BeneficiaryEntity
 import com.example.data.model.DefaultData
+import com.example.data.model.FinancialAccountEntity
 import com.example.data.model.PaymentCommitmentEntity
 import com.example.data.model.PaymentFrequency
 import com.example.ui.theme.EmeraldGreen
@@ -78,6 +80,7 @@ fun AddEditPaymentDialog(
     commitment: PaymentCommitmentEntity? = null,
     beneficiaries: List<BeneficiaryEntity>,
     currencySymbol: String = "Q ",
+    accounts: List<FinancialAccountEntity> = emptyList(),
     onDismiss: () -> Unit,
     onSave: (
         title: String,
@@ -89,9 +92,15 @@ fun AddEditPaymentDialog(
         frequency: String,
         isVariableAmount: Boolean,
         reminderDaysBefore: Int,
-        notes: String
+        notes: String,
+        creditCardAccountId: Long?,
+        paymentSourceAccountId: Long?
     ) -> Unit
 ) {
+    val activeAccounts = remember(accounts) { accounts.filter { !it.isArchived } }
+    val creditCards = remember(activeAccounts) { activeAccounts.filter { AccountType.isCreditCard(it.accountType) } }
+    val liquidAccounts = remember(activeAccounts) { activeAccounts.filter { AccountType.isLiquidAsset(it.accountType) } }
+
     var beneficiaryName by remember { mutableStateOf(commitment?.beneficiaryName ?: "") }
     var title by remember { mutableStateOf(commitment?.title ?: "") }
     var description by remember { mutableStateOf(commitment?.description ?: "") }
@@ -101,6 +110,10 @@ fun AddEditPaymentDialog(
     var isVariableAmount by remember { mutableStateOf(commitment?.isVariableAmount ?: false) }
     var reminderDaysBefore by remember { mutableIntStateOf(commitment?.reminderDaysBefore ?: 1) }
     var notes by remember { mutableStateOf(commitment?.notes ?: "") }
+    var selectedCreditCardId by remember { mutableStateOf(commitment?.creditCardAccountId) }
+    var selectedSourceAccountId by remember { mutableStateOf(commitment?.paymentSourceAccountId) }
+    var creditCardExpanded by remember { mutableStateOf(false) }
+    var sourceAccountExpanded by remember { mutableStateOf(false) }
 
     var dueDateMillis by remember {
         mutableStateOf(commitment?.dueDateMillis ?: run {
@@ -414,6 +427,98 @@ fun AddEditPaymentDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
 
+                // Selector manual de Tarjeta de Crédito vinculada y Cuenta de Origen (Mis Cuentas)
+                if (creditCards.isNotEmpty() || selectedCreditCardId != null) {
+                    val selectedCardName = creditCards.firstOrNull { it.id == selectedCreditCardId }?.name
+                        ?: selectedCreditCardId?.let { "Tarjeta #$it" }
+                        ?: "Sin vincular (compromiso general)"
+                    ExposedDropdownMenuBox(
+                        expanded = creditCardExpanded,
+                        onExpandedChange = { creditCardExpanded = !creditCardExpanded }
+                    ) {
+                        OutlinedTextField(
+                            value = selectedCardName,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Tarjeta de Crédito vinculada (Opcional)") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = creditCardExpanded) },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor()
+                                .testTag("payment_credit_card_selector")
+                        )
+                        ExposedDropdownMenu(
+                            expanded = creditCardExpanded,
+                            onDismissRequest = { creditCardExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Sin vincular") },
+                                onClick = {
+                                    selectedCreditCardId = null
+                                    creditCardExpanded = false
+                                }
+                            )
+                            creditCards.forEach { card ->
+                                DropdownMenuItem(
+                                    text = { Text(card.name) },
+                                    onClick = {
+                                        selectedCreditCardId = card.id
+                                        if (beneficiaryName.isBlank()) beneficiaryName = card.institutionName.ifBlank { card.name }
+                                        if (title.isBlank()) title = "Pago ${card.name}"
+                                        creditCardExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (liquidAccounts.isNotEmpty() || selectedSourceAccountId != null) {
+                    val selectedSourceName = liquidAccounts.firstOrNull { it.id == selectedSourceAccountId }?.let {
+                        "${it.name} (${AccountUiMeta.displayTypeLabel(it.accountType)})"
+                    } ?: selectedSourceAccountId?.let { "Cuenta #$it" }
+                        ?: "Sin cuenta asignada"
+                    ExposedDropdownMenuBox(
+                        expanded = sourceAccountExpanded,
+                        onExpandedChange = { sourceAccountExpanded = !sourceAccountExpanded }
+                    ) {
+                        OutlinedTextField(
+                            value = selectedSourceName,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Cuenta de Origen para pagar (Opcional)") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = sourceAccountExpanded) },
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor()
+                                .testTag("payment_source_account_selector")
+                        )
+                        ExposedDropdownMenu(
+                            expanded = sourceAccountExpanded,
+                            onDismissRequest = { sourceAccountExpanded = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Sin cuenta asignada") },
+                                onClick = {
+                                    selectedSourceAccountId = null
+                                    sourceAccountExpanded = false
+                                }
+                            )
+                            liquidAccounts.forEach { acc ->
+                                DropdownMenuItem(
+                                    text = { Text("${acc.name} · ${AccountUiMeta.displayTypeLabel(acc.accountType)}") },
+                                    onClick = {
+                                        selectedSourceAccountId = acc.id
+                                        sourceAccountExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
                 // Notas Adicionales
                 OutlinedTextField(
                     value = notes,
@@ -466,7 +571,9 @@ fun AddEditPaymentDialog(
                         selectedFrequency,
                         isVariableAmount,
                         reminderDaysBefore,
-                        notes.trim()
+                        notes.trim(),
+                        selectedCreditCardId,
+                        selectedSourceAccountId
                     )
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen),

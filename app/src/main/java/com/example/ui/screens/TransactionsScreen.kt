@@ -166,6 +166,7 @@ fun TransactionsScreen(
     onClearAllFilters: (() -> Unit)? = null,
     onDeleteTransactions: ((List<Long>) -> Unit)? = null,
     onMarkTransactionsAsLegitimate: ((List<Long>) -> Unit)? = null,
+    accountNameById: Map<Long, String> = emptyMap(),
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -1327,7 +1328,8 @@ fun TransactionsScreen(
                         },
                         onMarkAsLegitimate = {
                             onMarkTransactionsAsLegitimate?.invoke(listOf(tx.id))
-                        }
+                        },
+                        accountName = tx.accountId?.let { accountNameById[it] }
                     )
                 }
             }

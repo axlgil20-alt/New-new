@@ -36,6 +36,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BookmarkBorder
@@ -263,7 +264,7 @@ fun SmartCartScreen(
 
     val isDark = uiState.isDarkTheme
     val pageBackground = if (isDark) Color(0xFF14110E) else Color(0xFFFAF5ED)
-    val backgroundScrim = if (isDark) Color(0xD914110E) else Color(0xD1FAF5ED)
+    val backgroundScrim = if (isDark) Color(0xEE14110E) else Color(0xECFAF5ED)
     val heroTextShadow = Shadow(color = Color(0xCC000000), offset = Offset(0f, 2f), blurRadius = 6f)
 
     Box(
@@ -278,7 +279,7 @@ fun SmartCartScreen(
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxSize()
-                .alpha(if (isDark) 0.14f else 0.18f)
+                .alpha(if (isDark) 0.12f else 0.14f)
         )
         // Velo opaco protector para preservar lectura nítida sobre la textura del mercado
         Box(
@@ -1285,7 +1286,7 @@ private fun ShoppingListContent(
                                         selectedBorderColor = solidSelectedColor
                                     ),
                                     shape = RoundedCornerShape(10.dp),
-                                    modifier = Modifier.heightIn(min = 42.dp)
+                                    modifier = Modifier.heightIn(min = 48.dp)
                                 )
                             }
                         }
@@ -1322,7 +1323,7 @@ private fun ShoppingListContent(
                             if (searchQuery.isNotBlank()) {
                                 IconButton(
                                     onClick = { onSearchQueryChange("") },
-                                    modifier = Modifier.size(44.dp)
+                                    modifier = Modifier.size(48.dp)
                                 ) {
                                     Icon(
                                         imageVector = Icons.Default.Clear,
@@ -1385,7 +1386,7 @@ private fun ShoppingListContent(
                         TextButton(
                             onClick = onSaveAsTemplateClick,
                             modifier = Modifier
-                                .heightIn(min = 44.dp)
+                                .heightIn(min = 48.dp)
                                 .testTag("btn_save_as_template")
                         ) {
                             Icon(
@@ -1402,7 +1403,7 @@ private fun ShoppingListContent(
                             if (cartItems.any { it.isChecked }) {
                                 TextButton(
                                     onClick = onClearChecked,
-                                    modifier = Modifier.heightIn(min = 44.dp)
+                                    modifier = Modifier.heightIn(min = 48.dp)
                                 ) {
                                     Text("Desmarcar", fontSize = 12.sp, color = secondaryText, fontWeight = FontWeight.SemiBold)
                                 }
@@ -1410,7 +1411,7 @@ private fun ShoppingListContent(
                             if (cartItems.isNotEmpty()) {
                                 TextButton(
                                     onClick = onClearAll,
-                                    modifier = Modifier.heightIn(min = 44.dp)
+                                    modifier = Modifier.heightIn(min = 48.dp)
                                 ) {
                                     Text("Vaciar", fontSize = 12.sp, color = dangerText, fontWeight = FontWeight.Bold)
                                 }
@@ -1689,7 +1690,7 @@ private fun CartItemCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(
                     onClick = onEditClick,
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier.size(48.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Edit,
@@ -1701,7 +1702,7 @@ private fun CartItemCard(
 
                 IconButton(
                     onClick = onDeleteClick,
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier.size(48.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
@@ -1859,7 +1860,7 @@ private fun PantryContent(
                             selectedBorderColor = selectedBg
                         ),
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.heightIn(min = 42.dp)
+                        modifier = Modifier.heightIn(min = 48.dp)
                     )
                 }
             }
@@ -2112,7 +2113,7 @@ private fun PantryItemCard(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onEditClick, modifier = Modifier.size(40.dp)) {
+                    IconButton(onClick = onEditClick, modifier = Modifier.size(48.dp)) {
                         Icon(
                             imageVector = Icons.Default.Edit,
                             contentDescription = "Editar",
@@ -2120,7 +2121,7 @@ private fun PantryItemCard(
                             modifier = Modifier.size(18.dp)
                         )
                     }
-                    IconButton(onClick = onDeleteClick, modifier = Modifier.size(40.dp)) {
+                    IconButton(onClick = onDeleteClick, modifier = Modifier.size(48.dp)) {
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Eliminar",
@@ -2219,7 +2220,7 @@ private fun PantryItemCard(
                             ),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier
-                                .heightIn(min = 44.dp)
+                                .heightIn(min = 48.dp)
                                 .testTag("btn_add_pantry_to_cart_${item.id}")
                         ) {
                             Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
@@ -2444,7 +2445,7 @@ private fun TemplateItemCard(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = onDuplicate, modifier = Modifier.size(40.dp)) {
+                    IconButton(onClick = onDuplicate, modifier = Modifier.size(48.dp)) {
                         Icon(
                             imageVector = Icons.Default.ContentCopy,
                             contentDescription = "Duplicar",
@@ -2452,7 +2453,7 @@ private fun TemplateItemCard(
                             modifier = Modifier.size(18.dp)
                         )
                     }
-                    IconButton(onClick = onDelete, modifier = Modifier.size(40.dp)) {
+                    IconButton(onClick = onDelete, modifier = Modifier.size(48.dp)) {
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = "Eliminar",
@@ -2485,7 +2486,7 @@ private fun TemplateItemCard(
                     ),
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier
-                        .heightIn(min = 44.dp)
+                        .heightIn(min = 48.dp)
                         .testTag("btn_load_template_${template.id}")
                 ) {
                     Icon(Icons.Default.ShoppingCart, contentDescription = null, tint = Color.White, modifier = Modifier.size(15.dp))
@@ -2531,7 +2532,11 @@ private fun AddEditCartItemDialog(
                 .fillMaxWidth(0.92f)
                 .padding(16.dp)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp)
+            ) {
                 Text(
                     text = if (item == null) "Agregar Producto a la Lista" else "Editar Producto",
                     style = MaterialTheme.typography.titleMedium,
@@ -2730,7 +2735,11 @@ private fun AddEditPantryItemDialog(
                 .fillMaxWidth(0.92f)
                 .padding(16.dp)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp)
+            ) {
                 Text(
                     text = if (item == null) "Registrar en Mi Despensa" else "Editar en Despensa",
                     style = MaterialTheme.typography.titleMedium,
@@ -2838,7 +2847,7 @@ private fun AddEditPantryItemDialog(
                             ),
                             modifier = Modifier
                                 .weight(1f)
-                                .heightIn(min = 44.dp)
+                                .heightIn(min = 48.dp)
                                 .clip(RoundedCornerShape(10.dp))
                                 .clickable { status = code }
                         ) {
@@ -2931,7 +2940,11 @@ private fun SetBudgetDialog(
             color = MaterialTheme.colorScheme.surface,
             modifier = Modifier.padding(16.dp)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp)
+            ) {
                 Text(
                     text = "Presupuesto para el Supermercado",
                     style = MaterialTheme.typography.titleMedium,
@@ -3005,7 +3018,11 @@ private fun CheckoutConfirmationDialog(
                 .fillMaxWidth(0.92f)
                 .padding(16.dp)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp)
+            ) {
                 Text(
                     text = "Confirmar Compra Real",
                     style = MaterialTheme.typography.titleMedium,
@@ -3136,7 +3153,11 @@ private fun SaveTemplateDialog(
             color = MaterialTheme.colorScheme.surface,
             modifier = Modifier.padding(16.dp)
         ) {
-            Column(modifier = Modifier.padding(20.dp)) {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(20.dp)
+            ) {
                 Text(
                     text = "Guardar Lista como Plantilla",
                     style = MaterialTheme.typography.titleMedium,

@@ -62,8 +62,12 @@ fun CompactPaymentsSummaryCard(
             containerColor = if (isDarkTheme) Color(0xFF221A15) else Color(0xFFFFFDF8)
         ),
         border = BorderStroke(
-            1.2.dp,
-            if (overdueCount > 0) ExpenseRed.copy(alpha = 0.8f) else Color(0xFFD97706).copy(alpha = 0.45f)
+            1.4.dp,
+            if (overdueCount > 0) {
+                if (isDarkTheme) Color(0xFFF87171) else Color(0xFFDC2626)
+            } else {
+                if (isDarkTheme) Color(0xFFFBBF24) else Color(0xFFD97706)
+            }
         ),
         modifier = modifier
             .fillMaxWidth()
@@ -80,15 +84,15 @@ fun CompactPaymentsSummaryCard(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Surface(
                         shape = RoundedCornerShape(10.dp),
-                        color = Color(0xFFD97706).copy(alpha = 0.15f),
-                        border = BorderStroke(1.dp, Color(0xFFD97706)),
-                        modifier = Modifier.size(36.dp)
+                        color = if (isDarkTheme) Color(0xFF3B2810) else Color(0xFFFEF3C7),
+                        border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFFFBBF24) else Color(0xFFD97706)),
+                        modifier = Modifier.size(38.dp)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Default.Payments,
                                 contentDescription = null,
-                                tint = if (isDarkTheme) Color(0xFFFBBF24) else Color(0xFFB45309),
+                                tint = if (isDarkTheme) Color(0xFFFDE68A) else Color(0xFF92400E),
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -99,14 +103,14 @@ fun CompactPaymentsSummaryCard(
                             text = "COMPROMISOS DE PAGO",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.ExtraBold,
-                            color = if (isDarkTheme) Color(0xFFFBBF24) else Color(0xFFB45309),
+                            color = if (isDarkTheme) Color(0xFFFCD34D) else Color(0xFF92400E),
                             letterSpacing = 0.5.sp
                         )
                         Text(
                             text = "Total pendiente: ${FormatUtils.formatCurrency(totalPending, currencySymbol, isDiscreetMode)}",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = if (isDarkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
                         )
                     }
                 }
@@ -114,7 +118,7 @@ fun CompactPaymentsSummaryCard(
                 Icon(
                     imageVector = Icons.Default.ChevronRight,
                     contentDescription = "Ir a Pagos",
-                    tint = if (isDarkTheme) Color(0xFFFBBF24) else Color(0xFFB45309),
+                    tint = if (isDarkTheme) Color(0xFFFCD34D) else Color(0xFF92400E),
                     modifier = Modifier.size(22.dp)
                 )
             }
@@ -125,13 +129,14 @@ fun CompactPaymentsSummaryCard(
             if (nextPayment != null) {
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = if (isDarkTheme) Color(0xFF2C221B) else Color(0xFFFEF3C7).copy(alpha = 0.6f),
+                    color = if (isDarkTheme) Color(0xFF2C221B) else Color(0xFFFEF3C7),
+                    border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFF57402D) else Color(0xFFF59E0B)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
@@ -140,13 +145,14 @@ fun CompactPaymentsSummaryCard(
                                 text = "Próximo: ${nextPayment.beneficiaryName}",
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Bold,
+                                color = if (isDarkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = "Vence el ${dateFormatter.format(Date(nextPayment.dueDateMillis))}",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = if (isDarkTheme) Color(0xFFCBD5E1) else Color(0xFF475569)
                             )
                         }
 
@@ -154,7 +160,7 @@ fun CompactPaymentsSummaryCard(
                             text = FormatUtils.formatCurrency(nextPayment.amount, currencySymbol, isDiscreetMode),
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Black,
-                            color = if (isDarkTheme) Color(0xFFFDE68A) else Color(0xFF92400E)
+                            color = if (isDarkTheme) Color(0xFFFDE68A) else Color(0xFF78350F)
                         )
                     }
                 }
@@ -162,8 +168,8 @@ fun CompactPaymentsSummaryCard(
                 Text(
                     text = "¡Todo al día! No tienes pagos pendientes registrados.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = EmeraldGreen,
-                    fontWeight = FontWeight.Medium
+                    color = if (isDarkTheme) Color(0xFF6EE7B7) else Color(0xFF065F46),
+                    fontWeight = FontWeight.SemiBold
                 )
             }
 
@@ -176,18 +182,18 @@ fun CompactPaymentsSummaryCard(
                 ) {
                     if (overdueCount > 0) {
                         Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = ExpenseRed.copy(alpha = 0.15f),
-                            border = BorderStroke(0.8.dp, ExpenseRed)
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isDarkTheme) Color(0xFF5C1D24) else Color(0xFFFEE2E2),
+                            border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFFF87171) else Color(0xFFDC2626))
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Warning,
                                     contentDescription = null,
-                                    tint = ExpenseRed,
+                                    tint = if (isDarkTheme) Color(0xFFFECACA) else Color(0xFF991B1B),
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -195,7 +201,7 @@ fun CompactPaymentsSummaryCard(
                                     text = "$overdueCount vencido(s)",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = ExpenseRed
+                                    color = if (isDarkTheme) Color(0xFFFECACA) else Color(0xFF991B1B)
                                 )
                             }
                         }
@@ -203,16 +209,16 @@ fun CompactPaymentsSummaryCard(
 
                     if (upcomingCount > 0) {
                         Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = Color(0xFF3B82F6).copy(alpha = 0.15f),
-                            border = BorderStroke(0.8.dp, Color(0xFF2563EB))
+                            shape = RoundedCornerShape(8.dp),
+                            color = if (isDarkTheme) Color(0xFF1E3A8A) else Color(0xFFDBEAFE),
+                            border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFF60A5FA) else Color(0xFF2563EB))
                         ) {
                             Text(
                                 text = "$upcomingCount vencen en 7 días",
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = Color(0xFF2563EB),
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                color = if (isDarkTheme) Color(0xFFBFDBFE) else Color(0xFF1E40AF),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                             )
                         }
                     }

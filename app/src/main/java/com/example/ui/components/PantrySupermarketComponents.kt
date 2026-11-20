@@ -111,10 +111,22 @@ fun PantryItemRow(
     val store = GUATEMALA_SUPERMARKETS.find { it.name.equals(item.storeName, ignoreCase = true) }
         ?: GUATEMALA_SUPERMARKETS.last()
 
+    val isDark = MaterialTheme.colorScheme.surface.red < 0.5f
+    val statusBg = when (status) {
+        PantryItemStatus.GREEN -> if (isDark) Color(0xFF064E3B) else Color(0xFFD1FAE5)
+        PantryItemStatus.YELLOW -> if (isDark) Color(0xFF451A03) else Color(0xFFFEF3C7)
+        PantryItemStatus.RED -> if (isDark) Color(0xFF5C1D24) else Color(0xFFFEE2E2)
+    }
+    val statusFg = when (status) {
+        PantryItemStatus.GREEN -> if (isDark) Color(0xFFA7F3D0) else Color(0xFF065F46)
+        PantryItemStatus.YELLOW -> if (isDark) Color(0xFFFDE68A) else Color(0xFF92400E)
+        PantryItemStatus.RED -> if (isDark) Color(0xFFFECACA) else Color(0xFF991B1B)
+    }
+
     Card(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.2.dp, status.color.copy(alpha = 0.35f)),
+        border = BorderStroke(1.2.dp, status.color),
         modifier = modifier.fillMaxWidth()
     ) {
         Row(
@@ -126,7 +138,7 @@ fun PantryItemRow(
             // Semáforo táctil interactivo (Tocar para cambiar Verde -> Amarillo -> Rojo)
             Surface(
                 shape = RoundedCornerShape(10.dp),
-                color = status.color.copy(alpha = 0.15f),
+                color = statusBg,
                 border = BorderStroke(1.5.dp, status.color),
                 modifier = Modifier
                     .clip(RoundedCornerShape(10.dp))
@@ -134,7 +146,7 @@ fun PantryItemRow(
                     .testTag("pantry_status_pill_${item.id}")
             ) {
                 Row(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
@@ -148,7 +160,7 @@ fun PantryItemRow(
                         text = status.label,
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
-                        color = status.color
+                        color = statusFg
                     )
                 }
             }
@@ -180,14 +192,14 @@ fun PantryItemRow(
                         Text(
                             text = " • @ Q${"%.2f".format(item.estimatedUnitPrice)}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.Gray
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     if (item.storeName.isNotBlank() && item.storeName != "General") {
                         Text(
                             text = " • ${item.storeName}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = store.badgeColor,
+                            color = if (isDark) Color(0xFF93C5FD) else store.badgeColor,
                             fontWeight = FontWeight.SemiBold
                         )
                     }
@@ -198,7 +210,7 @@ fun PantryItemRow(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(
                     onClick = onEdit,
-                    modifier = Modifier.size(38.dp)
+                    modifier = Modifier.size(48.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Edit,
@@ -209,12 +221,12 @@ fun PantryItemRow(
                 }
                 IconButton(
                     onClick = onDelete,
-                    modifier = Modifier.size(38.dp)
+                    modifier = Modifier.size(48.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
                         contentDescription = "Eliminar",
-                        tint = Color(0xFFEF4444).copy(alpha = 0.8f),
+                        tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -327,16 +339,29 @@ fun AddEditPantryItemDialog(
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                val isDialogDark = MaterialTheme.colorScheme.surface.red < 0.5f
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     PantryItemStatus.entries.forEach { statusOption ->
                         val isSelected = selectedStatus == statusOption.code
+                        val chipBg = when {
+                            isSelected && statusOption == PantryItemStatus.GREEN -> if (isDialogDark) Color(0xFF064E3B) else Color(0xFFD1FAE5)
+                            isSelected && statusOption == PantryItemStatus.YELLOW -> if (isDialogDark) Color(0xFF451A03) else Color(0xFFFEF3C7)
+                            isSelected -> if (isDialogDark) Color(0xFF5C1D24) else Color(0xFFFEE2E2)
+                            else -> if (isDialogDark) Color(0xFF1E293B) else Color(0xFFF1F5F9)
+                        }
+                        val chipFg = when {
+                            isSelected && statusOption == PantryItemStatus.GREEN -> if (isDialogDark) Color(0xFFA7F3D0) else Color(0xFF065F46)
+                            isSelected && statusOption == PantryItemStatus.YELLOW -> if (isDialogDark) Color(0xFFFDE68A) else Color(0xFF92400E)
+                            isSelected -> if (isDialogDark) Color(0xFFFECACA) else Color(0xFF991B1B)
+                            else -> MaterialTheme.colorScheme.onSurface
+                        }
                         Surface(
                             shape = RoundedCornerShape(10.dp),
-                            color = if (isSelected) statusOption.color.copy(alpha = 0.2f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            border = BorderStroke(1.2.dp, if (isSelected) statusOption.color else Color.LightGray.copy(alpha = 0.4f)),
+                            color = chipBg,
+                            border = BorderStroke(1.2.dp, if (isSelected) statusOption.color else MaterialTheme.colorScheme.outlineVariant),
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(10.dp))
@@ -356,8 +381,8 @@ fun AddEditPantryItemDialog(
                                 Text(
                                     text = statusOption.label,
                                     style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = if (isSelected) FontWeight.Black else FontWeight.Normal,
-                                    color = if (isSelected) statusOption.color else MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = if (isSelected) FontWeight.Black else FontWeight.SemiBold,
+                                    color = chipFg,
                                     maxLines = 1
                                 )
                             }
@@ -477,6 +502,7 @@ fun ReviewScannedListDialog(
                     .fillMaxWidth()
             ) {
                 // Título y Contador
+                val isScanDark = MaterialTheme.colorScheme.surface.red < 0.5f
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
@@ -485,10 +511,15 @@ fun ReviewScannedListDialog(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(EmeraldGreen.copy(alpha = 0.15f)),
+                            .background(if (isScanDark) Color(0xFF064E3B) else Color(0xFFD1FAE5)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.CameraAlt, contentDescription = null, tint = EmeraldGreen, modifier = Modifier.size(20.dp))
+                        Icon(
+                            Icons.Default.CameraAlt,
+                            contentDescription = null,
+                            tint = if (isScanDark) Color(0xFFA7F3D0) else Color(0xFF065F46),
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
@@ -500,7 +531,7 @@ fun ReviewScannedListDialog(
                         Text(
                             text = "Revisa y corrige nombres o cantidades antes de guardar",
                             style = MaterialTheme.typography.bodySmall,
-                            color = Color.Gray
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -512,15 +543,17 @@ fun ReviewScannedListDialog(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    val unselectedBg = if (isScanDark) Color(0xFF1E293B) else Color(0xFFF1F5F9)
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = if (destination == "CART") EmeraldGreen else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        color = if (destination == "CART") EmeraldGreen else unselectedBg,
+                        border = BorderStroke(1.dp, if (destination == "CART") EmeraldGreen else MaterialTheme.colorScheme.outlineVariant),
                         modifier = Modifier
                             .weight(1f)
                             .clickable { destination = "CART" }
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
                         ) {
@@ -542,13 +575,14 @@ fun ReviewScannedListDialog(
 
                     Surface(
                         shape = RoundedCornerShape(12.dp),
-                        color = if (destination == "PANTRY") EmeraldGreen else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        color = if (destination == "PANTRY") EmeraldGreen else unselectedBg,
+                        border = BorderStroke(1.dp, if (destination == "PANTRY") EmeraldGreen else MaterialTheme.colorScheme.outlineVariant),
                         modifier = Modifier
                             .weight(1f)
                             .clickable { destination = "PANTRY" }
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.Center
                         ) {
@@ -604,7 +638,7 @@ fun ReviewScannedListDialog(
                         Text(
                             text = "No se detectaron productos legibles en la imagen.",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Gray
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 } else {
@@ -618,7 +652,10 @@ fun ReviewScannedListDialog(
                             val item = items[index]
                             Card(
                                 shape = RoundedCornerShape(10.dp),
-                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isScanDark) Color(0xFF1E293B) else Color(0xFFF8FAFC)
+                                ),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Row(

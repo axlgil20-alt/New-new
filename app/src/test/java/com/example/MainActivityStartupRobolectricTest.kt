@@ -9,16 +9,24 @@ import androidx.sqlite.db.SupportSQLiteOpenHelper
 import androidx.sqlite.db.framework.FrameworkSQLiteOpenHelperFactory
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.local.AppDatabase
+import com.example.data.model.AccountType
 import com.example.data.model.PaymentFrequency
 import com.example.data.model.PaymentStatus
+import com.example.ui.viewmodel.AccountsViewModel
 import com.example.ui.viewmodel.BudgetViewModel
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.After
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
@@ -31,16 +39,44 @@ import java.util.concurrent.TimeUnit
 @Config(sdk = [34])
 class MainActivityStartupRobolectricTest {
 
-    @After
-    fun tearDown() {
+    @Before
+    fun setUp() {
+        AppDatabase.closeAndResetInstanceForTesting()
         val context = ApplicationProvider.getApplicationContext<Context>()
         context.deleteDatabase("budget_app_database")
+    }
+
+    @After
+    fun tearDown() {
+        AppDatabase.closeAndResetInstanceForTesting()
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        context.deleteDatabase("budget_app_database")
+    }
+
+    private fun awaitCondition(timeoutMs: Long = 8_000L, predicate: () -> Boolean) {
+        runBlocking {
+            withTimeout(timeoutMs) {
+                while (!predicate()) {
+                    shadowOf(Looper.getMainLooper()).idle()
+                    delay(10L)
+                }
+            }
+        }
+        shadowOf(Looper.getMainLooper()).idle()
+    }
+
+    private fun awaitJobAndIdle(job: Job?) {
+        if (job != null) {
+            awaitCondition { job.isCompleted }
+        } else {
+            shadowOf(Looper.getMainLooper()).idle()
+        }
     }
 
     @Test(timeout = 15_000L)
     fun mainActivity_cleanLaunch_completesWithoutCrash() {
         val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
-        shadowOf(Looper.getMainLooper()).idleFor(100, TimeUnit.MILLISECONDS)
+        shadowOf(Looper.getMainLooper()).idleFor(150, TimeUnit.MILLISECONDS)
         val activity = controller.get()
         assertNotNull(activity)
         assertFalse(activity.isFinishing)
@@ -48,8 +84,9 @@ class MainActivityStartupRobolectricTest {
     }
 
     @Test(timeout = 15_000L)
-    fun upgradedV12Database_withHalfCentAmountsAndStage1Edits_doesNotCrashBudgetViewModel() = runBlocking<Unit> {
+    fun upgradedV12Database_withHalfCentAmountsAndStage1Edits_doesNotCrashBudgetOrAccountsViewModel() {
         val context = ApplicationProvider.getApplicationContext<Context>()
+        AppDatabase.closeAndResetInstanceForTesting()
         context.deleteDatabase("budget_app_database")
 
         // Crear BD real v12 con datos reales que provocan discrepancia en CAST(ROUND(amount * 100.0))
@@ -96,11 +133,56 @@ class MainActivityStartupRobolectricTest {
         migrated.close()
 
         val app = ApplicationProvider.getApplicationContext<Application>()
-        val vm = BudgetViewModel(app)
-        val emitted = withTimeout(5_000L) {
-            vm.uiState.first { !it.isLoading }
+        val budgetVm = BudgetViewModel(app)
+        val accountsVm = AccountsViewModel(app)
+        val budgetCollector = CoroutineScope(Dispatchers.Main).launch { budgetVm.uiState.collect {} }
+        val accountsCollector = CoroutineScope(Dispatchers.Main).launch { accountsVm.uiState.collect {} }
+        try {
+            awaitCondition { !budgetVm.uiState.value.isLoading }
+            assertTrue(budgetVm.uiState.value.totalDbTransactionsCount >= 3)
+
+            awaitCondition { !accountsVm.uiState.value.isLoading }
+            assertEquals(3, accountsVm.uiState.value.unassignedTransactionsCount)
+        } finally {
+            budgetCollector.cancel()
+            accountsCollector.cancel()
         }
-        assertTrue(emitted.totalDbTransactionsCount >= 3)
+    }
+
+    @Test(timeout = 15_000L)
+    fun accountsViewModel_etapa3Operations_keepConsistentBalancesAndInstallments() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val accountsVm = AccountsViewModel(app)
+        val collector = CoroutineScope(Dispatchers.Main).launch { accountsVm.uiState.collect {} }
+        try {
+            awaitCondition { !accountsVm.uiState.value.isLoading }
+
+            awaitJobAndIdle(
+                accountsVm.createAccount(
+                    name = "Efectivo Quetzi",
+                    accountType = AccountType.CASH,
+                    openingBalanceMinor = 100_000L
+                )
+            )
+            awaitJobAndIdle(
+                accountsVm.createAccount(
+                    name = "Visa Bi",
+                    accountType = AccountType.CREDIT_CARD,
+                    institutionName = "Banco Industrial",
+                    creditLimitMinor = 500_000L,
+                    cutoffDay = 15,
+                    paymentDueDay = 5
+                )
+            )
+
+            awaitCondition { accountsVm.uiState.value.activeAccounts.size == 2 }
+            val state = accountsVm.uiState.value
+            assertEquals(100_000L, state.totalLiquidAssetsMinor)
+            assertEquals(0L, state.totalCreditCardDebtMinor)
+            assertEquals(100_000L, state.netWorthMinor)
+        } finally {
+            collector.cancel()
+        }
     }
 
     private fun createV12Schema(db: SupportSQLiteDatabase) {

@@ -97,6 +97,7 @@ fun TransactionItemCard(
     onToggleSelect: () -> Unit = {},
     onMarkAsLegitimate: (() -> Unit)? = null,
     onToggleGastoSupuesto: (() -> Unit)? = null,
+    accountName: String? = null,
     modifier: Modifier = Modifier
 ) {
     var showColorPicker by remember { mutableStateOf(false) }
@@ -516,6 +517,47 @@ fun TransactionItemCard(
                                 fontWeight = FontWeight.Bold
                             )
                         }
+                    }
+                }
+
+                // Badge Cuenta vinculada (Mis Cuentas)
+                if (!accountName.isNullOrBlank()) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = if (isDarkTheme) Color(0xFF064E3B) else Color(0xFFD1FAE5)
+                    ) {
+                        Text(
+                            text = accountName,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF065F46),
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
+                    }
+                }
+
+                // Badge Tipo Contable especial (Transferencia, Pago Tarjeta, Visacuotas, Ajuste)
+                val specialKindLabel = when (transaction.entryKind) {
+                    com.example.data.model.TransactionEntryKind.TRANSFER_OUT,
+                    com.example.data.model.TransactionEntryKind.TRANSFER_IN -> "Transferencia"
+                    com.example.data.model.TransactionEntryKind.CARD_PAYMENT -> "Pago Tarjeta"
+                    com.example.data.model.TransactionEntryKind.INSTALLMENT_CHARGE ->
+                        transaction.installmentNumber?.let { "Cuota #$it" } ?: "Visacuotas"
+                    com.example.data.model.TransactionEntryKind.BALANCE_ADJUSTMENT -> "Conciliación"
+                    else -> null
+                }
+                if (specialKindLabel != null) {
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = if (isDarkTheme) Color(0xFF1E3A8A) else Color(0xFFDBEAFE)
+                    ) {
+                        Text(
+                            text = specialKindLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isDarkTheme) Color(0xFFBFDBFE) else Color(0xFF1E40AF),
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        )
                     }
                 }
             }

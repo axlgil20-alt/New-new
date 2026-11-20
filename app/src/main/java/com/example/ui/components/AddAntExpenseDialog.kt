@@ -106,10 +106,12 @@ fun AddAntExpenseDialog(
                         onClick = {
                             val amt = amountText.toDoubleOrNull() ?: 0.0
                             if (title.isNotBlank() && amt > 0) {
+                                val exactMinor = com.example.data.model.MoneyMinorUnits.fromDouble(amt)
                                 onSave(
                                     TransactionEntity(
                                         title = title.trim(),
-                                        amount = amt,
+                                        amount = com.example.data.model.MoneyMinorUnits.toDisplayDouble(exactMinor),
+                                        amountMinor = exactMinor,
                                         type = TransactionType.EXPENSE,
                                         category = "Gasto Hormiga",
                                         dateMillis = System.currentTimeMillis(),

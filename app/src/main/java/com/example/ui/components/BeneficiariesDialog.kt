@@ -119,11 +119,11 @@ fun BeneficiariesDialog(
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen),
                         shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.heightIn(min = 38.dp)
+                        modifier = Modifier.heightIn(min = 48.dp)
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Nuevo", fontSize = 12.sp, color = Color.White)
+                        Text("Nuevo", fontSize = 12.sp, color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -134,7 +134,10 @@ fun BeneficiariesDialog(
                     // Formulario para Agregar o Editar Beneficiario
                     Card(
                         shape = RoundedCornerShape(14.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (isDialogDark) Color(0xFF1E293B) else Color(0xFFF8FAFC)
+                        ),
+                        border = BorderStroke(1.dp, if (isDialogDark) Color(0xFF334155) else Color(0xFFCBD5E1)),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(
@@ -147,7 +150,7 @@ fun BeneficiariesDialog(
                                 text = if (editingBeneficiary == null) "Agregar Beneficiario" else "Editar Beneficiario",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = MaterialTheme.colorScheme.onSurface
                             )
 
                             OutlinedTextField(
@@ -217,7 +220,10 @@ fun BeneficiariesDialog(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.End
                             ) {
-                                TextButton(onClick = { resetForm() }) {
+                                TextButton(
+                                    onClick = { resetForm() },
+                                    modifier = Modifier.heightIn(min = 48.dp)
+                                ) {
                                     Text("Cancelar")
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
@@ -247,9 +253,10 @@ fun BeneficiariesDialog(
                                         }
                                     },
                                     colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen),
-                                    shape = RoundedCornerShape(10.dp)
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.heightIn(min = 48.dp)
                                 ) {
-                                    Text("Guardar", color = Color.White)
+                                    Text("Guardar", color = Color.White, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }

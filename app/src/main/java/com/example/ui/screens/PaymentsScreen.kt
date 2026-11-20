@@ -84,6 +84,7 @@ import com.example.data.model.PaymentStatus
 import com.example.data.model.isDueToday
 import com.example.data.model.isOverdue
 import com.example.data.model.isUpcoming
+import com.example.data.model.withExactAmountMinor
 import com.example.ui.components.AddEditPaymentDialog
 import com.example.ui.components.BeneficiariesDialog
 import com.example.ui.theme.EmeraldGreen
@@ -108,7 +109,9 @@ fun PaymentsScreen(
         frequency: String,
         isVariableAmount: Boolean,
         reminderDaysBefore: Int,
-        notes: String
+        notes: String,
+        creditCardAccountId: Long?,
+        paymentSourceAccountId: Long?
     ) -> Unit,
     onMarkAsPaid: (Long) -> Unit,
     onUpdatePayment: (PaymentCommitmentEntity) -> Unit,
@@ -116,6 +119,8 @@ fun PaymentsScreen(
     onAddBeneficiary: (name: String, category: String, description: String, contact: String, notes: String) -> Unit,
     onUpdateBeneficiary: (BeneficiaryEntity) -> Unit,
     onDeleteBeneficiary: (BeneficiaryEntity) -> Unit,
+    accountNameById: Map<Long, String> = emptyMap(),
+    accounts: List<com.example.data.model.FinancialAccountEntity> = emptyList(),
     modifier: Modifier = Modifier
 ) {
     var selectedAgendaFilterIndex by remember { mutableIntStateOf(0) } // 0: Todos, 1: Hoy, 2: Próximos 7 días, 3: Este mes, 4: Vencidos
@@ -180,7 +185,7 @@ fun PaymentsScreen(
 
     val isDark = uiState.isDarkTheme
     val pageBackground = if (isDark) Color(0xFF14110E) else Color(0xFFFAF5ED)
-    val backgroundScrim = if (isDark) Color(0xD914110E) else Color(0xD1FAF5ED)
+    val backgroundScrim = if (isDark) Color(0xEE14110E) else Color(0xECFAF5ED)
     val cardSurface = if (isDark) Color(0xFF1E293B) else Color.White
     val cardBorder = if (isDark) Color(0xFF334155) else Color(0xFFD6E4DF)
     val accentEmeraldText = if (isDark) Color(0xFF6EE7B7) else Color(0xFF065F46)
@@ -199,7 +204,7 @@ fun PaymentsScreen(
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxSize()
-                .alpha(if (isDark) 0.14f else 0.20f)
+                .alpha(if (isDark) 0.12f else 0.15f)
         )
         // Velo opaco protector para preservar legibilidad sin eliminar la atmósfera del Parque Central
         Box(
@@ -764,6 +769,8 @@ fun PaymentsScreen(
                                 showAddEditDialog = true
                             },
                             onDelete = { onDeletePayment(commitment) },
+                            creditCardAccountName = commitment.creditCardAccountId?.let { accountNameById[it] },
+                            paymentSourceAccountName = commitment.paymentSourceAccountId?.let { accountNameById[it] },
                             modifier = Modifier.padding(horizontal = 16.dp)
                         )
                     }
@@ -778,26 +785,39 @@ fun PaymentsScreen(
             commitment = commitmentToEdit,
             beneficiaries = uiState.paymentBeneficiaries,
             currencySymbol = uiState.currencySymbol,
+            accounts = accounts,
             onDismiss = {
                 showAddEditDialog = false
                 commitmentToEdit = null
             },
-            onSave = { title, ben, desc, amt, due, cat, freq, isVar, rem, notes ->
+            onSave = { title, ben, desc, amt, due, cat, freq, isVar, rem, notes, creditCardId, sourceAccountId ->
                 if (commitmentToEdit == null) {
-                    onAddPayment(title, ben, desc, amt, due, cat, freq, isVar, rem, notes)
+                    onAddPayment(
+                        title, ben, desc, amt, due, cat, freq, isVar, rem, notes,
+                        creditCardId, sourceAccountId
+                    )
                 } else {
+                    val exactMinor = com.example.data.model.MoneyMinorUnits.fromDouble(amt)
+                    val existing = commitmentToEdit!!
+                    val nextKind = when {
+                        creditCardId != null -> com.example.data.model.CommitmentKind.CREDIT_CARD_STATEMENT
+                        existing.commitmentKind == com.example.data.model.CommitmentKind.CREDIT_CARD_STATEMENT -> com.example.data.model.CommitmentKind.BILL
+                        else -> existing.commitmentKind
+                    }
                     onUpdatePayment(
-                        commitmentToEdit!!.copy(
+                        existing.withExactAmountMinor(exactMinor).copy(
                             title = title,
                             beneficiaryName = ben,
                             description = desc,
-                            amount = amt,
                             dueDateMillis = due,
                             category = cat,
                             frequency = freq,
                             isVariableAmount = isVar,
                             reminderDaysBefore = rem,
-                            notes = notes
+                            notes = notes,
+                            creditCardAccountId = creditCardId,
+                            paymentSourceAccountId = sourceAccountId,
+                            commitmentKind = nextKind
                         )
                     )
                 }
@@ -828,6 +848,8 @@ fun PaymentCommitmentCard(
     onMarkAsPaid: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
+    creditCardAccountName: String? = null,
+    paymentSourceAccountName: String? = null,
     modifier: Modifier = Modifier
 ) {
     val now = remember { System.currentTimeMillis() }
@@ -978,6 +1000,42 @@ fun PaymentCommitmentCard(
                     style = MaterialTheme.typography.bodySmall,
                     color = secondaryText
                 )
+            }
+
+            if (!creditCardAccountName.isNullOrBlank() || !paymentSourceAccountName.isNullOrBlank()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (!creditCardAccountName.isNullOrBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (isDarkTheme) Color(0xFF1E3A8A) else Color(0xFFDBEAFE),
+                            border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFF60A5FA) else Color(0xFF2563EB))
+                        ) {
+                            Text(
+                                text = "Tarjeta: $creditCardAccountName",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isDarkTheme) Color(0xFFBFDBFE) else Color(0xFF1E40AF),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                    if (!paymentSourceAccountName.isNullOrBlank()) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (isDarkTheme) Color(0xFF064E3B) else Color(0xFFD1FAE5),
+                            border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFF34D399) else EmeraldGreen)
+                        ) {
+                            Text(
+                                text = "Desde: $paymentSourceAccountName",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF065F46),
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(10.dp))

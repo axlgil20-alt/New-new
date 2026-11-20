@@ -318,25 +318,29 @@ fun SmartSupermarketModule(
                         }
                     }
 
+                    val isModalDark = MaterialTheme.colorScheme.surface.red < 0.5f
+                    val scanBg = if (isModalDark) Color(0xFF064E3B) else Color(0xFFD1FAE5)
+                    val scanFg = if (isModalDark) Color(0xFFA7F3D0) else Color(0xFF065F46)
+                    val unselectedTabBg = if (isModalDark) Color(0xFF1E293B) else Color(0xFFF1F5F9)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         // Botón de Escanear Lista con IA/OCR
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = EmeraldGreen.copy(alpha = 0.15f),
-                            border = BorderStroke(1.dp, EmeraldGreen.copy(alpha = 0.4f)),
+                            color = scanBg,
+                            border = BorderStroke(1.dp, if (isModalDark) Color(0xFF34D399) else Color(0xFF059669)),
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
                                 .clickable { showScannerChoiceDialog = true }
                                 .testTag("open_scanner_button")
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.CameraAlt,
                                     contentDescription = "Escanear",
-                                    tint = EmeraldGreen,
+                                    tint = scanFg,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
@@ -344,7 +348,7 @@ fun SmartSupermarketModule(
                                     text = "Escanear",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = EmeraldGreen
+                                    color = scanFg
                                 )
                             }
                         }
@@ -353,7 +357,7 @@ fun SmartSupermarketModule(
 
                         IconButton(
                             onClick = onDismiss,
-                            modifier = Modifier.size(44.dp)
+                            modifier = Modifier.size(48.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Close,
@@ -367,13 +371,16 @@ fun SmartSupermarketModule(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 // SELECTOR DE PESTAÑAS: LISTA DE COMPRAS vs MI DESPENSA
+                val isModDark = MaterialTheme.colorScheme.surface.red < 0.5f
+                val inactiveTabBg = if (isModDark) Color(0xFF1E293B) else Color(0xFFF1F5F9)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Surface(
                         shape = RoundedCornerShape(14.dp),
-                        color = if (activeTab == 0) EmeraldGreen else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        color = if (activeTab == 0) EmeraldGreen else inactiveTabBg,
+                        border = BorderStroke(1.dp, if (activeTab == 0) EmeraldGreen else MaterialTheme.colorScheme.outlineVariant),
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(14.dp))
@@ -381,7 +388,7 @@ fun SmartSupermarketModule(
                             .testTag("tab_shopping_cart")
                     ) {
                         Row(
-                            modifier = Modifier.padding(vertical = 10.dp),
+                            modifier = Modifier.padding(vertical = 12.dp),
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -403,7 +410,8 @@ fun SmartSupermarketModule(
 
                     Surface(
                         shape = RoundedCornerShape(14.dp),
-                        color = if (activeTab == 1) EmeraldGreen else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        color = if (activeTab == 1) EmeraldGreen else inactiveTabBg,
+                        border = BorderStroke(1.dp, if (activeTab == 1) EmeraldGreen else MaterialTheme.colorScheme.outlineVariant),
                         modifier = Modifier
                             .weight(1f)
                             .clip(RoundedCornerShape(14.dp))
@@ -411,7 +419,7 @@ fun SmartSupermarketModule(
                             .testTag("tab_pantry")
                     ) {
                         Row(
-                            modifier = Modifier.padding(vertical = 10.dp),
+                            modifier = Modifier.padding(vertical = 12.dp),
                             horizontalArrangement = Arrangement.Center,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -452,12 +460,13 @@ fun SmartSupermarketModule(
                         .horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    val isStDark = MaterialTheme.colorScheme.surface.red < 0.5f
                     GUATEMALA_SUPERMARKETS.forEach { store ->
                         val isSelected = selectedStoreName.equals(store.name, ignoreCase = true)
                         Surface(
                             shape = RoundedCornerShape(16.dp),
-                            color = if (isSelected) store.badgeColor else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            border = BorderStroke(1.2.dp, if (isSelected) store.badgeColor else Color.Gray.copy(alpha = 0.3f)),
+                            color = if (isSelected) store.badgeColor else (if (isStDark) Color(0xFF1E293B) else Color(0xFFF8FAFC)),
+                            border = BorderStroke(1.2.dp, if (isSelected) store.badgeColor else MaterialTheme.colorScheme.outlineVariant),
                             modifier = Modifier
                                 .defaultMinSize(minWidth = 110.dp, minHeight = 48.dp)
                                 .clip(RoundedCornerShape(16.dp))
@@ -492,7 +501,7 @@ fun SmartSupermarketModule(
                                             val intent = Intent(Intent.ACTION_VIEW, Uri.parse(store.homeUrl))
                                             context.startActivity(intent)
                                         },
-                                        modifier = Modifier.size(28.dp)
+                                        modifier = Modifier.size(32.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.OpenInNew,
@@ -512,10 +521,13 @@ fun SmartSupermarketModule(
                 // =============================================================
                 // 3. TARJETA DE PRESUPUESTO & CONTROL FINANCIERO
                 // =============================================================
+                val isBudgetCardDark = MaterialTheme.colorScheme.surface.red < 0.5f
                 Card(
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)),
-                    border = BorderStroke(1.dp, EmeraldGreen.copy(alpha = 0.4f)),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isBudgetCardDark) Color(0xFF13261E) else Color(0xFFF0FDF4)
+                    ),
+                    border = BorderStroke(1.2.dp, if (isBudgetCardDark) Color(0xFF34D399) else Color(0xFF059669)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
@@ -772,6 +784,7 @@ fun SmartSupermarketModule(
                     val replenishTotal = yellowCount + redCount
 
                     // Barra de Resumen Semáforo
+                    val isPanDark = MaterialTheme.colorScheme.surface.red < 0.5f
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -779,8 +792,8 @@ fun SmartSupermarketModule(
                         // Verde
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFF10B981).copy(alpha = 0.15f),
-                            border = BorderStroke(1.dp, Color(0xFF10B981).copy(alpha = 0.4f)),
+                            color = if (isPanDark) Color(0xFF064E3B) else Color(0xFFD1FAE5),
+                            border = BorderStroke(1.2.dp, if (isPanDark) Color(0xFF34D399) else Color(0xFF059669)),
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(12.dp))
@@ -790,16 +803,17 @@ fun SmartSupermarketModule(
                                 modifier = Modifier.padding(8.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Text(text = "$greenCount", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, color = Color(0xFF10B981))
-                                Text(text = "Suficiente", style = MaterialTheme.typography.labelSmall, color = Color(0xFF10B981))
+                                val greenFg = if (isPanDark) Color(0xFFA7F3D0) else Color(0xFF065F46)
+                                Text(text = "$greenCount", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, color = greenFg)
+                                Text(text = "Suficiente", style = MaterialTheme.typography.labelSmall, color = greenFg, fontWeight = FontWeight.Bold)
                             }
                         }
 
                         // Amarillo
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFFF59E0B).copy(alpha = 0.15f),
-                            border = BorderStroke(1.dp, Color(0xFFF59E0B).copy(alpha = 0.4f)),
+                            color = if (isPanDark) Color(0xFF451A03) else Color(0xFFFEF3C7),
+                            border = BorderStroke(1.2.dp, if (isPanDark) Color(0xFFFBBF24) else Color(0xFFD97706)),
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(12.dp))
@@ -809,16 +823,17 @@ fun SmartSupermarketModule(
                                 modifier = Modifier.padding(8.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Text(text = "$yellowCount", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, color = Color(0xFFF59E0B))
-                                Text(text = "Queda poco", style = MaterialTheme.typography.labelSmall, color = Color(0xFFF59E0B))
+                                val yellowFg = if (isPanDark) Color(0xFFFDE68A) else Color(0xFF92400E)
+                                Text(text = "$yellowCount", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, color = yellowFg)
+                                Text(text = "Queda poco", style = MaterialTheme.typography.labelSmall, color = yellowFg, fontWeight = FontWeight.Bold)
                             }
                         }
 
                         // Rojo
                         Surface(
                             shape = RoundedCornerShape(12.dp),
-                            color = Color(0xFFEF4444).copy(alpha = 0.15f),
-                            border = BorderStroke(1.dp, Color(0xFFEF4444).copy(alpha = 0.4f)),
+                            color = if (isPanDark) Color(0xFF5C1D24) else Color(0xFFFEE2E2),
+                            border = BorderStroke(1.2.dp, if (isPanDark) Color(0xFFF87171) else Color(0xFFDC2626)),
                             modifier = Modifier
                                 .weight(1f)
                                 .clip(RoundedCornerShape(12.dp))
@@ -828,8 +843,9 @@ fun SmartSupermarketModule(
                                 modifier = Modifier.padding(8.dp),
                                 horizontalAlignment = Alignment.CenterHorizontally
                             ) {
-                                Text(text = "$redCount", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, color = Color(0xFFEF4444))
-                                Text(text = "Agotado", style = MaterialTheme.typography.labelSmall, color = Color(0xFFEF4444))
+                                val redFg = if (isPanDark) Color(0xFFFECACA) else Color(0xFF991B1B)
+                                Text(text = "$redCount", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, color = redFg)
+                                Text(text = "Agotado", style = MaterialTheme.typography.labelSmall, color = redFg, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -1182,17 +1198,18 @@ fun SmartCartItemRow(
     val store = GUATEMALA_SUPERMARKETS.find { it.name.equals(item.storeName, ignoreCase = true) }
         ?: GUATEMALA_SUPERMARKETS.last()
 
+    val isRowDark = MaterialTheme.colorScheme.surface.red < 0.5f
     Card(
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (item.isChecked)
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                (if (isRowDark) Color(0xFF14241D) else Color(0xFFF0FDF4))
             else
                 MaterialTheme.colorScheme.surface
         ),
         border = BorderStroke(
             1.dp,
-            if (item.isChecked) Color.Transparent else EmeraldGreen.copy(alpha = 0.25f)
+            if (item.isChecked) (if (isRowDark) Color(0xFF34D399) else Color(0xFF059669)) else MaterialTheme.colorScheme.outlineVariant
         ),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -1228,7 +1245,7 @@ fun SmartCartItemRow(
                         style = MaterialTheme.typography.bodyLarge,
                         fontWeight = FontWeight.Bold,
                         textDecoration = if (item.isChecked) TextDecoration.LineThrough else TextDecoration.None,
-                        color = if (item.isChecked) Color.Gray else MaterialTheme.colorScheme.onSurface,
+                        color = if (item.isChecked) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -1236,12 +1253,12 @@ fun SmartCartItemRow(
                         Spacer(modifier = Modifier.width(6.dp))
                         Surface(
                             shape = RoundedCornerShape(6.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                            color = if (isRowDark) Color(0xFF334155) else Color(0xFFE2E8F0)
                         ) {
                             Text(
                                 text = item.brand,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                             )
                         }
@@ -1259,17 +1276,17 @@ fun SmartCartItemRow(
                     Text(
                         text = " • ",
                         style = MaterialTheme.typography.bodySmall,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Surface(
                         shape = RoundedCornerShape(6.dp),
-                        color = store.badgeColor.copy(alpha = 0.15f)
+                        color = store.badgeColor
                     ) {
                         Text(
                             text = item.storeName,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = store.badgeColor,
+                            color = Color.White,
                             maxLines = 1,
                             softWrap = false,
                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -1280,7 +1297,7 @@ fun SmartCartItemRow(
                         Text(
                             text = " • ${item.priceSource.lowercase().replaceFirstChar { it.uppercase() }}",
                             style = MaterialTheme.typography.labelSmall,
-                            color = Color.Gray
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -1289,7 +1306,7 @@ fun SmartCartItemRow(
                     Text(
                         text = item.notes,
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.Gray,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -1306,19 +1323,19 @@ fun SmartCartItemRow(
                         text = FormatUtils.formatMoney(currencySymbol, itemSubtotal, isDiscreetMode),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Black,
-                        color = if (item.isChecked) IncomeGreen else MaterialTheme.colorScheme.onSurface
+                        color = if (item.isChecked) (if (isRowDark) Color(0xFF6EE7B7) else Color(0xFF065F46)) else MaterialTheme.colorScheme.onSurface
                     )
                     Text(
                         text = "@ ${FormatUtils.formatMoney(currencySymbol, item.estimatedUnitPrice, isDiscreetMode)}",
                         style = MaterialTheme.typography.labelSmall,
-                        color = Color.Gray
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 } else {
                     Text(
                         text = "Sin precio",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
-                        color = Color(0xFFD97706)
+                        color = if (isRowDark) Color(0xFFFCD34D) else Color(0xFFB45309)
                     )
                 }
             }
@@ -1336,12 +1353,12 @@ fun SmartCartItemRow(
                         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(searchUrl))
                         context.startActivity(intent)
                     },
-                    modifier = Modifier.size(40.dp)
+                    modifier = Modifier.size(48.dp)
                 ) {
                     Icon(
                         imageVector = Icons.Default.Search,
                         contentDescription = "Cotizar en tienda",
-                        tint = store.badgeColor,
+                        tint = if (isRowDark) Color(0xFF93C5FD) else store.badgeColor,
                         modifier = Modifier.size(18.dp)
                     )
                 }
@@ -1350,7 +1367,7 @@ fun SmartCartItemRow(
             // Editar
             IconButton(
                 onClick = onEdit,
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier.size(48.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Edit,
@@ -1363,12 +1380,12 @@ fun SmartCartItemRow(
             // Eliminar
             IconButton(
                 onClick = onDelete,
-                modifier = Modifier.size(40.dp)
+                modifier = Modifier.size(48.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Delete,
                     contentDescription = "Eliminar",
-                    tint = ExpenseRed.copy(alpha = 0.8f),
+                    tint = MaterialTheme.colorScheme.error,
                     modifier = Modifier.size(18.dp)
                 )
             }

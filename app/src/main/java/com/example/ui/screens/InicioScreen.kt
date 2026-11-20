@@ -69,6 +69,7 @@ import androidx.compose.ui.unit.sp
 import com.example.R
 import com.example.data.model.TransactionEntity
 import com.example.ui.components.CategoryBreakdownChart
+import com.example.ui.components.CompactAccountsSummaryCard
 import com.example.ui.components.CompactPaymentsSummaryCard
 import com.example.ui.components.DashboardVisualChartsCard
 import com.example.ui.components.FinancialSummaryCard
@@ -81,6 +82,7 @@ import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.TentativePurple
 import com.example.ui.util.FormatUtils
 import com.example.ui.util.BudgetLimitCalculator
+import com.example.ui.viewmodel.AccountsUiState
 import com.example.ui.viewmodel.BudgetUiState
 import java.util.Locale
 
@@ -116,6 +118,9 @@ fun InicioScreen(
     onToggleDarkTheme: () -> Unit = {},
     onOpenSmartCartClick: () -> Unit = {},
     onOpenPaymentsClick: () -> Unit = {},
+    onOpenAccountsClick: () -> Unit = {},
+    accountsState: AccountsUiState? = null,
+    accountNameById: Map<Long, String> = emptyMap(),
     onOpenDrawer: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -391,6 +396,20 @@ fun InicioScreen(
                         onOpenPayments = onOpenPaymentsClick,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
                     )
+                }
+
+                // 4c. Resumen Compacto de Mis Cuentas y Patrimonio
+                if (accountsState != null) {
+                    item {
+                        CompactAccountsSummaryCard(
+                            accountsState = accountsState,
+                            currencySymbol = uiState.currencySymbol,
+                            isDiscreetMode = uiState.isDiscreetMode,
+                            isDarkTheme = uiState.isDarkTheme,
+                            onOpenAccounts = onOpenAccountsClick,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp)
+                        )
+                    }
                 }
 
                 // 5. Alertas de Presupuesto Excedido o Déficit en Simulación
@@ -697,7 +716,8 @@ fun InicioScreen(
                                 onDelete = { onDeleteTransaction(tx) },
                                 onHighlight = { colorHex -> onHighlightTransaction(tx, colorHex) },
                                 onToggleVerify = { onToggleVerifyTransaction(tx) },
-                                onDecideTentative = { decision -> onDecideTentative(tx, decision) }
+                                onDecideTentative = { decision -> onDecideTentative(tx, decision) },
+                                accountName = tx.accountId?.let { accountNameById[it] }
                             )
                         }
                     }

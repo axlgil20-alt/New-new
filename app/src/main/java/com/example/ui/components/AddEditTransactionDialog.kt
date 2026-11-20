@@ -8,6 +8,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.example.data.model.FinancialAccountEntity
 import com.example.data.model.TransactionEntity
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -15,6 +16,8 @@ import com.example.data.model.TransactionEntity
 fun AddEditTransactionDialog(
     transaction: TransactionEntity? = null,
     currencySymbol: String = "Q ",
+    accounts: List<FinancialAccountEntity> = emptyList(),
+    initialAccountId: Long? = null,
     onDismiss: () -> Unit,
     onSave: (TransactionEntity) -> Unit
 ) {
@@ -26,6 +29,8 @@ fun AddEditTransactionDialog(
             TransactionInputForm(
                 initialTransaction = transaction,
                 currencySymbol = currencySymbol,
+                accounts = accounts,
+                initialAccountId = initialAccountId,
                 onCancel = onDismiss,
                 onSave = {
                     onSave(it)

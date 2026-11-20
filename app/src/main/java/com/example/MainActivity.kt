@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBalance
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.CalendarMonth
@@ -57,11 +58,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.components.AboutQuetziDialog
 import com.example.ui.components.NotificationsSettingsDialog
 import com.example.ui.components.PrivacySecurityDialog
+import com.example.ui.screens.AccountsScreen
 import com.example.ui.screens.FinancialAdvisorScreen
 import com.example.ui.screens.PaymentsScreen
 import com.example.ui.screens.SmartCartScreen
@@ -97,10 +100,12 @@ import com.example.ui.screens.SplashScreen
 import com.example.ui.screens.TransactionsScreen
 import com.example.ui.theme.PresupuestoTheme
 import com.example.ui.util.TermsAcceptanceManager
+import com.example.ui.viewmodel.AccountsViewModel
 import com.example.ui.viewmodel.BudgetViewModel
 
 class MainActivity : ComponentActivity() {
     private val viewModel: BudgetViewModel by viewModels()
+    private val accountsViewModel: AccountsViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -108,12 +113,17 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val uiState by viewModel.uiState.collectAsState()
+            val accountsState by accountsViewModel.uiState.collectAsState()
+            val accountNameById = remember(accountsState.allAccounts) {
+                accountsState.allAccounts.associate { it.id to it.name }
+            }
             val snackbarHostState = remember { SnackbarHostState() }
             val coroutineScope = rememberCoroutineScope()
 
             var selectedTab by remember { mutableIntStateOf(0) }
             var showAddTransactionDialog by remember { mutableStateOf(false) }
             var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
+            var preselectedAccountIdForNewTx by remember { mutableStateOf<Long?>(null) }
             var showAddAntExpenseDialog by remember { mutableStateOf(false) }
             var showBudgetLimitDialog by remember { mutableStateOf(false) }
             var budgetLimitBeingEdited by remember { mutableStateOf<com.example.data.model.BudgetLimitEntity?>(null) }
@@ -147,6 +157,13 @@ class MainActivity : ComponentActivity() {
                 uiState.userMessage?.let { msg ->
                     Toast.makeText(this@MainActivity, msg, Toast.LENGTH_SHORT).show()
                     viewModel.clearMessage()
+                }
+            }
+            LaunchedEffect(accountsState.successMessage, accountsState.errorMessage) {
+                val msg = accountsState.errorMessage ?: accountsState.successMessage
+                if (!msg.isNullOrBlank()) {
+                    Toast.makeText(this@MainActivity, msg, Toast.LENGTH_SHORT).show()
+                    accountsViewModel.clearMessages()
                 }
             }
 
@@ -243,6 +260,19 @@ class MainActivity : ComponentActivity() {
                                     color = EmeraldGreen,
                                     letterSpacing = 1.sp,
                                     modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+                                )
+
+                                NavigationDrawerItem(
+                                    label = { Text("Mis Cuentas", fontWeight = FontWeight.SemiBold) },
+                                    icon = { Icon(Icons.Default.AccountBalance, contentDescription = null, tint = EmeraldGreen) },
+                                    selected = selectedTab == 8,
+                                    onClick = {
+                                        coroutineScope.launch { drawerState.close() }
+                                        selectedTab = 8
+                                    },
+                                    modifier = Modifier
+                                        .padding(NavigationDrawerItemDefaults.ItemPadding)
+                                        .testTag("drawer_mis_cuentas")
                                 )
 
                                 NavigationDrawerItem(
@@ -387,6 +417,7 @@ class MainActivity : ComponentActivity() {
                             },
                             onAddFullTransaction = {
                                 editingTransaction = null
+                                preselectedAccountIdForNewTx = null
                                 showAddTransactionDialog = true
                             }
                         )
@@ -526,12 +557,14 @@ class MainActivity : ComponentActivity() {
                                 onToggleDarkTheme = { viewModel.toggleDarkTheme() },
                                 onAddTransactionClick = {
                                     editingTransaction = null
+                                    preselectedAccountIdForNewTx = null
                                     showAddTransactionDialog = true
                                 },
                                 onAddAntExpenseClick = { showAddAntExpenseDialog = true },
                                 onOpenAdvisorClick = { selectedTab = 3 },
                                 onEditTransaction = { tx ->
                                     editingTransaction = tx
+                                    preselectedAccountIdForNewTx = null
                                     showAddTransactionDialog = true
                                 },
                                 onDeleteTransaction = { tx -> viewModel.deleteTransaction(tx) },
@@ -540,6 +573,9 @@ class MainActivity : ComponentActivity() {
                                 onDecideTentative = { tx, decision -> viewModel.decideTentativeTransaction(tx, decision) },
                                 onOpenSmartCartClick = { selectedTab = 7 },
                                 onOpenPaymentsClick = { selectedTab = 5 },
+                                onOpenAccountsClick = { selectedTab = 8 },
+                                accountsState = accountsState,
+                                accountNameById = accountNameById,
                                 onOpenDrawer = { coroutineScope.launch { drawerState.open() } }
                             )
 
@@ -555,10 +591,12 @@ class MainActivity : ComponentActivity() {
                                 onToggleOnlyHighlighted = { h -> viewModel.setOnlyHighlighted(h) },
                                 onAddTransactionClick = {
                                     editingTransaction = null
+                                    preselectedAccountIdForNewTx = null
                                     showAddTransactionDialog = true
                                 },
                                 onEditTransaction = { tx ->
                                     editingTransaction = tx
+                                    preselectedAccountIdForNewTx = null
                                     showAddTransactionDialog = true
                                 },
                                 onDeleteTransaction = { tx -> viewModel.deleteTransaction(tx) },
@@ -578,7 +616,8 @@ class MainActivity : ComponentActivity() {
                                 onFilterDuplicatesModeChange = { m -> viewModel.setFilterDuplicatesMode(m) },
                                 onClearAllFilters = { viewModel.clearAllFilters() },
                                 onDeleteTransactions = { ids -> viewModel.deleteTransactions(ids) },
-                                onMarkTransactionsAsLegitimate = { ids -> viewModel.markTransactionsAsLegitimate(ids) }
+                                onMarkTransactionsAsLegitimate = { ids -> viewModel.markTransactionsAsLegitimate(ids) },
+                                accountNameById = accountNameById
                             )
 
                             2 -> {
@@ -617,6 +656,7 @@ class MainActivity : ComponentActivity() {
                                 onOpenQuincenas = { selectedTab = 2 },
                                 onOpenLimits = { selectedTab = 6 },
                                 onOpenSmartCart = { selectedTab = 7 },
+                                onOpenAccounts = { selectedTab = 8 },
                                 onSaveIncomeToBudget = { title, amountGtq, note ->
                                     viewModel.addTransaction(
                                         com.example.data.model.TransactionEntity(
@@ -647,8 +687,21 @@ class MainActivity : ComponentActivity() {
                                 BackHandler { selectedTab = 0 }
                                 PaymentsScreen(
                                     uiState = uiState,
-                                    onAddPayment = { title, ben, desc, amt, due, cat, freq, isVar, rem, notes ->
-                                        viewModel.addPaymentCommitment(title, ben, desc, amt, due, cat, freq, isVar, rem, notes)
+                                    onAddPayment = { title, ben, desc, amt, due, cat, freq, isVar, rem, notes, cardId, sourceId ->
+                                        viewModel.addPaymentCommitment(
+                                            title = title,
+                                            beneficiaryName = ben,
+                                            description = desc,
+                                            amount = amt,
+                                            dueDateMillis = due,
+                                            category = cat,
+                                            frequency = freq,
+                                            isVariableAmount = isVar,
+                                            reminderDaysBefore = rem,
+                                            notes = notes,
+                                            creditCardAccountId = cardId,
+                                            paymentSourceAccountId = sourceId
+                                        )
                                     },
                                     onMarkAsPaid = { id -> viewModel.markPaymentAsPaid(id) },
                                     onUpdatePayment = { p -> viewModel.updatePaymentCommitment(p) },
@@ -657,7 +710,9 @@ class MainActivity : ComponentActivity() {
                                         viewModel.addBeneficiary(name, cat, desc, cont, notes)
                                     },
                                     onUpdateBeneficiary = { ben -> viewModel.updateBeneficiary(ben) },
-                                    onDeleteBeneficiary = { ben -> viewModel.deleteBeneficiary(ben) }
+                                    onDeleteBeneficiary = { ben -> viewModel.deleteBeneficiary(ben) },
+                                    accountNameById = accountNameById,
+                                    accounts = accountsState.activeAccounts
                                 )
                             }
 
@@ -729,6 +784,93 @@ class MainActivity : ComponentActivity() {
                                     }
                                 )
                             }
+
+                            8 -> {
+                                BackHandler { selectedTab = 0 }
+                                AccountsScreen(
+                                    accountsState = accountsState,
+                                    pendingCommitments = uiState.paymentCommitments.filter { !it.isPaid },
+                                    currencySymbol = uiState.currencySymbol,
+                                    isDiscreetMode = uiState.isDiscreetMode,
+                                    isDarkTheme = uiState.isDarkTheme,
+                                    onBack = { selectedTab = 0 },
+                                    onSelectAccount = { id -> accountsViewModel.selectAccount(id) },
+                                    onCreateAccount = { name, type, inst, last4, openMinor, limitMinor, cutoff, due, policy, autoRem, incLiq, isDef, notes ->
+                                        accountsViewModel.createAccount(
+                                            name = name,
+                                            accountType = type,
+                                            institutionName = inst,
+                                            lastFourDigits = last4,
+                                            openingBalanceMinor = openMinor,
+                                            creditLimitMinor = limitMinor,
+                                            cutoffDay = cutoff,
+                                            paymentDueDay = due,
+                                            installmentReservePolicy = policy,
+                                            autoCreatePaymentReminder = autoRem,
+                                            includeInTotalLiquidity = incLiq,
+                                            isDefault = isDef,
+                                            notes = notes
+                                        )
+                                    },
+                                    onUpdateAccount = { acc -> accountsViewModel.updateAccount(acc) },
+                                    onArchiveAccount = { id -> accountsViewModel.archiveAccount(id) },
+                                    onUnarchiveAccount = { id -> accountsViewModel.unarchiveAccount(id) },
+                                    onAdjustBalance = { accId, targetMinor, notes ->
+                                        accountsViewModel.adjustAccountBalance(accId, targetMinor, notes)
+                                    },
+                                    onTransfer = { fromId, toId, amtMinor, title, notes ->
+                                        accountsViewModel.transferBetweenAccounts(fromId, toId, amtMinor, title, notes)
+                                    },
+                                    onPayCard = { srcId, cardId, amtMinor, linkedCommId, notes ->
+                                        accountsViewModel.payCreditCard(srcId, cardId, amtMinor, notes = notes, linkedCommitmentId = linkedCommId)
+                                    },
+                                    onSyncCardReminder = { cardId ->
+                                        accountsViewModel.syncCreditCardStatementReminder(cardId)
+                                    },
+                                    onRecordCardPurchase = { cardId, title, amtMinor, cat, member, notes, enforce ->
+                                        accountsViewModel.recordCreditCardPurchase(cardId, title, amtMinor, cat, familyMember = member, notes = notes, enforceCreditLimit = enforce)
+                                    },
+                                    onRecordCardInterest = { cardId, title, amtMinor, cat, notes ->
+                                        accountsViewModel.recordCreditCardInterestOrFee(cardId, title, amtMinor, cat, notes = notes)
+                                    },
+                                    onCreateInstallmentPlan = { cardId, title, merchant, cat, principalMinor, count, rateBps, policyOverride, postFirst, member, notes ->
+                                        accountsViewModel.createInstallmentPlan(
+                                            cardAccountId = cardId,
+                                            title = title,
+                                            merchantName = merchant,
+                                            category = cat,
+                                            principalTotalMinor = principalMinor,
+                                            installmentsCount = count,
+                                            annualInterestRateBps = rateBps,
+                                            policyOverride = policyOverride,
+                                            postFirstInstallmentImmediately = postFirst,
+                                            familyMember = member,
+                                            notes = notes
+                                        )
+                                    },
+                                    onPostInstallmentCharge = { planId, num ->
+                                        accountsViewModel.postInstallmentCharge(planId, num)
+                                    },
+                                    onPostDueInstallments = { accId ->
+                                        accountsViewModel.postDueInstallments(accountId = accId)
+                                    },
+                                    onCloseInstallmentPlan = { planId, paidOff ->
+                                        accountsViewModel.cancelOrPayOffInstallmentPlan(planId, paidOff)
+                                    },
+                                    onAssignTransaction = { txId, accId ->
+                                        accountsViewModel.assignAccountToTransaction(txId, accId)
+                                    },
+                                    onImportCsvToAccount = { csv, targetAccId ->
+                                        accountsViewModel.importCsvToAccount(csv, targetAccId)
+                                    },
+                                    onExportCsv = { viewModel.getCsvExport() },
+                                    onAddStandardMovementForAccount = { acc ->
+                                        editingTransaction = null
+                                        preselectedAccountIdForNewTx = acc.id
+                                        showAddTransactionDialog = true
+                                    }
+                                )
+                            }
                         }
                     }
 
@@ -737,9 +879,12 @@ class MainActivity : ComponentActivity() {
                         AddEditTransactionDialog(
                             transaction = editingTransaction,
                             currencySymbol = uiState.currencySymbol,
+                            accounts = accountsState.activeAccounts,
+                            initialAccountId = preselectedAccountIdForNewTx,
                             onDismiss = {
                                 showAddTransactionDialog = false
                                 editingTransaction = null
+                                preselectedAccountIdForNewTx = null
                             },
                             onSave = { tx ->
                                 if (editingTransaction == null) {
