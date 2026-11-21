@@ -1,17 +1,20 @@
 package com.example.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
+import android.app.DatePickerDialog
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import com.example.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -32,9 +35,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Business
+import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
@@ -45,6 +48,7 @@ import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
@@ -52,7 +56,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -70,6 +73,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -82,7 +86,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.BeneficiaryEntity
@@ -97,7 +100,9 @@ import com.example.ui.components.AddEditPaymentDialog
 import com.example.ui.components.BeneficiariesDialog
 import com.example.ui.components.PaymentCommitmentStack
 import com.example.ui.components.PaymentCommitmentStackLogic
+import com.example.ui.components.PostponePreset
 import com.example.ui.theme.EmeraldGreen
+import com.example.ui.theme.JadeGreen
 import com.example.ui.util.FormatUtils
 import com.example.ui.viewmodel.BudgetUiState
 import java.text.SimpleDateFormat
@@ -124,6 +129,7 @@ fun PaymentsScreen(
         paymentSourceAccountId: Long?
     ) -> Unit,
     onMarkAsPaid: (Long) -> Unit,
+    onPostponePayment: (PaymentCommitmentEntity, Long, String) -> Unit = { _, _, _ -> },
     onUpdatePayment: (PaymentCommitmentEntity) -> Unit,
     onDeletePayment: (PaymentCommitmentEntity) -> Unit,
     onAddBeneficiary: (name: String, category: String, description: String, contact: String, notes: String) -> Unit,
@@ -142,7 +148,8 @@ fun PaymentsScreen(
     var selectedCommitmentId by remember { mutableStateOf<Long?>(null) }
     var commitmentForDetail by remember { mutableStateOf<PaymentCommitmentEntity?>(null) }
     var commitmentForPayConfirmation by remember { mutableStateOf<PaymentCommitmentEntity?>(null) }
-    var showFullCommitmentsList by remember { mutableStateOf(true) }
+    var commitmentForPostponeConfirmation by remember { mutableStateOf<PaymentCommitmentEntity?>(null) }
+    var showFullCommitmentsList by remember { mutableStateOf(false) }
 
     val now = remember { System.currentTimeMillis() }
     val (todayStart, todayEnd) = remember(now) { com.example.ui.util.QuincenaFilterHelper.getDayRange(now) }
@@ -232,9 +239,9 @@ fun PaymentsScreen(
             1.0f to Color(0x2CFAF5ED)
         )
     }
-    val secondaryCardSurface = if (isDark) Color(0xFF1E293B).copy(alpha = 0.85f) else Color.White.copy(alpha = 0.86f)
-    val searchFieldSurface = if (isDark) Color(0xFF1E293B).copy(alpha = 0.88f) else Color.White.copy(alpha = 0.88f)
-    val cardBorder = if (isDark) Color(0xFF334155) else Color(0xFFD6E4DF)
+    val secondaryCardSurface = if (isDark) Color(0xFF0E2620) else Color(0xFFF6FBF9)
+    val searchFieldSurface = if (isDark) Color(0xFF0A241E) else Color(0xFFFFFFFF)
+    val cardBorder = if (isDark) Color(0xFF10B981) else Color(0xFF86C5B0)
     val accentEmeraldText = if (isDark) Color(0xFF6EE7B7) else Color(0xFF065F46)
     val accentEmeraldTint = if (isDark) Color(0xFF34D399) else EmeraldGreen
     val heroTextShadow = Shadow(color = Color(0xD9000000), offset = Offset(0f, 2f), blurRadius = 6f)
@@ -304,7 +311,7 @@ fun PaymentsScreen(
         }
 
         Column(modifier = Modifier.fillMaxSize()) {
-            // Barra superior de PAGOS integrada sobre la fotografía
+            // Barra superior de PAGOS sin encimamientos ni truncamientos sobre Palacio Nacional
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -330,31 +337,27 @@ fun PaymentsScreen(
                                 style = MaterialTheme.typography.titleLarge.copy(shadow = heroTextShadow),
                                 fontWeight = FontWeight.Black,
                                 color = Color.White,
-                                letterSpacing = 0.5.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                letterSpacing = 0.5.sp
                             )
                             Text(
                                 text = "Compromisos Familiares",
                                 style = MaterialTheme.typography.labelSmall.copy(shadow = heroTextShadow),
-                                color = Color(0xFFF1F5F9),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                color = Color(0xFFF1F5F9)
                             )
                         }
                     }
                 },
                 actions = {
-                    // Botón Directorio de Beneficiarios con fondo sólido institucional de alto contraste
+                    // Icono compacto para Beneficiarios (sin competir por texto en TopAppBar)
                     OutlinedButton(
                         onClick = { showBeneficiariesDialog = true },
                         shape = RoundedCornerShape(10.dp),
                         colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (isDark) Color(0xFF0E2921) else Color(0xFF063729),
+                            containerColor = if (isDark) Color(0xFF0A241E) else Color(0xFF063729),
                             contentColor = Color.White
                         ),
                         border = BorderStroke(1.2.dp, Color(0xFF6EE7B7)),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                         modifier = Modifier
                             .heightIn(min = 48.dp)
                             .padding(end = 6.dp)
@@ -362,18 +365,16 @@ fun PaymentsScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Business,
-                            contentDescription = null,
+                            contentDescription = "Directorio de Beneficiarios",
                             tint = Color.White,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "Beneficiarios",
+                            text = "Benef.",
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            color = Color.White
                         )
                     }
 
@@ -389,7 +390,7 @@ fun PaymentsScreen(
                         ),
                         border = BorderStroke(1.dp, Color(0xFF6EE7B7)),
                         shape = RoundedCornerShape(10.dp),
-                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                         modifier = Modifier
                             .heightIn(min = 48.dp)
                             .padding(end = 8.dp)
@@ -397,7 +398,7 @@ fun PaymentsScreen(
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Pago", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Text("Pago", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
@@ -405,10 +406,10 @@ fun PaymentsScreen(
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = 42.dp, bottom = 24.dp),
+                contentPadding = PaddingValues(top = 18.dp, bottom = 92.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                // A. RESUMEN SUPERIOR: 4 tarjetas métricas con alta legibilidad sobre Palacio Nacional y Parque Central de Antigua
+                // A. RESUMEN SUPERIOR: 4 tarjetas métricas 100% opacas con acento Mazo de Jade
                 item {
                     Column(
                         modifier = Modifier
@@ -426,7 +427,7 @@ fun PaymentsScreen(
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(16.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = (if (isDark) Color(0xFF261D17) else Color(0xFFFFFBEB)).copy(alpha = if (isDark) 0.89f else 0.91f)
+                                    containerColor = if (isDark) Color(0xFF2B200C) else Color(0xFFFFFBEB)
                                 ),
                                 border = BorderStroke(1.2.dp, if (isDark) Color(0xFFF59E0B) else Color(0xFFD97706)),
                                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
@@ -462,14 +463,14 @@ fun PaymentsScreen(
                                 }
                             }
 
-                            // Pagados este mes
+                            // Pagados este mes (100% opaco)
                             Card(
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(16.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = (if (isDark) Color(0xFF13261E) else Color(0xFFF0FDF4)).copy(alpha = if (isDark) 0.89f else 0.91f)
+                                    containerColor = if (isDark) Color(0xFF0A241E) else Color(0xFFECFDF5)
                                 ),
-                                border = BorderStroke(1.2.dp, if (isDark) Color(0xFF34D399) else Color(0xFF059669)),
+                                border = BorderStroke(1.2.dp, if (isDark) Color(0xFF34D399) else JadeGreen),
                                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
                             ) {
                                 Column(modifier = Modifier.padding(14.dp)) {
@@ -509,14 +510,14 @@ fun PaymentsScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            // Próximos
+                            // Próximos (100% opaco)
                             Card(
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(14.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = (if (isDark) Color(0xFF1B2433) else Color(0xFFEFF6FF)).copy(alpha = if (isDark) 0.89f else 0.91f)
+                                    containerColor = if (isDark) Color(0xFF0D2D27) else Color(0xFFF0FDFA)
                                 ),
-                                border = BorderStroke(1.2.dp, if (isDark) Color(0xFF60A5FA) else Color(0xFF2563EB)),
+                                border = BorderStroke(1.2.dp, if (isDark) Color(0xFF2DD4BF) else Color(0xFF0F766E)),
                                 elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
                             ) {
                                 Row(
@@ -527,13 +528,13 @@ fun PaymentsScreen(
                                 ) {
                                     Surface(
                                         shape = RoundedCornerShape(8.dp),
-                                        color = if (isDark) Color(0xFF1E3A8A) else Color(0xFFDBEAFE),
+                                        color = if (isDark) Color(0xFF064E3B) else Color(0xFFCCFBF1),
                                         modifier = Modifier.size(36.dp)
                                     ) {
                                         Icon(
                                             imageVector = Icons.Default.HourglassTop,
                                             contentDescription = null,
-                                            tint = if (isDark) Color(0xFFBFDBFE) else Color(0xFF1D4ED8),
+                                            tint = if (isDark) Color(0xFF99F6E4) else Color(0xFF0F766E),
                                             modifier = Modifier
                                                 .padding(8.dp)
                                                 .size(20.dp)
@@ -545,7 +546,7 @@ fun PaymentsScreen(
                                             text = "${uiState.upcomingPaymentsCount} Próximos",
                                             style = MaterialTheme.typography.titleSmall,
                                             fontWeight = FontWeight.Bold,
-                                            color = if (isDark) Color(0xFFDBEAFE) else Color(0xFF1E3A8A)
+                                            color = if (isDark) Color(0xFFCCFBF1) else Color(0xFF115E59)
                                         )
                                         Text(
                                             text = "Vencen en 7 días",
@@ -556,17 +557,17 @@ fun PaymentsScreen(
                                 }
                             }
 
-                            // Vencidos
+                            // Vencidos (100% opaco)
                             val overdueCount = uiState.overduePaymentsCount
-                            val overdueCardBg = (if (overdueCount > 0) {
-                                if (isDark) Color(0xFF3B1518) else Color(0xFFFEF2F2)
+                            val overdueCardBg = if (overdueCount > 0) {
+                                if (isDark) Color(0xFF2B1418) else Color(0xFFFEF2F2)
                             } else {
-                                if (isDark) Color(0xFF13261E) else Color(0xFFF0FDF4)
-                            }).copy(alpha = if (isDark) 0.89f else 0.91f)
+                                if (isDark) Color(0xFF0A241E) else Color(0xFFECFDF5)
+                            }
                             val overdueCardBorder = if (overdueCount > 0) {
                                 if (isDark) Color(0xFFF87171) else Color(0xFFDC2626)
                             } else {
-                                if (isDark) Color(0xFF34D399) else Color(0xFF059669)
+                                if (isDark) Color(0xFF34D399) else JadeGreen
                             }
                             val overdueIconBg = if (overdueCount > 0) {
                                 if (isDark) Color(0xFF5C1D24) else Color(0xFFFEE2E2)
@@ -681,15 +682,15 @@ fun PaymentsScreen(
                                             )
                                         },
                                         colors = FilterChipDefaults.filterChipColors(
-                                            containerColor = if (isDark) Color(0xFF0F172A).copy(alpha = 0.85f) else Color(0xFFF8FAFC).copy(alpha = 0.88f),
-                                            labelColor = if (isDark) Color(0xFFE2E8F0) else Color(0xFF1E293B),
+                                            containerColor = if (isDark) Color(0xFF07231C) else Color(0xFFEBF7F2),
+                                            labelColor = if (isDark) Color(0xFFE2E8F0) else Color(0xFF064E3B),
                                             selectedContainerColor = EmeraldGreen,
                                             selectedLabelColor = Color.White
                                         ),
                                         border = FilterChipDefaults.filterChipBorder(
                                             enabled = true,
                                             selected = isSelected,
-                                            borderColor = if (isDark) Color(0xFF475569) else Color(0xFFCBD5E1),
+                                            borderColor = if (isDark) Color(0xFF10B981) else Color(0xFF86C5B0),
                                             selectedBorderColor = if (isDark) Color(0xFF34D399) else EmeraldGreen
                                         ),
                                         shape = RoundedCornerShape(10.dp),
@@ -830,6 +831,7 @@ fun PaymentsScreen(
                             resetActionsKey = swipeResetKey,
                             onSelectCommitment = { id -> selectedCommitmentId = id },
                             onRequestPay = { commitment -> commitmentForPayConfirmation = commitment },
+                            onRequestPostpone = { commitment -> commitmentForPostponeConfirmation = commitment },
                             onViewDetail = { commitment ->
                                 selectedCommitmentId = commitment.id
                                 commitmentForDetail = commitment
@@ -837,6 +839,10 @@ fun PaymentsScreen(
                             onEditCommitment = { commitment ->
                                 selectedCommitmentId = commitment.id
                                 commitmentToEdit = commitment
+                                showAddEditDialog = true
+                            },
+                            onAddNewPayment = {
+                                commitmentToEdit = null
                                 showAddEditDialog = true
                             },
                             modifier = Modifier.padding(horizontal = 16.dp)
@@ -861,10 +867,10 @@ fun PaymentsScreen(
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Text(
-                                        text = "Todos los compromisos (${sortedDisplayList.size})",
+                                        text = "Lista completa (${sortedDisplayList.size})",
                                         style = MaterialTheme.typography.titleSmall,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (isDark) Color(0xFFF8FAFC) else Color(0xFF0F172A),
+                                        color = if (isDark) Color(0xFFECFDF5) else Color(0xFF022C22),
                                         modifier = Modifier.weight(1f)
                                     )
                                     FilterChip(
@@ -877,6 +883,7 @@ fun PaymentsScreen(
                                             )
                                         },
                                         colors = FilterChipDefaults.filterChipColors(
+                                            containerColor = if (isDark) Color(0xFF07231C) else Color(0xFFEBF7F2),
                                             selectedContainerColor = EmeraldGreen,
                                             selectedLabelColor = Color.White
                                         ),
@@ -904,6 +911,10 @@ fun PaymentsScreen(
                                         selectedCommitmentId = commitment.id
                                         commitmentForPayConfirmation = commitment
                                     },
+                                    onPostpone = {
+                                        selectedCommitmentId = commitment.id
+                                        commitmentForPostponeConfirmation = commitment
+                                    },
                                     onEdit = {
                                         selectedCommitmentId = commitment.id
                                         commitmentToEdit = commitment
@@ -922,7 +933,7 @@ fun PaymentsScreen(
         }
     }
 
-    // Modal Confirmación Segura de Pago (previene ejecución directa por swipe y protege contra duplicados)
+    // Modal Confirmación Segura de Pago
     commitmentForPayConfirmation?.let { target ->
         val latest = allPayments.firstOrNull { it.id == target.id } ?: target
         ConfirmPaymentDialog(
@@ -942,6 +953,23 @@ fun PaymentsScreen(
         )
     }
 
+    // Modal Posponer Compromiso con Opciones y Confirmación
+    commitmentForPostponeConfirmation?.let { target ->
+        val latest = allPayments.firstOrNull { it.id == target.id } ?: target
+        ConfirmPostponePaymentDialog(
+            commitment = latest,
+            isDarkTheme = uiState.isDarkTheme,
+            nowMillis = now,
+            onDismiss = { commitmentForPostponeConfirmation = null },
+            onConfirmPostpone = { newDueMillis, optionLabel ->
+                if (PaymentCommitmentStackLogic.canPayCommitment(latest)) {
+                    onPostponePayment(latest, newDueMillis, optionLabel)
+                }
+                commitmentForPostponeConfirmation = null
+            }
+        )
+    }
+
     // Modal Detalle de Compromiso
     commitmentForDetail?.let { target ->
         val latest = allPayments.firstOrNull { it.id == target.id } ?: target
@@ -956,6 +984,10 @@ fun PaymentsScreen(
             onRequestPay = {
                 commitmentForDetail = null
                 commitmentForPayConfirmation = latest
+            },
+            onRequestPostpone = {
+                commitmentForDetail = null
+                commitmentForPostponeConfirmation = latest
             },
             onEdit = {
                 commitmentForDetail = null
@@ -1043,6 +1075,7 @@ fun PaymentCommitmentCard(
     isHighlighted: Boolean = false,
     onCardClick: (() -> Unit)? = null,
     onViewDetail: (() -> Unit)? = null,
+    onPostpone: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val now = remember { System.currentTimeMillis() }
@@ -1112,9 +1145,9 @@ fun PaymentCommitmentCard(
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isPaid) {
-                if (isDarkTheme) Color(0xFF14241D).copy(alpha = 0.90f) else Color(0xFFF2FAF6).copy(alpha = 0.92f)
+                if (isDarkTheme) Color(0xFF0B241D) else Color(0xFFECFDF5)
             } else {
-                if (isDarkTheme) Color(0xFF1E293B).copy(alpha = 0.89f) else Color.White.copy(alpha = 0.91f)
+                if (isDarkTheme) Color(0xFF0E2620) else Color(0xFFF7FCFA)
             }
         ),
         border = BorderStroke(if (isHighlighted) 2.dp else 1.2.dp, cardBorderColor),
@@ -1152,9 +1185,7 @@ fun PaymentCommitmentCard(
                             text = commitment.beneficiaryName,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = primaryText,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            color = primaryText
                         )
                         Text(
                             text = commitment.category,
@@ -1360,25 +1391,45 @@ fun PaymentCommitmentCard(
                 }
 
                 if (!isPaid) {
-                    Button(
-                        onClick = onMarkAsPaid,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = EmeraldGreen,
-                            contentColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier
-                            .heightIn(min = 48.dp)
-                            .testTag("mark_as_paid_button_${commitment.id}")
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.CheckCircle,
-                            contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Marcar como Pagado", color = Color.White, fontWeight = FontWeight.Bold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        if (onPostpone != null) {
+                            OutlinedButton(
+                                onClick = onPostpone,
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFFFBBF24) else Color(0xFFD97706)),
+                                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                                modifier = Modifier
+                                    .heightIn(min = 48.dp)
+                                    .testTag("list_postpone_button_${commitment.id}")
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Update,
+                                    contentDescription = "Posponer",
+                                    tint = if (isDarkTheme) Color(0xFFFDE68A) else Color(0xFF92400E),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+                        Button(
+                            onClick = onMarkAsPaid,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = EmeraldGreen,
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier
+                                .heightIn(min = 48.dp)
+                                .testTag("mark_as_paid_button_${commitment.id}")
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Pagar", color = Color.White, fontWeight = FontWeight.Bold)
+                        }
                     }
                 } else {
                     Surface(
@@ -1423,9 +1474,9 @@ private fun ConfirmPaymentDialog(
     onConfirmPay: () -> Unit
 ) {
     val dateFormatter = remember { SimpleDateFormat("dd 'de' MMM, yyyy", Locale("es", "GT")) }
-    val dialogBg = if (isDarkTheme) Color(0xFF1E293B) else Color.White
-    val primaryText = if (isDarkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
-    val secondaryText = if (isDarkTheme) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val dialogBg = if (isDarkTheme) Color(0xFF0E2620) else Color(0xFFF7FCFA)
+    val primaryText = if (isDarkTheme) Color(0xFFECFDF5) else Color(0xFF022C22)
+    val secondaryText = if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF335C4F)
     val canPay = PaymentCommitmentStackLogic.canPayCommitment(commitment)
     val displayAmount = PaymentCommitmentStackLogic.displayAmountForCommitment(commitment)
 
@@ -1456,8 +1507,8 @@ private fun ConfirmPaymentDialog(
                 )
                 Surface(
                     shape = RoundedCornerShape(12.dp),
-                    color = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF8FAFC),
-                    border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFF334155) else Color(0xFFCBD5E1)),
+                    color = if (isDarkTheme) Color(0xFF072019) else Color(0xFFECFDF5),
+                    border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFF10B981) else Color(0xFF86C5B0)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -1530,6 +1581,173 @@ private fun ConfirmPaymentDialog(
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ConfirmPostponePaymentDialog(
+    commitment: PaymentCommitmentEntity,
+    isDarkTheme: Boolean,
+    nowMillis: Long,
+    onDismiss: () -> Unit,
+    onConfirmPostpone: (newDueMillis: Long, optionLabel: String) -> Unit
+) {
+    val context = LocalContext.current
+    val dateFormatter = remember { SimpleDateFormat("dd 'de' MMM, yyyy", Locale("es", "GT")) }
+    val dialogBg = if (isDarkTheme) Color(0xFF0E2620) else Color(0xFFF7FCFA)
+    val primaryText = if (isDarkTheme) Color(0xFFECFDF5) else Color(0xFF022C22)
+    val secondaryText = if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF335C4F)
+
+    var selectedPreset by remember(commitment.id) { mutableStateOf<PostponePreset?>(PostponePreset.PLUS_3_DAYS) }
+    var customDateMillis by remember(commitment.id) {
+        mutableLongStateOf(
+            PaymentCommitmentStackLogic.computePostponedDueDate(
+                currentDueDateMillis = commitment.dueDateMillis,
+                preset = PostponePreset.PLUS_3_DAYS,
+                nowMillis = nowMillis
+            )
+        )
+    }
+    var selectedLabel by remember(commitment.id) { mutableStateOf(PostponePreset.PLUS_3_DAYS.label) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = dialogBg,
+        titleContentColor = primaryText,
+        modifier = Modifier.testTag("confirm_postpone_payment_dialog"),
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Update, contentDescription = null, tint = Color(0xFFD97706))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Posponer Compromiso", fontWeight = FontWeight.Bold)
+            }
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    text = "${commitment.beneficiaryName} · ${commitment.title}",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = primaryText
+                )
+                Text(
+                    text = "Vencimiento actual: ${dateFormatter.format(Date(commitment.dueDateMillis))}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = secondaryText
+                )
+
+                Text(
+                    text = "Elige el nuevo plazo:",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = primaryText
+                )
+
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    PostponePreset.entries.forEach { preset ->
+                        val isSelected = selectedPreset == preset
+                        FilterChip(
+                            selected = isSelected,
+                            onClick = {
+                                selectedPreset = preset
+                                customDateMillis = PaymentCommitmentStackLogic.computePostponedDueDate(
+                                    currentDueDateMillis = commitment.dueDateMillis,
+                                    preset = preset,
+                                    nowMillis = nowMillis
+                                )
+                                selectedLabel = preset.label
+                            },
+                            label = { Text(preset.label, fontWeight = FontWeight.Bold) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                containerColor = if (isDarkTheme) Color(0xFF07231C) else Color(0xFFEBF7F2),
+                                selectedContainerColor = EmeraldGreen,
+                                selectedLabelColor = Color.White
+                            ),
+                            modifier = Modifier
+                                .heightIn(min = 48.dp)
+                                .testTag("postpone_preset_${preset.name}")
+                        )
+                    }
+
+                    FilterChip(
+                        selected = selectedPreset == null,
+                        onClick = {
+                            val cal = Calendar.getInstance().apply { timeInMillis = customDateMillis }
+                            DatePickerDialog(
+                                context,
+                                { _, y, m, d ->
+                                    val chosen = Calendar.getInstance().apply {
+                                        set(y, m, d, 12, 0, 0)
+                                        set(Calendar.MILLISECOND, 0)
+                                    }
+                                    selectedPreset = null
+                                    customDateMillis = chosen.timeInMillis
+                                    selectedLabel = "Fecha personalizada"
+                                },
+                                cal.get(Calendar.YEAR),
+                                cal.get(Calendar.MONTH),
+                                cal.get(Calendar.DAY_OF_MONTH)
+                            ).show()
+                        },
+                        leadingIcon = {
+                            Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(16.dp))
+                        },
+                        label = { Text("Elegir fecha", fontWeight = FontWeight.Bold) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = if (isDarkTheme) Color(0xFF07231C) else Color(0xFFEBF7F2),
+                            selectedContainerColor = EmeraldGreen,
+                            selectedLabelColor = Color.White
+                        ),
+                        modifier = Modifier.heightIn(min = 48.dp).testTag("postpone_custom_date_button")
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = if (isDarkTheme) Color(0xFF063729) else Color(0xFFD1FAE5),
+                    border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFF34D399) else JadeGreen),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = "Nueva fecha confirmada",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF065F46)
+                        )
+                        Text(
+                            text = dateFormatter.format(Date(customDateMillis)),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Black,
+                            color = if (isDarkTheme) Color(0xFFECFDF5) else Color(0xFF022C22)
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirmPostpone(customDateMillis, selectedLabel) },
+                colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen, contentColor = Color.White),
+                modifier = Modifier.heightIn(min = 48.dp).testTag("confirm_postpone_execute_button")
+            ) {
+                Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Confirmar Posponer", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            OutlinedButton(
+                onClick = onDismiss,
+                modifier = Modifier.heightIn(min = 48.dp)
+            ) {
+                Text("Cancelar")
+            }
+        }
+    )
+}
+
 @Composable
 private fun PaymentCommitmentDetailDialog(
     commitment: PaymentCommitmentEntity,
@@ -1540,13 +1758,14 @@ private fun PaymentCommitmentDetailDialog(
     paymentSourceAccountName: String?,
     onDismiss: () -> Unit,
     onRequestPay: () -> Unit,
+    onRequestPostpone: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     val dateFormatter = remember { SimpleDateFormat("dd 'de' MMM, yyyy", Locale("es", "GT")) }
-    val dialogBg = if (isDarkTheme) Color(0xFF1E293B) else Color.White
-    val primaryText = if (isDarkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
-    val secondaryText = if (isDarkTheme) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val dialogBg = if (isDarkTheme) Color(0xFF0E2620) else Color(0xFFF7FCFA)
+    val primaryText = if (isDarkTheme) Color(0xFFECFDF5) else Color(0xFF022C22)
+    val secondaryText = if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF335C4F)
     val canPay = PaymentCommitmentStackLogic.canPayCommitment(commitment)
     val displayAmount = PaymentCommitmentStackLogic.displayAmountForCommitment(commitment)
 
@@ -1606,9 +1825,35 @@ private fun PaymentCommitmentDetailDialog(
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Editar")
                     }
+                    if (canPay) {
+                        OutlinedButton(
+                            onClick = onRequestPostpone,
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("detail_postpone_payment_button")
+                        ) {
+                            Icon(Icons.Default.Update, contentDescription = null, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Posponer")
+                        }
+                    } else {
+                        OutlinedButton(
+                            onClick = onDelete,
+                            modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("detail_delete_payment_button")
+                        ) {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = null,
+                                tint = if (isDarkTheme) Color(0xFFFCA5A5) else Color(0xFFB91C1C),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Eliminar", color = if (isDarkTheme) Color(0xFFFCA5A5) else Color(0xFFB91C1C))
+                        }
+                    }
+                }
+                if (canPay) {
                     OutlinedButton(
                         onClick = onDelete,
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp).testTag("detail_delete_payment_button")
+                        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).testTag("detail_delete_payment_button")
                     ) {
                         Icon(
                             Icons.Default.Delete,
@@ -1617,7 +1862,7 @@ private fun PaymentCommitmentDetailDialog(
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Eliminar", color = if (isDarkTheme) Color(0xFFFCA5A5) else Color(0xFFB91C1C))
+                        Text("Eliminar compromiso", color = if (isDarkTheme) Color(0xFFFCA5A5) else Color(0xFFB91C1C))
                     }
                 }
             }

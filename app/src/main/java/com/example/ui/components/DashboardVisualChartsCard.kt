@@ -25,6 +25,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.data.model.TransactionEntity
@@ -118,20 +119,23 @@ fun DashboardVisualChartsCard(
                     .fillMaxWidth()
                     .height(140.dp)
             ) {
+                val isDarkGrid = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+                val gridLineMajor = if (isDarkGrid) Color(0xFF334155) else Color(0xFFE2E8F0)
+                val gridLineMinor = if (isDarkGrid) Color(0xFF1E293B) else Color(0xFFF1F5F9)
                 Canvas(modifier = Modifier.fillMaxWidth().height(140.dp)) {
                     val w = size.width
                     val h = size.height - 25.dp.toPx()
                     val barWidth = 32.dp.toPx()
 
-                    // Líneas guía de fondo
+                    // Líneas guía de fondo adaptadas a tema claro y oscuro
                     drawLine(
-                        color = Color(0xFFE2E8F0),
+                        color = gridLineMajor,
                         start = Offset(0f, h),
                         end = Offset(w, h),
                         strokeWidth = 1.dp.toPx()
                     )
                     drawLine(
-                        color = Color(0xFFF1F5F9),
+                        color = gridLineMinor,
                         start = Offset(0f, h / 2),
                         end = Offset(w, h / 2),
                         strokeWidth = 1.dp.toPx()
@@ -183,11 +187,11 @@ fun DashboardVisualChartsCard(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("1ª Quincena (Día 15)", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                        Text(if (isDiscreetMode) "Q ****.**" else "$currencySymbol${"%,.0f".format(q1Income - q1Expense)} neto", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        Text(if (isDiscreetMode) "Q ****.**" else "$currencySymbol${"%,.0f".format(q1Income - q1Expense)} neto", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("2ª Quincena (Fin de Mes)", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-                        Text(if (isDiscreetMode) "Q ****.**" else "$currencySymbol${"%,.0f".format(q2Income - q2Expense)} neto", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        Text(if (isDiscreetMode) "Q ****.**" else "$currencySymbol${"%,.0f".format(q2Income - q2Expense)} neto", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
             }

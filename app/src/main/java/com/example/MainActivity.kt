@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +20,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalance
@@ -48,8 +51,10 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationDrawerItem
 import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberDrawerState
@@ -103,10 +108,26 @@ import com.example.ui.util.TermsAcceptanceManager
 import com.example.ui.viewmodel.AccountsViewModel
 import com.example.ui.viewmodel.BudgetViewModel
 
+internal object PrimaryTabPagerLogic {
+    val primaryTabsOrder: List<Int> = listOf(1, 2, 0, 5, 7)
+
+    fun isPrimaryTab(tabId: Int): Boolean = tabId in primaryTabsOrder
+
+    fun pageIndexForTab(tabId: Int): Int? {
+        val idx = primaryTabsOrder.indexOf(tabId)
+        return if (idx >= 0) idx else null
+    }
+
+    fun tabForPageIndex(pageIndex: Int): Int {
+        return primaryTabsOrder.getOrElse(pageIndex) { 0 }
+    }
+}
+
 class MainActivity : ComponentActivity() {
     private val viewModel: BudgetViewModel by viewModels()
     private val accountsViewModel: AccountsViewModel by viewModels()
 
+    @OptIn(ExperimentalFoundationApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -121,6 +142,7 @@ class MainActivity : ComponentActivity() {
             val coroutineScope = rememberCoroutineScope()
 
             var selectedTab by remember { mutableIntStateOf(0) }
+            val pagerState = rememberPagerState(initialPage = 2) { PrimaryTabPagerLogic.primaryTabsOrder.size }
             var showAddTransactionDialog by remember { mutableStateOf(false) }
             var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
             var preselectedAccountIdForNewTx by remember { mutableStateOf<Long?>(null) }
@@ -139,12 +161,61 @@ class MainActivity : ComponentActivity() {
             var showTermsDialog by remember { mutableStateOf(false) }
             var showAboutDialog by remember { mutableStateOf(false) }
 
+            val deleteTransactionWithUndo: (TransactionEntity) -> Unit = { tx ->
+                viewModel.deleteTransaction(tx)
+                coroutineScope.launch {
+                    snackbarHostState.currentSnackbarData?.dismiss()
+                    val result = snackbarHostState.showSnackbar(
+                        message = "Eliminado: ${tx.title}",
+                        actionLabel = "Deshacer",
+                        withDismissAction = true,
+                        duration = SnackbarDuration.Short
+                    )
+                    if (result == SnackbarResult.ActionPerformed) {
+                        viewModel.restoreTransaction(tx)
+                    }
+                }
+            }
+
+            var pendingTargetPage by remember { mutableStateOf<Int?>(null) }
+            var wasPrimaryTab by remember { mutableStateOf(true) }
+
+            LaunchedEffect(selectedTab) {
+                val targetPage = PrimaryTabPagerLogic.pageIndexForTab(selectedTab)
+                if (targetPage != null) {
+                    if (pagerState.currentPage != targetPage) {
+                        pendingTargetPage = targetPage
+                        try {
+                            if (!wasPrimaryTab) {
+                                pagerState.scrollToPage(targetPage)
+                            } else {
+                                pagerState.animateScrollToPage(targetPage)
+                            }
+                        } finally {
+                            pendingTargetPage = null
+                        }
+                    }
+                    wasPrimaryTab = true
+                } else {
+                    wasPrimaryTab = false
+                }
+            }
+
+            LaunchedEffect(pagerState.settledPage) {
+                if (PrimaryTabPagerLogic.isPrimaryTab(selectedTab) && pendingTargetPage == null) {
+                    val settledTab = PrimaryTabPagerLogic.tabForPageIndex(pagerState.settledPage)
+                    if (selectedTab != settledTab) {
+                        selectedTab = settledTab
+                    }
+                }
+            }
+
             BackHandler(enabled = drawerState.isOpen) {
                 coroutineScope.launch { drawerState.close() }
             }
 
             BackHandler(enabled = !drawerState.isOpen && selectedTab != 0) {
-                selectedTab = 0
+                selectedTab = if (selectedTab == 3 || selectedTab == 6) 4 else 0
             }
 
             val prefs = remember { getSharedPreferences(TermsAcceptanceManager.PREFS_NAME, MODE_PRIVATE) }
@@ -199,7 +270,7 @@ class MainActivity : ComponentActivity() {
                 } else {
                     ModalNavigationDrawer(
                         drawerState = drawerState,
-                        gesturesEnabled = true,
+                        gesturesEnabled = drawerState.isOpen || !PrimaryTabPagerLogic.isPrimaryTab(selectedTab),
                         drawerContent = {
                             ModalDrawerSheet(
                                 drawerContainerColor = if (uiState.isDarkTheme) Color(0xFF131D1B) else Color(0xFFF7FAF9),
@@ -409,19 +480,6 @@ class MainActivity : ComponentActivity() {
                     Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     snackbarHost = { SnackbarHost(snackbarHostState) },
-                    // FAB Chapín: Conexión real con guardado directo en Room Database y registro completo
-                    floatingActionButton = {
-                        ChapinQuickFab(
-                            onSaveExpense = { title, amt, cat, notes ->
-                                viewModel.addChapinQuickExpense(title, amt, cat, notes)
-                            },
-                            onAddFullTransaction = {
-                                editingTransaction = null
-                                preselectedAccountIdForNewTx = null
-                                showAddTransactionDialog = true
-                            }
-                        )
-                    },
                     // Barra de Navegación Inferior Simétrica: EXACTAMENTE 5 OPCIONES
                     // REGISTROS | QUINCENAS | HOY (CENTRO DESTACADO) | PAGOS | SMART CART
                     bottomBar = {
@@ -545,180 +603,232 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 ) { innerPadding ->
-                    Box(modifier = Modifier.padding(innerPadding)) {
-                        when (selectedTab) {
-                            0 -> InicioScreen(
-                                uiState = uiState,
-                                onPreviousMonth = { viewModel.previousMonth() },
-                                onNextMonth = { viewModel.nextMonth() },
-                                onToggleAllTime = { viewModel.toggleAllTime() },
-                                onToggleIncludeTentative = { viewModel.toggleIncludeTentative() },
-                                onToggleDiscreetMode = { viewModel.toggleDiscreetMode() },
-                                onToggleDarkTheme = { viewModel.toggleDarkTheme() },
-                                onAddTransactionClick = {
-                                    editingTransaction = null
-                                    preselectedAccountIdForNewTx = null
-                                    showAddTransactionDialog = true
-                                },
-                                onAddAntExpenseClick = { showAddAntExpenseDialog = true },
-                                onOpenAdvisorClick = { selectedTab = 3 },
-                                onEditTransaction = { tx ->
-                                    editingTransaction = tx
-                                    preselectedAccountIdForNewTx = null
-                                    showAddTransactionDialog = true
-                                },
-                                onDeleteTransaction = { tx -> viewModel.deleteTransaction(tx) },
-                                onHighlightTransaction = { tx, hex -> viewModel.highlightTransaction(tx, hex) },
-                                onToggleVerifyTransaction = { tx -> viewModel.toggleVerifyTransaction(tx) },
-                                onDecideTentative = { tx, decision -> viewModel.decideTentativeTransaction(tx, decision) },
-                                onOpenSmartCartClick = { selectedTab = 7 },
-                                onOpenPaymentsClick = { selectedTab = 5 },
-                                onOpenAccountsClick = { selectedTab = 8 },
-                                accountsState = accountsState,
-                                accountNameById = accountNameById,
-                                onOpenDrawer = { coroutineScope.launch { drawerState.open() } }
-                            )
-
-                            1 -> TransactionsScreen(
-                                uiState = uiState,
-                                onPreviousMonth = { viewModel.previousMonth() },
-                                onNextMonth = { viewModel.nextMonth() },
-                                onToggleAllTime = { viewModel.toggleAllTime() },
-                                onSearchQueryChange = { q -> viewModel.setSearchQuery(q) },
-                                onFilterTypeChange = { t -> viewModel.setFilterType(t) },
-                                onFilterCategoryChange = { c -> viewModel.setCategoryFilter(c) },
-                                onFilterMemberChange = { m -> viewModel.setMemberFilter(m) },
-                                onToggleOnlyHighlighted = { h -> viewModel.setOnlyHighlighted(h) },
-                                onAddTransactionClick = {
-                                    editingTransaction = null
-                                    preselectedAccountIdForNewTx = null
-                                    showAddTransactionDialog = true
-                                },
-                                onEditTransaction = { tx ->
-                                    editingTransaction = tx
-                                    preselectedAccountIdForNewTx = null
-                                    showAddTransactionDialog = true
-                                },
-                                onDeleteTransaction = { tx -> viewModel.deleteTransaction(tx) },
-                                onHighlightTransaction = { tx, hex -> viewModel.highlightTransaction(tx, hex) },
-                                onToggleVerifyTransaction = { tx -> viewModel.toggleVerifyTransaction(tx) },
-                                onDecideTentative = { tx, decision -> viewModel.decideTentativeTransaction(tx, decision) },
-                                onExportCsv = { viewModel.getCsvExport() },
-                                onImportCsv = { text -> viewModel.importCsv(text) },
-                                onFilterPeriodChange = { p -> viewModel.setFilterPeriod(p) },
-                                onFilterSpecificDateChange = { d -> viewModel.setFilterSpecificDate(d) },
-                                onFilterDateRangeChange = { s, e -> viewModel.setFilterDateRange(s, e) },
-                                onFilterQuincenaChange = { q -> viewModel.setFilterQuincena(q) },
-                                onFilterSubCategoryChange = { sc -> viewModel.setFilterSubCategory(sc) },
-                                onFilterBeneficiaryChange = { b -> viewModel.setFilterBeneficiary(b) },
-                                onFilterStatusChange = { st -> viewModel.setFilterStatus(st) },
-                                onFilterSourceChange = { src -> viewModel.setFilterSource(src) },
-                                onFilterDuplicatesModeChange = { m -> viewModel.setFilterDuplicatesMode(m) },
-                                onClearAllFilters = { viewModel.clearAllFilters() },
-                                onDeleteTransactions = { ids -> viewModel.deleteTransactions(ids) },
-                                onMarkTransactionsAsLegitimate = { ids -> viewModel.markTransactionsAsLegitimate(ids) },
-                                accountNameById = accountNameById
-                            )
-
-                            2 -> {
-                                BackHandler { selectedTab = 4 }
-                                PlannedVsRealScreen(
-                                    uiState = uiState,
-                                    onPreviousMonth = { viewModel.previousMonth() },
-                                    onNextMonth = { viewModel.nextMonth() },
-                                    onEditTransaction = { tx ->
-                                        editingTransaction = tx
-                                        showAddTransactionDialog = true
-                                    },
-                                    onDeleteTransaction = { tx -> viewModel.deleteTransaction(tx) },
-                                    onHighlightTransaction = { tx, hex -> viewModel.highlightTransaction(tx, hex) },
-                                    onToggleVerifyTransaction = { tx -> viewModel.toggleVerifyTransaction(tx) },
-                                    onDecideTentative = { tx, decision -> viewModel.decideTentativeTransaction(tx, decision) }
-                                )
-                            }
-
-                            3 -> {
-                                BackHandler { selectedTab = 4 }
-                                FinancialAdvisorScreen(
-                                    uiState = uiState
-                                )
-                            }
-
-                            4 -> GoalsAndToolsScreen(
-                                uiState = uiState,
-                                onOpenAdvisor = { selectedTab = 3 },
-                                onSetTheme = { idx -> viewModel.setAppTheme(idx) },
-                                onSetCurrency = { sym -> viewModel.setCurrency(sym) },
-                                onImportCsv = { text -> viewModel.importCsv(text) },
-                                onExportCsv = { viewModel.getCsvExport() },
-                                onClearAllData = { viewModel.clearAllData() },
-                                onToggleDarkTheme = { viewModel.toggleDarkTheme() },
-                                onOpenQuincenas = { selectedTab = 2 },
-                                onOpenLimits = { selectedTab = 6 },
-                                onOpenSmartCart = { selectedTab = 7 },
-                                onOpenAccounts = { selectedTab = 8 },
-                                onSaveIncomeToBudget = { title, amountGtq, note ->
-                                    viewModel.addTransaction(
-                                        com.example.data.model.TransactionEntity(
-                                            title = title,
-                                            amount = amountGtq,
-                                            type = com.example.data.model.TransactionType.INCOME,
-                                            category = "Ingreso Extra / Remesa",
-                                            dateMillis = System.currentTimeMillis(),
-                                            notes = note
-                                        )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(innerPadding)
+                    ) {
+                        if (PrimaryTabPagerLogic.isPrimaryTab(selectedTab)) {
+                            HorizontalPager(
+                                state = pagerState,
+                                beyondViewportPageCount = 0,
+                                key = { PrimaryTabPagerLogic.tabForPageIndex(it) },
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .testTag("main_primary_horizontal_pager")
+                            ) { page ->
+                                when (PrimaryTabPagerLogic.tabForPageIndex(page)) {
+                                    0 -> InicioScreen(
+                                        uiState = uiState,
+                                        onPreviousMonth = { viewModel.previousMonth() },
+                                        onNextMonth = { viewModel.nextMonth() },
+                                        onToggleAllTime = { viewModel.toggleAllTime() },
+                                        onToggleIncludeTentative = { viewModel.toggleIncludeTentative() },
+                                        onToggleDiscreetMode = { viewModel.toggleDiscreetMode() },
+                                        onToggleDarkTheme = { viewModel.toggleDarkTheme() },
+                                        onAddTransactionClick = {
+                                            editingTransaction = null
+                                            preselectedAccountIdForNewTx = null
+                                            showAddTransactionDialog = true
+                                        },
+                                        onAddAntExpenseClick = { showAddAntExpenseDialog = true },
+                                        onOpenAdvisorClick = { selectedTab = 3 },
+                                        onEditTransaction = { tx ->
+                                            editingTransaction = tx
+                                            preselectedAccountIdForNewTx = null
+                                            showAddTransactionDialog = true
+                                        },
+                                        onDeleteTransaction = deleteTransactionWithUndo,
+                                        onHighlightTransaction = { tx, hex -> viewModel.highlightTransaction(tx, hex) },
+                                        onToggleVerifyTransaction = { tx -> viewModel.toggleVerifyTransaction(tx) },
+                                        onDecideTentative = { tx, decision -> viewModel.decideTentativeTransaction(tx, decision) },
+                                        onOpenSmartCartClick = { selectedTab = 7 },
+                                        onOpenPaymentsClick = { selectedTab = 5 },
+                                        onOpenAccountsClick = { selectedTab = 8 },
+                                        accountsState = accountsState,
+                                        accountNameById = accountNameById,
+                                        onOpenDrawer = { coroutineScope.launch { drawerState.open() } }
                                     )
-                                },
-                                onSaveExpenseToBudget = { title, amountGtq, category, note ->
-                                    viewModel.addTransaction(
-                                        com.example.data.model.TransactionEntity(
-                                            title = title,
-                                            amount = amountGtq,
-                                            type = com.example.data.model.TransactionType.EXPENSE,
-                                            category = category,
-                                            dateMillis = System.currentTimeMillis(),
-                                            notes = note
-                                        )
+
+                                    1 -> TransactionsScreen(
+                                        uiState = uiState,
+                                        onPreviousMonth = { viewModel.previousMonth() },
+                                        onNextMonth = { viewModel.nextMonth() },
+                                        onToggleAllTime = { viewModel.toggleAllTime() },
+                                        onSearchQueryChange = { q -> viewModel.setSearchQuery(q) },
+                                        onFilterTypeChange = { t -> viewModel.setFilterType(t) },
+                                        onFilterCategoryChange = { c -> viewModel.setCategoryFilter(c) },
+                                        onFilterMemberChange = { m -> viewModel.setMemberFilter(m) },
+                                        onToggleOnlyHighlighted = { h -> viewModel.setOnlyHighlighted(h) },
+                                        onAddTransactionClick = {
+                                            editingTransaction = null
+                                            preselectedAccountIdForNewTx = null
+                                            showAddTransactionDialog = true
+                                        },
+                                        onEditTransaction = { tx ->
+                                            editingTransaction = tx
+                                            preselectedAccountIdForNewTx = null
+                                            showAddTransactionDialog = true
+                                        },
+                                        onDeleteTransaction = deleteTransactionWithUndo,
+                                        onHighlightTransaction = { tx, hex -> viewModel.highlightTransaction(tx, hex) },
+                                        onToggleVerifyTransaction = { tx -> viewModel.toggleVerifyTransaction(tx) },
+                                        onDecideTentative = { tx, decision -> viewModel.decideTentativeTransaction(tx, decision) },
+                                        onExportCsv = { viewModel.getCsvExport() },
+                                        onImportCsv = { text -> viewModel.importCsv(text) },
+                                        onFilterPeriodChange = { p -> viewModel.setFilterPeriod(p) },
+                                        onFilterSpecificDateChange = { d -> viewModel.setFilterSpecificDate(d) },
+                                        onFilterDateRangeChange = { s, e -> viewModel.setFilterDateRange(s, e) },
+                                        onFilterQuincenaChange = { q -> viewModel.setFilterQuincena(q) },
+                                        onFilterSubCategoryChange = { sc -> viewModel.setFilterSubCategory(sc) },
+                                        onFilterBeneficiaryChange = { b -> viewModel.setFilterBeneficiary(b) },
+                                        onFilterStatusChange = { st -> viewModel.setFilterStatus(st) },
+                                        onFilterSourceChange = { src -> viewModel.setFilterSource(src) },
+                                        onFilterDuplicatesModeChange = { m -> viewModel.setFilterDuplicatesMode(m) },
+                                        onClearAllFilters = { viewModel.clearAllFilters() },
+                                        onDeleteTransactions = { ids -> viewModel.deleteTransactions(ids) },
+                                        onMarkTransactionsAsLegitimate = { ids -> viewModel.markTransactionsAsLegitimate(ids) },
+                                        accountNameById = accountNameById,
+                                        onSetCompactTransactionsMode = { compact ->
+                                            viewModel.setCompactTransactionsMode(compact)
+                                        }
+                                    )
+
+                                    2 -> PlannedVsRealScreen(
+                                        uiState = uiState,
+                                        onPreviousMonth = { viewModel.previousMonth() },
+                                        onNextMonth = { viewModel.nextMonth() },
+                                        onEditTransaction = { tx ->
+                                            editingTransaction = tx
+                                            showAddTransactionDialog = true
+                                        },
+                                        onDeleteTransaction = deleteTransactionWithUndo,
+                                        onHighlightTransaction = { tx, hex -> viewModel.highlightTransaction(tx, hex) },
+                                        onToggleVerifyTransaction = { tx -> viewModel.toggleVerifyTransaction(tx) },
+                                        onDecideTentative = { tx, decision -> viewModel.decideTentativeTransaction(tx, decision) }
+                                    )
+
+                                    5 -> PaymentsScreen(
+                                        uiState = uiState,
+                                        onAddPayment = { title, ben, desc, amt, due, cat, freq, isVar, rem, notes, cardId, sourceId ->
+                                            viewModel.addPaymentCommitment(
+                                                title = title,
+                                                beneficiaryName = ben,
+                                                description = desc,
+                                                amount = amt,
+                                                dueDateMillis = due,
+                                                category = cat,
+                                                frequency = freq,
+                                                isVariableAmount = isVar,
+                                                reminderDaysBefore = rem,
+                                                notes = notes,
+                                                creditCardAccountId = cardId,
+                                                paymentSourceAccountId = sourceId
+                                            )
+                                        },
+                                        onMarkAsPaid = { id -> viewModel.markPaymentAsPaid(id) },
+                                        onPostponePayment = { commitment, newDueMillis, presetLabel ->
+                                            viewModel.postponePaymentCommitment(commitment, newDueMillis, presetLabel)
+                                        },
+                                        onUpdatePayment = { p -> viewModel.updatePaymentCommitment(p) },
+                                        onDeletePayment = { p -> viewModel.deletePaymentCommitment(p) },
+                                        onAddBeneficiary = { name, cat, desc, cont, notes ->
+                                            viewModel.addBeneficiary(name, cat, desc, cont, notes)
+                                        },
+                                        onUpdateBeneficiary = { ben -> viewModel.updateBeneficiary(ben) },
+                                        onDeleteBeneficiary = { ben -> viewModel.deleteBeneficiary(ben) },
+                                        accountNameById = accountNameById,
+                                        accounts = accountsState.activeAccounts
+                                    )
+
+                                    7 -> SmartCartScreen(
+                                        uiState = uiState,
+                                        onAddItem = { name, qty, unit, brand, price, store, notes, url ->
+                                            viewModel.addSmartCartItem(
+                                                name = name,
+                                                quantity = qty,
+                                                unit = unit,
+                                                brand = brand,
+                                                price = price,
+                                                store = store,
+                                                notes = notes,
+                                                url = url,
+                                                priceSource = "MANUAL"
+                                            )
+                                        },
+                                        onUpdateItem = { item -> viewModel.updateSmartCartItem(item) },
+                                        onDeleteItem = { item -> viewModel.deleteSmartCartItem(item) },
+                                        onToggleChecked = { item -> viewModel.toggleSmartCartItemChecked(item) },
+                                        onSetBudget = { budget -> viewModel.setSmartCartBudget(budget) },
+                                        onCheckoutExpense = { title, amount, store, purchasedNames, updatePantry ->
+                                            viewModel.checkoutCartAsExpense(title, amount, store, purchasedNames, updatePantry)
+                                        },
+                                        onAddPantryItem = { name, qty, unit, status, price, store, notes, brand ->
+                                            viewModel.addPantryItem(name, qty, unit, status, price, store, notes, brand)
+                                        },
+                                        onUpdatePantryItem = { item -> viewModel.updatePantryItem(item) },
+                                        onTogglePantryStatus = { item -> viewModel.togglePantryStatus(item) },
+                                        onDeletePantryItem = { item -> viewModel.deletePantryItem(item) },
+                                        onTogglePantryInCart = { item -> viewModel.togglePantryInCart(item) },
+                                        onIncorporateNeedToBuy = { viewModel.incorporateNeedToBuy() },
+                                        onClearChecked = { viewModel.clearCheckedCartItems() },
+                                        onClearAllCart = { viewModel.clearAllCartItems() },
+                                        onSaveTemplate = { name, desc -> viewModel.saveCartAsTemplate(name, desc) },
+                                        onApplyTemplate = { id -> viewModel.applyTemplateToCart(id) },
+                                        onDuplicateTemplate = { id, name -> viewModel.duplicateTemplate(id, name) },
+                                        onDeleteTemplate = { template -> viewModel.deleteTemplate(template) },
+                                        onAddScannedItems = { items, dest, avoidDup ->
+                                            viewModel.addScannedItems(items, dest, avoidDup)
+                                        }
                                     )
                                 }
-                            )
+                            }
+                        } else {
+                            when (selectedTab) {
+                                3 -> FinancialAdvisorScreen(
+                                    uiState = uiState
+                                )
 
-                            5 -> {
-                                BackHandler { selectedTab = 0 }
-                                PaymentsScreen(
+                                4 -> GoalsAndToolsScreen(
                                     uiState = uiState,
-                                    onAddPayment = { title, ben, desc, amt, due, cat, freq, isVar, rem, notes, cardId, sourceId ->
-                                        viewModel.addPaymentCommitment(
-                                            title = title,
-                                            beneficiaryName = ben,
-                                            description = desc,
-                                            amount = amt,
-                                            dueDateMillis = due,
-                                            category = cat,
-                                            frequency = freq,
-                                            isVariableAmount = isVar,
-                                            reminderDaysBefore = rem,
-                                            notes = notes,
-                                            creditCardAccountId = cardId,
-                                            paymentSourceAccountId = sourceId
+                                    onOpenAdvisor = { selectedTab = 3 },
+                                    onSetTheme = { idx -> viewModel.setAppTheme(idx) },
+                                    onSetCurrency = { sym -> viewModel.setCurrency(sym) },
+                                    onImportCsv = { text -> viewModel.importCsv(text) },
+                                    onExportCsv = { viewModel.getCsvExport() },
+                                    onClearAllData = { viewModel.clearAllData() },
+                                    onToggleDarkTheme = { viewModel.toggleDarkTheme() },
+                                    onOpenQuincenas = { selectedTab = 2 },
+                                    onOpenLimits = { selectedTab = 6 },
+                                    onOpenSmartCart = { selectedTab = 7 },
+                                    onOpenAccounts = { selectedTab = 8 },
+                                    onSaveIncomeToBudget = { title, amountGtq, note ->
+                                        viewModel.addTransaction(
+                                            com.example.data.model.TransactionEntity(
+                                                title = title,
+                                                amount = amountGtq,
+                                                type = com.example.data.model.TransactionType.INCOME,
+                                                category = "Ingreso Extra / Remesa",
+                                                dateMillis = System.currentTimeMillis(),
+                                                notes = note
+                                            )
                                         )
                                     },
-                                    onMarkAsPaid = { id -> viewModel.markPaymentAsPaid(id) },
-                                    onUpdatePayment = { p -> viewModel.updatePaymentCommitment(p) },
-                                    onDeletePayment = { p -> viewModel.deletePaymentCommitment(p) },
-                                    onAddBeneficiary = { name, cat, desc, cont, notes ->
-                                        viewModel.addBeneficiary(name, cat, desc, cont, notes)
-                                    },
-                                    onUpdateBeneficiary = { ben -> viewModel.updateBeneficiary(ben) },
-                                    onDeleteBeneficiary = { ben -> viewModel.deleteBeneficiary(ben) },
-                                    accountNameById = accountNameById,
-                                    accounts = accountsState.activeAccounts
+                                    onSaveExpenseToBudget = { title, amountGtq, category, note ->
+                                        viewModel.addTransaction(
+                                            com.example.data.model.TransactionEntity(
+                                                title = title,
+                                                amount = amountGtq,
+                                                type = com.example.data.model.TransactionType.EXPENSE,
+                                                category = category,
+                                                dateMillis = System.currentTimeMillis(),
+                                                notes = note
+                                            )
+                                        )
+                                    }
                                 )
-                            }
 
-                            6 -> {
-                                BackHandler { selectedTab = 4 }
-                                BudgetsScreen(
+                                6 -> BudgetsScreen(
                                     uiState = uiState,
                                     onPreviousMonth = { viewModel.previousMonth() },
                                     onNextMonth = { viewModel.nextMonth() },
@@ -739,55 +849,8 @@ class MainActivity : ComponentActivity() {
                                     onDeleteSavingsGoal = { goal -> viewModel.deleteSavingsGoal(goal) },
                                     onContributeSavingsGoal = { goal, amt -> viewModel.contributeToGoal(goal, amt) }
                                 )
-                            }
 
-                            7 -> {
-                                BackHandler { selectedTab = 0 }
-                                SmartCartScreen(
-                                    uiState = uiState,
-                                    onAddItem = { name, qty, unit, brand, price, store, notes, url ->
-                                        viewModel.addSmartCartItem(
-                                            name = name,
-                                            quantity = qty,
-                                            unit = unit,
-                                            brand = brand,
-                                            price = price,
-                                            store = store,
-                                            notes = notes,
-                                            url = url,
-                                            priceSource = "MANUAL"
-                                        )
-                                    },
-                                    onUpdateItem = { item -> viewModel.updateSmartCartItem(item) },
-                                    onDeleteItem = { item -> viewModel.deleteSmartCartItem(item) },
-                                    onToggleChecked = { item -> viewModel.toggleSmartCartItemChecked(item) },
-                                    onSetBudget = { budget -> viewModel.setSmartCartBudget(budget) },
-                                    onCheckoutExpense = { title, amount, store, purchasedNames, updatePantry ->
-                                        viewModel.checkoutCartAsExpense(title, amount, store, purchasedNames, updatePantry)
-                                    },
-                                    onAddPantryItem = { name, qty, unit, status, price, store, notes, brand ->
-                                        viewModel.addPantryItem(name, qty, unit, status, price, store, notes, brand)
-                                    },
-                                    onUpdatePantryItem = { item -> viewModel.updatePantryItem(item) },
-                                    onTogglePantryStatus = { item -> viewModel.togglePantryStatus(item) },
-                                    onDeletePantryItem = { item -> viewModel.deletePantryItem(item) },
-                                    onTogglePantryInCart = { item -> viewModel.togglePantryInCart(item) },
-                                    onIncorporateNeedToBuy = { viewModel.incorporateNeedToBuy() },
-                                    onClearChecked = { viewModel.clearCheckedCartItems() },
-                                    onClearAllCart = { viewModel.clearAllCartItems() },
-                                    onSaveTemplate = { name, desc -> viewModel.saveCartAsTemplate(name, desc) },
-                                    onApplyTemplate = { id -> viewModel.applyTemplateToCart(id) },
-                                    onDuplicateTemplate = { id, name -> viewModel.duplicateTemplate(id, name) },
-                                    onDeleteTemplate = { template -> viewModel.deleteTemplate(template) },
-                                    onAddScannedItems = { items, dest, avoidDup ->
-                                        viewModel.addScannedItems(items, dest, avoidDup)
-                                    }
-                                )
-                            }
-
-                            8 -> {
-                                BackHandler { selectedTab = 0 }
-                                AccountsScreen(
+                                8 -> AccountsScreen(
                                     accountsState = accountsState,
                                     pendingCommitments = uiState.paymentCommitments.filter { !it.isPaid },
                                     currencySymbol = uiState.currencySymbol,
@@ -872,6 +935,26 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         }
+
+                        // FAB Chapín flotante, arrastrable, acotado y con persistencia local
+                        ChapinQuickFab(
+                            onSaveExpense = { title, amt, cat, notes ->
+                                viewModel.addChapinQuickExpense(title, amt, cat, notes)
+                            },
+                            onAddFullTransaction = {
+                                editingTransaction = null
+                                preselectedAccountIdForNewTx = null
+                                showAddTransactionDialog = true
+                            },
+                            fabOffsetXFraction = uiState.fabOffsetXFraction,
+                            fabOffsetYFraction = uiState.fabOffsetYFraction,
+                            onPositionChanged = { xFrac, yFrac ->
+                                viewModel.updateChapinFabPosition(xFrac, yFrac)
+                            },
+                            onResetPosition = {
+                                viewModel.resetChapinFabPosition()
+                            }
+                        )
                     }
 
                     // Diálogos modales

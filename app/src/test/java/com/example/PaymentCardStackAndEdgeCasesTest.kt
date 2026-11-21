@@ -9,6 +9,7 @@ import com.example.data.model.PaymentStatus
 import com.example.data.repository.BudgetRepository
 import com.example.ui.components.CommitmentPriorityGroup
 import com.example.ui.components.PaymentCommitmentStackLogic
+import com.example.ui.components.PostponePreset
 import com.example.ui.screens.PaymentsScreen
 import com.example.ui.viewmodel.BudgetUiState
 import kotlinx.coroutines.runBlocking
@@ -249,5 +250,32 @@ class PaymentCardStackAndEdgeCasesTest {
         }
 
         controller.pause().stop().destroy()
+    }
+
+    @Test
+    fun computePostponedDueDate_handlesOverdueAndUpcomingBasesAcrossPresets() {
+        val now = fixedNowMillis() // 15 Nov 2026 12:00
+        val overdueDue = now - 5 * dayMs // 10 Nov 2026 -> base should clamp to today (15 Nov)
+        val futureDue = now + 2 * dayMs  // 17 Nov 2026 -> base stays 17 Nov
+
+        val overduePlus1 = PaymentCommitmentStackLogic.computePostponedDueDate(overdueDue, PostponePreset.PLUS_1_DAY, now)
+        val overduePlus3 = PaymentCommitmentStackLogic.computePostponedDueDate(overdueDue, PostponePreset.PLUS_3_DAYS, now)
+        val overduePlus7 = PaymentCommitmentStackLogic.computePostponedDueDate(overdueDue, PostponePreset.PLUS_1_WEEK, now)
+        val futurePlus3 = PaymentCommitmentStackLogic.computePostponedDueDate(futureDue, PostponePreset.PLUS_3_DAYS, now)
+        val nextQuincena = PaymentCommitmentStackLogic.computePostponedDueDate(overdueDue, PostponePreset.NEXT_QUINCENA, now)
+
+        val cal = Calendar.getInstance(TimeZone.getDefault())
+        cal.timeInMillis = overduePlus1
+        assertEquals(16, cal.get(Calendar.DAY_OF_MONTH))
+        cal.timeInMillis = overduePlus3
+        assertEquals(18, cal.get(Calendar.DAY_OF_MONTH))
+        cal.timeInMillis = overduePlus7
+        assertEquals(22, cal.get(Calendar.DAY_OF_MONTH))
+        cal.timeInMillis = futurePlus3
+        assertEquals(20, cal.get(Calendar.DAY_OF_MONTH))
+
+        cal.timeInMillis = nextQuincena
+        assertTrue(nextQuincena > now)
+        assertTrue(cal.get(Calendar.DAY_OF_MONTH) >= 28 || cal.get(Calendar.DAY_OF_MONTH) == 15)
     }
 }

@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -54,6 +56,7 @@ import com.example.ui.util.FormatUtils
  * 2. Superficies financieras 100% opacas (alpha = 1.0f) tanto en modo claro como en modo oscuro.
  * 3. Ninguna fotografía, degradado o textura compite con los números, garantizando legibilidad total.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun FinancialSummaryCard(
     totalIncome: Double,
@@ -142,15 +145,15 @@ fun FinancialSummaryCard(
                     .background(cardSurface)
                     .padding(18.dp)
             ) {
-                // Cabecera de la sección financiera con toggle de supuestos
-                Row(
+                // Cabecera de la sección financiera con toggle de supuestos (sin truncamiento en pantallas compactas)
+                FlowRow(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.padding(top = 4.dp)
                     ) {
                         Surface(
                             shape = RoundedCornerShape(10.dp),
@@ -177,24 +180,19 @@ fun FinancialSummaryCard(
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.ExtraBold,
                                 color = if (isDarkTheme) Color(0xFFFBBF24) else Color(0xFFB45309),
-                                letterSpacing = 0.5.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                letterSpacing = 0.5.sp
                             )
                             Text(
                                 text = if (includeTentativeInBalance) "Saldo Disponible (Con Supuestos)" else "Saldo Neto Confirmado",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = if (includeTentativeInBalance) tentativeText else MaterialTheme.colorScheme.onSurface,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
 
                     Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(start = 4.dp)
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
                             text = if (includeTentativeInBalance) "Supuestos ON" else "Supuestos OFF",
@@ -233,10 +231,10 @@ fun FinancialSummaryCard(
                 // Comparativa de Confirmado vs Supuesto si hay compras supuestas
                 if (tentativeExpensesPending > 0 || discardedTentativeSavings > 0) {
                     Spacer(modifier = Modifier.height(6.dp))
-                    Row(
+                    FlowRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Text(
                             text = "Real confirmado: ${FormatUtils.formatCurrency(confirmedNetBalance, currencySymbol, isDiscreetMode)}",

@@ -320,7 +320,7 @@ fun BudgetsScreen(
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
                                 text = "Gastado: ${FormatUtils.formatCurrency(usage.spent.toDouble(), BudgetLimitCalculator.QUETZAL_SYMBOL, uiState.isDiscreetMode)}",
@@ -328,18 +328,14 @@ fun BudgetsScreen(
                                 fontWeight = FontWeight.SemiBold,
                                 color = if (isOver) (if (uiState.isDarkTheme) Color(0xFFFF9A91) else ExpenseRed) else MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.weight(1f),
-                                maxLines = 1,
-                                softWrap = false,
-                                overflow = TextOverflow.Ellipsis
+                                maxLines = 2
                             )
                             Text(
                                 text = "Límite: ${FormatUtils.formatCurrency(usage.limit.toDouble(), BudgetLimitCalculator.QUETZAL_SYMBOL, uiState.isDiscreetMode)}",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.weight(1f),
-                                maxLines = 1,
-                                softWrap = false,
-                                overflow = TextOverflow.Ellipsis
+                                maxLines = 2
                             )
                         }
 

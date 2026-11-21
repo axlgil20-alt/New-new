@@ -90,7 +90,7 @@ private data class AccountCardVisualStyle(
 
 private fun styleForAccountType(accountType: String): AccountCardVisualStyle = when (accountType) {
     AccountType.CASH -> AccountCardVisualStyle(
-        gradient = listOf(Color(0xFF064E3B).copy(alpha = 0.94f), Color(0xFF047857).copy(alpha = 0.92f)),
+        gradient = listOf(Color(0xFF064E3B), Color(0xFF047857)),
         borderColor = Color(0xFF34D399),
         badgeBg = Color(0xFFD1FAE5),
         badgeFg = Color(0xFF064E3B),
@@ -98,7 +98,7 @@ private fun styleForAccountType(accountType: String): AccountCardVisualStyle = w
         typeTag = "EFECTIVO"
     )
     AccountType.BANK_CHECKING -> AccountCardVisualStyle(
-        gradient = listOf(Color(0xFF172554).copy(alpha = 0.95f), Color(0xFF1E40AF).copy(alpha = 0.92f)),
+        gradient = listOf(Color(0xFF172554), Color(0xFF1E40AF)),
         borderColor = Color(0xFF60A5FA),
         badgeBg = Color(0xFFDBEAFE),
         badgeFg = Color(0xFF1E3A8A),
@@ -106,7 +106,7 @@ private fun styleForAccountType(accountType: String): AccountCardVisualStyle = w
         typeTag = "BANCO · MONETARIA"
     )
     AccountType.BANK_SAVINGS -> AccountCardVisualStyle(
-        gradient = listOf(Color(0xFF0F3D4C).copy(alpha = 0.95f), Color(0xFF0E7490).copy(alpha = 0.92f)),
+        gradient = listOf(Color(0xFF0F3D4C), Color(0xFF0E7490)),
         borderColor = Color(0xFF22D3EE),
         badgeBg = Color(0xFFCFFAFE),
         badgeFg = Color(0xFF164E63),
@@ -114,7 +114,7 @@ private fun styleForAccountType(accountType: String): AccountCardVisualStyle = w
         typeTag = "BANCO · AHORRO"
     )
     AccountType.COOPERATIVE -> AccountCardVisualStyle(
-        gradient = listOf(Color(0xFF5C2D0C).copy(alpha = 0.95f), Color(0xFF92400E).copy(alpha = 0.92f)),
+        gradient = listOf(Color(0xFF5C2D0C), Color(0xFF92400E)),
         borderColor = Color(0xFFFBBF24),
         badgeBg = Color(0xFFFEF3C7),
         badgeFg = Color(0xFF78350F),
@@ -122,7 +122,7 @@ private fun styleForAccountType(accountType: String): AccountCardVisualStyle = w
         typeTag = "COOPERATIVA"
     )
     AccountType.CREDIT_CARD -> AccountCardVisualStyle(
-        gradient = listOf(Color(0xFF0F172A).copy(alpha = 0.96f), Color(0xFF1E293B).copy(alpha = 0.94f), Color(0xFF0B2E26).copy(alpha = 0.94f)),
+        gradient = listOf(Color(0xFF0F172A), Color(0xFF1E293B), Color(0xFF0B2E26)),
         borderColor = Color(0xFFF59E0B),
         badgeBg = Color(0xFFF59E0B),
         badgeFg = Color(0xFF0F172A),
@@ -130,7 +130,7 @@ private fun styleForAccountType(accountType: String): AccountCardVisualStyle = w
         typeTag = "TARJETA DE CRÉDITO"
     )
     else -> AccountCardVisualStyle(
-        gradient = listOf(Color(0xFF1E293B).copy(alpha = 0.94f), Color(0xFF334155).copy(alpha = 0.92f)),
+        gradient = listOf(Color(0xFF1E293B), Color(0xFF334155)),
         borderColor = Color(0xFF94A3B8),
         badgeBg = Color(0xFFE2E8F0),
         badgeFg = Color(0xFF0F172A),
@@ -197,7 +197,7 @@ fun AccountCardStack(
         }
     }
 
-    val barSurface = if (isDarkTheme) Color(0xFF0F172A).copy(alpha = 0.86f) else Color.White.copy(alpha = 0.87f)
+    val barSurface = if (isDarkTheme) Color(0xFF0F172A) else Color.White
     val barBorder = if (isDarkTheme) Color(0xFF334155) else Color(0xFFCBD5E1)
     val barText = if (isDarkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
     val barSubText = if (isDarkTheme) Color(0xFFCBD5E1) else Color(0xFF475569)

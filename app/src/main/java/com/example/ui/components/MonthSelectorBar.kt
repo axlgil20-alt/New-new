@@ -83,11 +83,10 @@ fun MonthSelectorBar(
                 )
                 Text(
                     text = if (isAllTime) "Todo el Historial" else currentMonthLabel,
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    maxLines = 2
                 )
             }
 

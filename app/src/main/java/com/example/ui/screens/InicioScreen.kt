@@ -16,7 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -43,6 +43,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -174,16 +175,16 @@ fun InicioScreen(
             )
 
             // Degradado selectivo: protege la barra superior y se funde al final,
-            // dejando la fachada amarilla colonial de Amatitlán con su contraste, nitidez y colores naturales al 100%
+            // dejando la fachada amarilla colonial de Amatitlán con su contraste, nitidez y colores naturales
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(
                         Brush.verticalGradient(
-                            0.00f to if (uiState.isDarkTheme) Color(0xD9000000) else Color(0x73000000),
-                            0.18f to Color.Transparent,
-                            0.80f to Color.Transparent,
-                            0.92f to homeBackground.copy(alpha = 0.45f),
+                            0.00f to if (uiState.isDarkTheme) Color(0xE606120E) else Color(0xA6031F18),
+                            0.28f to if (uiState.isDarkTheme) Color(0x8806120E) else Color(0x38031F18),
+                            0.76f to Color.Transparent,
+                            0.90f to homeBackground.copy(alpha = 0.55f),
                             1.00f to homeBackground
                         )
                     )
@@ -217,45 +218,35 @@ fun InicioScreen(
                             shape = RoundedCornerShape(10.dp),
                             color = if (uiState.isDarkTheme) Color(0xFF382313) else Color(0xFF7A3E1D),
                             border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFD97706)),
-                            modifier = Modifier.size(38.dp)
+                            modifier = Modifier.size(34.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Text(text = "🇬🇹", fontSize = 20.sp)
+                                Text(text = "🇬🇹", fontSize = 18.sp)
                             }
                         }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = "HOY",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Black,
-                                    color = Color.White,
-                                    letterSpacing = 0.5.sp
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Surface(
-                                    shape = RoundedCornerShape(6.dp),
-                                    color = Color(0xFFD97706).copy(alpha = 0.30f),
-                                    border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFFF59E0B))
-                                ) {
-                                    Text(
-                                        text = "Quetzi",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = if (uiState.isDarkTheme) Color(0xFFFDE047) else Color(0xFFFFFBEB),
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                    )
-                                }
-                            }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = "Parroquia San Juan Bautista · Amatitlán",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = if (uiState.isDarkTheme) Color(0xFFFDE68A) else Color(0xFFFFF7ED),
-                                maxLines = 1,
-                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                text = "HOY",
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White,
+                                letterSpacing = 0.5.sp
                             )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color(0xFF92400E),
+                                border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFFF59E0B))
+                            ) {
+                                Text(
+                                    text = "Quetzi",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFFFFFBEB),
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
                         }
                     }
                 },
@@ -324,6 +315,23 @@ fun InicioScreen(
                     containerColor = Color.Transparent
                 )
             )
+
+            // Rótulo completo sin truncamiento ni solapamiento con botones del TopAppBar
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = if (uiState.isDarkTheme) Color(0xFF0A241E) else Color(0xFF063729),
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF59E0B)),
+                modifier = Modifier
+                    .padding(horizontal = 16.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    text = "Parroquia San Juan Bautista · Amatitlán",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFFFEF3C7),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                )
+            }
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -477,6 +485,10 @@ fun InicioScreen(
                     ) {
                         OutlinedButton(
                             onClick = onAddAntExpenseClick,
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            ),
                             modifier = Modifier
                                 .weight(1f)
                                 .heightIn(min = 48.dp),
@@ -571,13 +583,13 @@ fun InicioScreen(
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Surface(
                                         shape = RoundedCornerShape(6.dp),
-                                        color = EmeraldGreen.copy(alpha = 0.15f)
+                                        color = if (uiState.isDarkTheme) Color(0xFF064E3B) else Color(0xFFD1FAE5)
                                     ) {
                                         Text(
                                             text = storeName,
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.Bold,
-                                            color = EmeraldGreen,
+                                            color = if (uiState.isDarkTheme) Color(0xFFA7F3D0) else EmeraldGreen,
                                             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                         )
                                     }
@@ -623,10 +635,12 @@ fun InicioScreen(
                         Text(
                             text = "${if (uiState.isAllTime) "Movimientos del Historial" else "Movimientos del Mes"} (${searchedTransactions.size})",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
                         )
 
                         if (uiState.filteredTransactions.isNotEmpty()) {
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "Toca para opciones",
                                 style = MaterialTheme.typography.labelSmall,
@@ -657,6 +671,12 @@ fun InicioScreen(
                             }
                         },
                         placeholder = { Text("Buscar por negocio, categoría o monto...") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedBorderColor = EmeraldGreen,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant
+                        ),
                         shape = RoundedCornerShape(14.dp)
                     )
                 }
@@ -702,10 +722,10 @@ fun InicioScreen(
                         }
                     }
                 } else {
-                        items(
+                        itemsIndexed(
                         items = visibleTransactions,
-                        key = { it.id }
-                    ) { tx ->
+                        key = { _, it -> it.id }
+                    ) { index, tx ->
                         Box(modifier = Modifier.padding(horizontal = 16.dp, vertical = 3.dp)) {
                             TransactionItemCard(
                                 transaction = tx,
@@ -717,7 +737,8 @@ fun InicioScreen(
                                 onHighlight = { colorHex -> onHighlightTransaction(tx, colorHex) },
                                 onToggleVerify = { onToggleVerifyTransaction(tx) },
                                 onDecideTentative = { decision -> onDecideTentative(tx, decision) },
-                                accountName = tx.accountId?.let { accountNameById[it] }
+                                accountName = tx.accountId?.let { accountNameById[it] },
+                                rowIndex = index
                             )
                         }
                     }

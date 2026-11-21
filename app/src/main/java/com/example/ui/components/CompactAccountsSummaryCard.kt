@@ -117,8 +117,7 @@ fun CompactAccountsSummaryCard(
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.SemiBold,
                             color = secondaryText,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            maxLines = 2
                         )
                     }
                 }
@@ -206,8 +205,7 @@ fun CompactAccountsSummaryCard(
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = if (isDarkTheme) Color(0xFFDBEAFE) else Color(0xFF1E3A8A),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            maxLines = 2
                         )
                     }
                 }
@@ -237,10 +235,10 @@ private fun AccountsMetricTile(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
                 fontSize = 10.sp,
+                lineHeight = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = labelColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                maxLines = 2
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
@@ -248,8 +246,7 @@ private fun AccountsMetricTile(
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.ExtraBold,
                 color = valueColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                maxLines = 2
             )
         }
     }

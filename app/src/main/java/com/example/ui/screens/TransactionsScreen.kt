@@ -25,7 +25,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -46,6 +46,8 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.filled.ViewAgenda
+import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Badge
@@ -167,6 +169,7 @@ fun TransactionsScreen(
     onDeleteTransactions: ((List<Long>) -> Unit)? = null,
     onMarkTransactionsAsLegitimate: ((List<Long>) -> Unit)? = null,
     accountNameById: Map<Long, String> = emptyMap(),
+    onSetCompactTransactionsMode: (Boolean) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -312,16 +315,14 @@ fun TransactionsScreen(
                                 style = MaterialTheme.typography.titleLarge.copy(shadow = headerShadow),
                                 fontWeight = FontWeight.Black,
                                 color = Color.White,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                maxLines = 2
                             )
                             Text(
                                 text = "Tus finanzas sin clavos",
                                 style = MaterialTheme.typography.labelSmall.copy(shadow = headerShadow),
                                 fontWeight = FontWeight.SemiBold,
                                 color = GoldenYellowLight,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                maxLines = 2
                             )
                         }
                         Spacer(modifier = Modifier.width(8.dp))
@@ -380,7 +381,13 @@ fun TransactionsScreen(
                             ) {
                                 Icon(Icons.Default.FileDownload, contentDescription = null, tint = TurquoiseLight, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(5.dp))
-                                Text("Importar / Exportar", fontWeight = FontWeight.Bold, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(
+                                    text = "Importar / Exportar",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 2
+                                )
                             }
                         }
                     }
@@ -493,8 +500,7 @@ fun TransactionsScreen(
                                         style = MaterialTheme.typography.labelLarge,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurface,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                        maxLines = 2
                                     )
                                 }
                                 if (uiState.activeFiltersCount > 0) {
@@ -527,9 +533,9 @@ fun TransactionsScreen(
                                         letterSpacing = 0.5.sp
                                     )
                                     Spacer(modifier = Modifier.height(6.dp))
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                    FlowRow(
+                                        verticalArrangement = Arrangement.spacedBy(6.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                                         modifier = Modifier.fillMaxWidth()
                                     ) {
                                         Text(
@@ -537,21 +543,18 @@ fun TransactionsScreen(
                                             style = MaterialTheme.typography.headlineMedium,
                                             fontWeight = FontWeight.Black,
                                             color = if (uiState.totalAmountToSpend >= 0) Color.White else Color(0xFFFECACA),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f)
+                                            maxLines = 2
                                         )
-                                        Spacer(modifier = Modifier.width(8.dp))
                                         Surface(
                                             shape = RoundedCornerShape(8.dp),
-                                            color = Color.White.copy(alpha = 0.20f)
+                                            color = Color(0xFF022C22)
                                         ) {
                                             Text(
                                                 text = "Ingresos: +${uiState.currencySymbol}${"%,.0f".format(uiState.filteredRealIncome)}",
                                                 style = MaterialTheme.typography.labelSmall,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color.White,
-                                                maxLines = 1,
+                                                maxLines = 2,
                                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                             )
                                         }
@@ -750,7 +753,7 @@ fun TransactionsScreen(
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706)),
                                 shape = RoundedCornerShape(10.dp),
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                modifier = Modifier.heightIn(min = 42.dp)
+                                modifier = Modifier.heightIn(min = 48.dp)
                             ) {
                                 Text("Revisar", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White, maxLines = 1)
                             }
@@ -791,7 +794,7 @@ fun TransactionsScreen(
                                         onFilterDuplicatesModeChange?.invoke(DuplicateFilterMode.ALL)
                                         selectedIds.clear()
                                     },
-                                    modifier = Modifier.size(40.dp)
+                                    modifier = Modifier.size(48.dp)
                                 ) {
                                     Icon(imageVector = Icons.Default.Close, contentDescription = "Cerrar revisión", tint = bannerTextColor)
                                 }
@@ -816,14 +819,14 @@ fun TransactionsScreen(
                                     border = BorderStroke(1.dp, bannerTextColor.copy(alpha = 0.55f)),
                                     colors = ButtonDefaults.outlinedButtonColors(contentColor = bannerTextColor),
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
-                                    modifier = Modifier.weight(1f).heightIn(min = 44.dp)
+                                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
                                 ) {
                                     Text(
                                         text = if (selectedIds.size == uiState.filteredTransactions.size) "Ninguno" else "Sel. todo",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 2
                                     )
                                 }
 
@@ -838,7 +841,7 @@ fun TransactionsScreen(
                                     ),
                                     shape = RoundedCornerShape(8.dp),
                                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
-                                    modifier = Modifier.weight(1f).heightIn(min = 44.dp)
+                                    modifier = Modifier.weight(1f).heightIn(min = 48.dp)
                                 ) {
                                     Icon(imageVector = Icons.Default.Delete, contentDescription = null, modifier = Modifier.size(14.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
@@ -846,8 +849,8 @@ fun TransactionsScreen(
                                         text = "Eliminar (${selectedIds.size})",
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                        textAlign = TextAlign.Center,
+                                        maxLines = 2
                                     )
                                 }
 
@@ -868,14 +871,14 @@ fun TransactionsScreen(
                                             disabledContentColor = bannerTextColor.copy(alpha = 0.45f)
                                         ),
                                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
-                                        modifier = Modifier.weight(1f).heightIn(min = 44.dp)
+                                        modifier = Modifier.weight(1f).heightIn(min = 48.dp)
                                     ) {
                                         Text(
                                             text = "Legítimos",
                                             fontSize = 11.sp,
                                             fontWeight = FontWeight.Bold,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                            textAlign = TextAlign.Center,
+                                            maxLines = 2
                                         )
                                     }
                                 }
@@ -1246,6 +1249,91 @@ fun TransactionsScreen(
                 }
             }
 
+            // 7.8 Selector de Densidad de Registros: Cómodo vs Compacto (persistente localmente)
+            item {
+                val isDark = uiState.isDarkTheme
+                val isCompact = uiState.isCompactTransactionsMode
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 2.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    color = if (isDark) Color(0xFF131D1B) else Color(0xFFFFFCF2),
+                    border = BorderStroke(1.dp, if (isDark) Color(0xFF2B423C) else IvoryBorder)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Modo de vista (${uiState.filteredTransactions.size})",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 2
+                            )
+                            Text(
+                                text = if (isCompact) "Toca un registro para acciones · Eliminar admite Deshacer" else "Filas alternadas · Eliminar admite Deshacer",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            FilterChip(
+                                selected = !isCompact,
+                                onClick = { onSetCompactTransactionsMode(false) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.ViewAgenda,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                label = { Text("Cómodo", fontWeight = FontWeight.Bold, maxLines = 1) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    containerColor = if (isDark) Color(0xFF1E293B) else Color(0xFFF1F5F9),
+                                    labelColor = MaterialTheme.colorScheme.onSurface,
+                                    selectedContainerColor = JadeGreen,
+                                    selectedLabelColor = Color.White,
+                                    selectedLeadingIconColor = Color.White
+                                ),
+                                modifier = Modifier
+                                    .heightIn(min = 48.dp)
+                                    .testTag("transactions_mode_comodo")
+                            )
+                            FilterChip(
+                                selected = isCompact,
+                                onClick = { onSetCompactTransactionsMode(true) },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = Icons.Default.ViewList,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                label = { Text("Compacto", fontWeight = FontWeight.Bold, maxLines = 1) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    containerColor = if (isDark) Color(0xFF1E293B) else Color(0xFFF1F5F9),
+                                    labelColor = MaterialTheme.colorScheme.onSurface,
+                                    selectedContainerColor = JadeGreen,
+                                    selectedLabelColor = Color.White,
+                                    selectedLeadingIconColor = Color.White
+                                ),
+                                modifier = Modifier
+                                    .heightIn(min = 48.dp)
+                                    .testTag("transactions_mode_compacto")
+                            )
+                        }
+                    }
+                }
+            }
+
             // 8. Lista de Transacciones agrupadas
             if (uiState.filteredTransactions.isEmpty()) {
                 item {
@@ -1256,7 +1344,7 @@ fun TransactionsScreen(
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         shape = RoundedCornerShape(22.dp),
                         colors = CardDefaults.cardColors(
-                            containerColor = if (isDark) Color(0xF0131D1B) else Color(0xF5FFFCF2)
+                            containerColor = if (isDark) Color(0xFF131D1B) else Color(0xFFFFFCF2)
                         ),
                         border = BorderStroke(1.2.dp, if (isDark) Color(0xFF2B423C) else IvoryBorder),
                         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
@@ -1299,10 +1387,10 @@ fun TransactionsScreen(
                     }
                 }
             } else {
-                items(
+                itemsIndexed(
                     items = uiState.filteredTransactions,
-                    key = { it.id }
-                ) { tx ->
+                    key = { _, it -> it.id }
+                ) { index, tx ->
                     TransactionItemCard(
                         transaction = tx,
                         currencySymbol = uiState.currencySymbol,
@@ -1329,7 +1417,9 @@ fun TransactionsScreen(
                         onMarkAsLegitimate = {
                             onMarkTransactionsAsLegitimate?.invoke(listOf(tx.id))
                         },
-                        accountName = tx.accountId?.let { accountNameById[it] }
+                        accountName = tx.accountId?.let { accountNameById[it] },
+                        isCompactMode = uiState.isCompactTransactionsMode,
+                        rowIndex = index
                     )
                 }
             }
@@ -1430,7 +1520,7 @@ private fun AdvancedFiltersSheetContent(
             )
             Spacer(modifier = Modifier.width(8.dp))
             OutlinedButton(
-                modifier = Modifier.heightIn(min = 44.dp),
+                modifier = Modifier.heightIn(min = 48.dp),
                 onClick = {
                     val cal = Calendar.getInstance()
                     DatePickerDialog(
@@ -1684,8 +1774,7 @@ private fun SummaryMetricCard(
                     style = MaterialTheme.typography.labelLarge,
                     fontWeight = FontWeight.Bold,
                     color = accent,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
+                    maxLines = 2
                 )
             }
             Text(
@@ -1694,17 +1783,14 @@ private fun SummaryMetricCard(
                 fontWeight = FontWeight.Black,
                 letterSpacing = (-0.2).sp,
                 color = accent,
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Ellipsis
+                maxLines = 2
             )
             Text(
                 text = detail,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = detailColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                maxLines = 2
             )
         }
     }
@@ -1719,7 +1805,7 @@ private fun TextButton(
 ) {
     androidx.compose.material3.TextButton(
         onClick = onClick,
-        modifier = modifier
+        modifier = modifier.heightIn(min = 48.dp)
     ) {
         Text(
             text = text,

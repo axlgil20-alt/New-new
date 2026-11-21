@@ -345,16 +345,14 @@ fun SmartCartScreen(
                                 fontWeight = FontWeight.Black,
                                 color = Color.White,
                                 letterSpacing = 0.5.sp,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                maxLines = 1
                             )
                             Text(
                                 text = "Planificá tus compras y ahorrá",
                                 style = MaterialTheme.typography.bodySmall.copy(shadow = heroTextShadow),
                                 color = Color(0xFFFEF3C7),
                                 fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                maxLines = 2
                             )
                         }
                     }
@@ -395,10 +393,10 @@ fun SmartCartScreen(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // PESTAÑAS PRINCIPALES CON CONTENEDOR SÓLIDO DE ALTO CONTRASTE
+                // PESTAÑAS PRINCIPALES CON CONTENEDOR SÓLIDO 100% OPACO DE ALTO CONTRASTE
                 Surface(
                     shape = RoundedCornerShape(14.dp),
-                    color = (if (isDark) Color(0xFF0F221C) else Color(0xFF063226)).copy(alpha = 0.91f),
+                    color = if (isDark) Color(0xFF0F221C) else Color(0xFF063226),
                     border = BorderStroke(1.2.dp, Color(0xFF34D399)),
                     shadowElevation = 4.dp,
                     modifier = Modifier.fillMaxWidth()
@@ -420,13 +418,16 @@ fun SmartCartScreen(
                                 .background(if (selectedTab == 0) EmeraldGreen else Color.Transparent)
                                 .testTag("tab_supermarket_list"),
                             text = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
                                     Text(
                                         text = "Lista del Súper",
                                         fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.SemiBold,
-                                        fontSize = 12.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
+                                        fontSize = 11.sp,
+                                        lineHeight = 13.sp,
+                                        maxLines = 2,
                                         color = if (selectedTab == 0) Color.White else Color(0xFFD1FAE5)
                                     )
                                     if (pendingCartCount > 0) {
@@ -460,13 +461,16 @@ fun SmartCartScreen(
                                 .background(if (selectedTab == 1) EmeraldGreen else Color.Transparent)
                                 .testTag("tab_my_pantry"),
                             text = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
                                     Text(
                                         text = "Mi Despensa",
                                         fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.SemiBold,
-                                        fontSize = 12.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
+                                        fontSize = 11.sp,
+                                        lineHeight = 13.sp,
+                                        maxLines = 2,
                                         color = if (selectedTab == 1) Color.White else Color(0xFFD1FAE5)
                                     )
                                     if (redPantryCount > 0) {
@@ -500,13 +504,16 @@ fun SmartCartScreen(
                                 .background(if (selectedTab == 2) EmeraldGreen else Color.Transparent)
                                 .testTag("tab_shopping_templates"),
                             text = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
                                     Text(
                                         text = "Plantillas",
                                         fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.SemiBold,
-                                        fontSize = 12.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
+                                        fontSize = 11.sp,
+                                        lineHeight = 13.sp,
+                                        maxLines = 2,
                                         color = if (selectedTab == 2) Color.White else Color(0xFFD1FAE5)
                                     )
                                     if (uiState.shoppingTemplates.isNotEmpty()) {

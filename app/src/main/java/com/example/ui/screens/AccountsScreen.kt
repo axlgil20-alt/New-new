@@ -288,15 +288,13 @@ fun AccountsScreen(
                             style = MaterialTheme.typography.titleLarge.copy(shadow = heroTextShadow),
                             fontWeight = FontWeight.Black,
                             color = Color.White,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            maxLines = 2
                         )
                         Text(
                             text = "Quetzaltenango · ${accountsState.activeAccounts.size} activa(s) · ${accountsState.creditCardAccounts.size} tarjeta(s)",
                             style = MaterialTheme.typography.labelSmall.copy(shadow = heroTextShadow),
                             color = Color(0xFFE2E8F0),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            maxLines = 2
                         )
                     }
                 },
@@ -345,7 +343,7 @@ fun AccountsScreen(
                                         amountMinor = accountsState.totalLiquidAssetsMinor,
                                         currencySymbol = currencySymbol,
                                         isDiscreetMode = isDiscreetMode,
-                                        bgColor = if (isDarkTheme) Color(0xFF064E3B).copy(alpha = 0.90f) else Color(0xFFD1FAE5).copy(alpha = 0.92f),
+                                        bgColor = if (isDarkTheme) Color(0xFF064E3B) else Color(0xFFD1FAE5),
                                         textColor = accentEmerald,
                                         modifier = Modifier.weight(1f)
                                     )
@@ -354,7 +352,7 @@ fun AccountsScreen(
                                         amountMinor = accountsState.totalCreditCardDebtMinor,
                                         currencySymbol = currencySymbol,
                                         isDiscreetMode = isDiscreetMode,
-                                        bgColor = if (isDarkTheme) Color(0xFF4C1D24).copy(alpha = 0.90f) else Color(0xFFFEE2E2).copy(alpha = 0.92f),
+                                        bgColor = if (isDarkTheme) Color(0xFF4C1D24) else Color(0xFFFEE2E2),
                                         textColor = if (isDarkTheme) Color(0xFFFCA5A5) else Color(0xFF991B1B),
                                         modifier = Modifier.weight(1f)
                                     )
@@ -363,7 +361,7 @@ fun AccountsScreen(
                                         amountMinor = accountsState.netWorthMinor,
                                         currencySymbol = currencySymbol,
                                         isDiscreetMode = isDiscreetMode,
-                                        bgColor = if (isDarkTheme) Color(0xFF0F172A).copy(alpha = 0.90f) else Color(0xFFF1F5F9).copy(alpha = 0.92f),
+                                        bgColor = if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFF1F5F9),
                                         textColor = primaryText,
                                         modifier = Modifier.weight(1f)
                                     )
@@ -426,7 +424,7 @@ fun AccountsScreen(
                         item {
                             Surface(
                                 shape = RoundedCornerShape(14.dp),
-                                color = if (isDarkTheme) Color(0xFF1E3A8A).copy(alpha = 0.90f) else Color(0xFFDBEAFE).copy(alpha = 0.92f),
+                                color = if (isDarkTheme) Color(0xFF1E3A8A) else Color(0xFFDBEAFE),
                                 border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFF60A5FA) else Color(0xFF2563EB)),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
@@ -459,7 +457,7 @@ fun AccountsScreen(
 
                     // Filtros por tipo de cuenta + alternador Pila / Lista
                     item {
-                        val chipSurface = if (isDarkTheme) Color(0xFF1E293B).copy(alpha = 0.88f) else Color.White.copy(alpha = 0.90f)
+                        val chipSurface = if (isDarkTheme) Color(0xFF1E293B) else Color.White
                         Row(
                             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -978,9 +976,9 @@ private fun SummaryKpiChip(
                 text = label,
                 style = MaterialTheme.typography.labelSmall,
                 fontSize = 10.sp,
+                lineHeight = 12.sp,
                 color = textColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                maxLines = 2
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
@@ -988,8 +986,7 @@ private fun SummaryKpiChip(
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.Black,
                 color = textColor,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                maxLines = 2
             )
         }
     }

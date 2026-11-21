@@ -2,10 +2,12 @@ package com.example.ui.screens
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,7 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -138,7 +140,21 @@ fun PlannedVsRealScreen(
             }
         }
     }
-    val backgroundScrim = if (displayList.isEmpty()) Color(0x7AF0F8FA) else Color(0xB3F0F8FA)
+    val isDark = uiState.isDarkTheme
+    val backgroundScrim = if (isDark) {
+        if (displayList.isEmpty()) Color(0x9909131C) else Color(0xB809131C)
+    } else {
+        if (displayList.isEmpty()) Color(0x6AF0F8FA) else Color(0x9EF0F8FA)
+    }
+    val cardContainer = if (isDark) Color(0xFF0E1F2A) else Color.White
+    val summaryContainer = if (isDark) Color(0xFF0B1C26) else Color(0xFFF8FEFF)
+    val cycleCardContainer = if (isDark) Color(0xFF0D212D) else Color(0xFFF4FBFC)
+    val cardBorder = if (isDark) Color(0xFF285970) else Color(0xFF9BD9E2)
+    val accentBorder = if (isDark) Color(0xFF38BDF8) else Color(0xFF62B9C8)
+    val titleColor = if (isDark) Color(0xFF7DD3FC) else LakeNavy
+    val primaryTextColor = if (isDark) Color(0xFFF1F5F9) else LakeText
+    val secondaryTextColor = if (isDark) Color(0xFFCBD5E1) else Color(0xFF31576A)
+    val iconNavColor = if (isDark) Color(0xFF38BDF8) else LakeBlue
 
     Box(modifier = modifier.fillMaxSize()) {
         Image(
@@ -163,7 +179,7 @@ fun PlannedVsRealScreen(
                     )
                     Box(
                         modifier = Modifier.fillMaxSize().background(
-                            Brush.verticalGradient(listOf(Color(0x22102F46), Color(0xB807304B)))
+                            Brush.verticalGradient(listOf(Color(0x33102F46), Color(0xCC07304B)))
                         )
                     )
                     Column(
@@ -190,8 +206,8 @@ fun PlannedVsRealScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF9BD9E2)),
+                    colors = CardDefaults.cardColors(containerColor = cardContainer),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, cardBorder),
                     elevation = CardDefaults.cardElevation(3.dp)
                 ) {
                     Row(
@@ -200,14 +216,18 @@ fun PlannedVsRealScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         IconButton(onClick = onPreviousMonth, modifier = Modifier.size(48.dp)) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Mes anterior", tint = LakeBlue)
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Mes anterior", tint = iconNavColor)
                         }
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = LakeJade)
-                            Text(monthLabel, fontWeight = FontWeight.Bold, color = LakeText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f, fill = false)
+                        ) {
+                            Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = if (isDark) Color(0xFF34D399) else LakeJade)
+                            Text(monthLabel, fontWeight = FontWeight.Bold, color = primaryTextColor, maxLines = 2)
                         }
                         IconButton(onClick = onNextMonth, modifier = Modifier.size(48.dp)) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Mes siguiente", tint = LakeBlue)
+                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Mes siguiente", tint = iconNavColor)
                         }
                     }
                 }
@@ -215,22 +235,25 @@ fun PlannedVsRealScreen(
 
             item {
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    listOf("Mes", "1.ª · Fin mes–14", "2.ª · 15–Penúltimo").forEachIndexed { index, label ->
+                    listOf("Mes completo", "1.ª · Fin mes–14", "2.ª · 15–Penúltimo").forEachIndexed { index, label ->
                         FilterChip(
                             selected = selectedCycleTab == index,
                             onClick = { selectedCycleTab = index },
-                            label = { Text(label, maxLines = 1, fontWeight = FontWeight.Bold) },
-                            modifier = Modifier.weight(1f).heightIn(min = 48.dp),
+                            label = { Text(label, fontWeight = FontWeight.Bold) },
+                            modifier = Modifier.heightIn(min = 48.dp),
                             colors = FilterChipDefaults.filterChipColors(
-                                containerColor = Color.White,
-                                labelColor = LakeText,
+                                containerColor = cardContainer,
+                                labelColor = primaryTextColor,
                                 selectedContainerColor = LakeBlue,
                                 selectedLabelColor = Color.White
                             ),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, if (selectedCycleTab == index) LakeTurquoise else Color(0xFF9BD9E2))
+                            border = androidx.compose.foundation.BorderStroke(1.dp, if (selectedCycleTab == index) LakeTurquoise else cardBorder)
                         )
                     }
                 }
@@ -245,23 +268,23 @@ fun PlannedVsRealScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FEFF)),
-                    border = androidx.compose.foundation.BorderStroke(1.2.dp, Color(0xFF62B9C8)),
+                    colors = CardDefaults.cardColors(containerColor = summaryContainer),
+                    border = androidx.compose.foundation.BorderStroke(1.2.dp, accentBorder),
                     elevation = CardDefaults.cardElevation(3.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(
                             text = "RESUMEN DEL MES · SALDO AL CIERRE DE LA 2.ª QUINCENA",
-                            color = LakeNavy,
+                            color = titleColor,
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.ExtraBold
                         )
                         if (q1Opening > 0) {
-                            FinanceLine("Saldo inicial · traspaso", q1Opening, uiState.currencySymbol, uiState.isDiscreetMode, LakeTurquoise, Icons.Default.TrendingUp)
+                            FinanceLine("Saldo inicial · traspaso", q1Opening, uiState.currencySymbol, uiState.isDiscreetMode, if (isDark) Color(0xFF2DD4BF) else LakeTurquoise, Icons.Default.TrendingUp, primaryTextColor)
                         }
-                        FinanceLine("Dinero recibido", received, uiState.currencySymbol, uiState.isDiscreetMode, LakeBlue, Icons.Default.Payments)
-                        FinanceLine("Gastos reales", actualExpenses, uiState.currencySymbol, uiState.isDiscreetMode, Color(0xFFB42332), Icons.Default.TrendingDown)
-                        FinanceLine("Pendientes · proyección", pendingExpenses, uiState.currencySymbol, uiState.isDiscreetMode, Color(0xFF8A5A00), Icons.Default.Schedule)
+                        FinanceLine("Dinero recibido", received, uiState.currencySymbol, uiState.isDiscreetMode, if (isDark) Color(0xFF38BDF8) else LakeBlue, Icons.Default.Payments, primaryTextColor)
+                        FinanceLine("Gastos reales", actualExpenses, uiState.currencySymbol, uiState.isDiscreetMode, if (isDark) Color(0xFFFCA5A5) else Color(0xFFB42332), Icons.Default.TrendingDown, primaryTextColor)
+                        FinanceLine("Pendientes · proyección", pendingExpenses, uiState.currencySymbol, uiState.isDiscreetMode, if (isDark) Color(0xFFFCD34D) else Color(0xFF8A5A00), Icons.Default.Schedule, primaryTextColor)
                         Spacer(Modifier.height(2.dp))
                         Surface(shape = RoundedCornerShape(14.dp), color = LakeJade) {
                             Row(
@@ -282,7 +305,7 @@ fun PlannedVsRealScreen(
                         Text(
                             "El saldo que queda pasa al siguiente ciclo como saldo inicial; no se cuenta como ingreso nuevo.",
                             style = MaterialTheme.typography.bodySmall,
-                            color = LakeText
+                            color = secondaryTextColor
                         )
                     }
                 }
@@ -331,29 +354,29 @@ fun PlannedVsRealScreen(
                                 2 -> "Buscar en 2.ª quincena..."
                                 else -> "Buscar en el mes..."
                             },
-                            color = Color(0xFF6B8A99),
+                            color = secondaryTextColor,
                             style = MaterialTheme.typography.bodyMedium
                         )
                     },
                     leadingIcon = {
-                        Icon(Icons.Default.Search, contentDescription = "Buscar", tint = LakeBlue)
+                        Icon(Icons.Default.Search, contentDescription = "Buscar", tint = iconNavColor)
                     },
                     trailingIcon = {
                         if (searchQuery.isNotBlank()) {
-                            IconButton(onClick = { searchQuery = "" }) {
-                                Icon(Icons.Default.Clear, contentDescription = "Limpiar búsqueda", tint = Color.Gray)
+                            IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(48.dp)) {
+                                Icon(Icons.Default.Clear, contentDescription = "Limpiar búsqueda", tint = secondaryTextColor)
                             }
                         }
                     },
                     singleLine = true,
                     shape = RoundedCornerShape(16.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White,
-                        focusedBorderColor = LakeBlue,
-                        unfocusedBorderColor = Color(0xFF9BD9E2),
-                        focusedTextColor = LakeText,
-                        unfocusedTextColor = LakeText
+                        focusedContainerColor = cardContainer,
+                        unfocusedContainerColor = cardContainer,
+                        focusedBorderColor = iconNavColor,
+                        unfocusedBorderColor = cardBorder,
+                        focusedTextColor = primaryTextColor,
+                        unfocusedTextColor = primaryTextColor
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -366,14 +389,15 @@ fun PlannedVsRealScreen(
                 Card(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                    colors = CardDefaults.cardColors(containerColor = cardContainer),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, cardBorder)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth().padding(14.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("Movimientos", color = LakeNavy, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("Movimientos", color = titleColor, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text(
                             "${displayList.size}",
                             color = Color.White,
@@ -389,31 +413,32 @@ fun PlannedVsRealScreen(
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                         shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White)
+                        colors = CardDefaults.cardColors(containerColor = cardContainer),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, cardBorder)
                     ) {
                         Column(modifier = Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = LakeTurquoise, modifier = Modifier.size(36.dp))
+                            Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = if (isDark) Color(0xFF2DD4BF) else LakeTurquoise, modifier = Modifier.size(36.dp))
                             Spacer(Modifier.height(8.dp))
                             if (searchQuery.isNotBlank()) {
-                                Text("No se encontraron movimientos", color = LakeText, fontWeight = FontWeight.Bold)
-                                Text("No hay coincidencias para \"$searchQuery\" en este ciclo.", color = Color(0xFF456273), style = MaterialTheme.typography.bodySmall)
+                                Text("No se encontraron movimientos", color = primaryTextColor, fontWeight = FontWeight.Bold)
+                                Text("No hay coincidencias para \"$searchQuery\" en este ciclo.", color = secondaryTextColor, style = MaterialTheme.typography.bodySmall)
                                 Spacer(Modifier.height(10.dp))
                                 OutlinedButton(
                                     onClick = { searchQuery = "" },
                                     shape = RoundedCornerShape(10.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, LakeBlue)
+                                    border = androidx.compose.foundation.BorderStroke(1.dp, iconNavColor)
                                 ) {
-                                    Text("Limpiar búsqueda", color = LakeBlue, fontWeight = FontWeight.Bold)
+                                    Text("Limpiar búsqueda", color = iconNavColor, fontWeight = FontWeight.Bold)
                                 }
                             } else {
-                                Text("Aún no hay movimientos en este ciclo", color = LakeText, fontWeight = FontWeight.Bold)
-                                Text("Los registros nuevos aparecerán aquí automáticamente.", color = Color(0xFF456273), style = MaterialTheme.typography.bodySmall)
+                                Text("Aún no hay movimientos en este ciclo", color = primaryTextColor, fontWeight = FontWeight.Bold)
+                                Text("Los registros nuevos aparecerán aquí automáticamente.", color = secondaryTextColor, style = MaterialTheme.typography.bodySmall)
                             }
                         }
                     }
                 }
             } else {
-                items(displayList, key = { it.id }) { tx ->
+                itemsIndexed(displayList, key = { _, it -> it.id }) { index, tx ->
                     TransactionItemCard(
                         transaction = tx,
                         currencySymbol = uiState.currencySymbol,
@@ -426,7 +451,9 @@ fun PlannedVsRealScreen(
                             val nextDec = if (tx.isGastoSupuesto) "CONFIRM" else "PENDING"
                             onDecideTentative(tx, nextDec)
                         },
-                        isDiscreetMode = uiState.isDiscreetMode
+                        isDiscreetMode = uiState.isDiscreetMode,
+                        isDarkTheme = isDark,
+                        rowIndex = index
                     )
                 }
             }
@@ -447,20 +474,27 @@ private fun CycleFinanceCard(
     projected: Double,
     uiState: BudgetUiState
 ) {
+    val isDark = uiState.isDarkTheme
+    val cardContainer = if (isDark) Color(0xFF0D212D) else Color(0xFFF4FBFC)
+    val cardBorder = if (isDark) Color(0xFF285970) else Color(0xFFB6DFE5)
+    val titleColor = if (isDark) Color(0xFF7DD3FC) else LakeNavy
+    val subtitleColor = if (isDark) Color(0xFFCBD5E1) else Color(0xFF31576A)
+    val primaryText = if (isDark) Color(0xFFF1F5F9) else LakeText
+
     Card(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF4FBFC)),
-        border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFB6DFE5)),
+        colors = CardDefaults.cardColors(containerColor = cardContainer),
+        border = androidx.compose.foundation.BorderStroke(1.dp, cardBorder),
         elevation = CardDefaults.cardElevation(2.dp)
     ) {
         Column(modifier = Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text(title, color = LakeNavy, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
-            Text(fundedBy, color = Color(0xFF31576A), style = MaterialTheme.typography.bodySmall)
-            FinanceLine("Saldo inicial · traspaso", opening, uiState.currencySymbol, uiState.isDiscreetMode, LakeTurquoise, Icons.Default.TrendingUp)
-            FinanceLine("Dinero recibido", received, uiState.currencySymbol, uiState.isDiscreetMode, LakeBlue, Icons.Default.Payments)
-            FinanceLine("Gastos reales · una vez", actualExpenses, uiState.currencySymbol, uiState.isDiscreetMode, Color(0xFFB42332), Icons.Default.TrendingDown)
-            FinanceLine("Gastos pendientes", pendingExpenses, uiState.currencySymbol, uiState.isDiscreetMode, Color(0xFF8A5A00), Icons.Default.Schedule)
+            Text(title, color = titleColor, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
+            Text(fundedBy, color = subtitleColor, style = MaterialTheme.typography.bodySmall)
+            FinanceLine("Saldo inicial · traspaso", opening, uiState.currencySymbol, uiState.isDiscreetMode, if (isDark) Color(0xFF2DD4BF) else LakeTurquoise, Icons.Default.TrendingUp, primaryText)
+            FinanceLine("Dinero recibido", received, uiState.currencySymbol, uiState.isDiscreetMode, if (isDark) Color(0xFF38BDF8) else LakeBlue, Icons.Default.Payments, primaryText)
+            FinanceLine("Gastos reales · una vez", actualExpenses, uiState.currencySymbol, uiState.isDiscreetMode, if (isDark) Color(0xFFFCA5A5) else Color(0xFFB42332), Icons.Default.TrendingDown, primaryText)
+            FinanceLine("Gastos pendientes", pendingExpenses, uiState.currencySymbol, uiState.isDiscreetMode, if (isDark) Color(0xFFFCD34D) else Color(0xFF8A5A00), Icons.Default.Schedule, primaryText)
             Surface(shape = RoundedCornerShape(12.dp), color = LakeJade) {
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp),
@@ -488,7 +522,8 @@ private fun FinanceLine(
     currencySymbol: String,
     discreetMode: Boolean,
     color: Color,
-    icon: androidx.compose.ui.graphics.vector.ImageVector
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    labelColor: Color = LakeText
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -497,16 +532,15 @@ private fun FinanceLine(
     ) {
         Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
-            Text(label, color = LakeText, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            Text(label, color = labelColor, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
         }
+        Spacer(modifier = Modifier.width(8.dp))
         Text(
             FormatUtils.formatCurrency(amount, currencySymbol, discreetMode),
             color = color,
             fontWeight = FontWeight.Bold,
             style = MaterialTheme.typography.bodyMedium,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Ellipsis
+            maxLines = 2
         )
     }
 }

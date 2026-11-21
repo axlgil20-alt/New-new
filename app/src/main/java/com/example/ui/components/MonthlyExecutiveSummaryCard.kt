@@ -146,7 +146,7 @@ fun MonthlyExecutiveSummaryCard(
 
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = scoreColor.copy(alpha = 0.15f)
+                    color = scoreColor.copy(alpha = 0.16f)
                 ) {
                     Text(
                         text = scoreLabel,
@@ -154,9 +154,7 @@ fun MonthlyExecutiveSummaryCard(
                         fontWeight = FontWeight.Bold,
                         color = scoreColor,
                         modifier = Modifier.widthIn(min = 62.dp).padding(horizontal = 8.dp, vertical = 4.dp),
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Clip
+                        maxLines = 2
                     )
                 }
             }
@@ -290,7 +288,7 @@ fun MonthlyExecutiveSummaryCard(
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = incomeText,
-                            maxLines = 1
+                            maxLines = 2
                         )
                     }
                 }
@@ -315,7 +313,7 @@ fun MonthlyExecutiveSummaryCard(
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = expenseText,
-                            maxLines = 1
+                            maxLines = 2
                         )
                     }
                 }
@@ -336,14 +334,13 @@ fun MonthlyExecutiveSummaryCard(
                         Icon(Icons.Default.Savings, contentDescription = null, tint = netText, modifier = Modifier.size(18.dp))
                         Text("Neto", style = MaterialTheme.typography.titleSmall, color = netText, fontWeight = FontWeight.Bold)
                     }
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = FormatUtils.formatCurrency(netBalance, currencySymbol, isDiscreetMode),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.ExtraBold,
                         color = netText,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis
+                        maxLines = 2
                     )
                 }
             }

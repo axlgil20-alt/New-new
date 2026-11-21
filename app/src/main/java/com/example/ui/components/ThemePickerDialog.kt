@@ -57,11 +57,13 @@ fun ThemePickerDialog(
                 Text(
                     text = "Selecciona la paleta de colores para una experiencia visual elegante y profesional.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = Color.Gray
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
                 DefaultData.appThemes.forEachIndexed { index, theme ->
                     val isSelected = currentThemeIndex == index
+                    val itemTitleColor = if (isSelected) Color(0xFF0F172A) else MaterialTheme.colorScheme.onSurface
+                    val itemSubtitleColor = if (isSelected) Color(0xFF334155) else MaterialTheme.colorScheme.onSurfaceVariant
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -70,10 +72,10 @@ fun ThemePickerDialog(
                                 onDismiss()
                             },
                         shape = RoundedCornerShape(16.dp),
-                        color = if (isSelected) Color(theme.containerHex) else Color(0xFFF8FAFC),
+                        color = if (isSelected) Color(theme.containerHex) else MaterialTheme.colorScheme.surfaceVariant,
                         border = androidx.compose.foundation.BorderStroke(
                             width = if (isSelected) 2.dp else 1.dp,
-                            color = if (isSelected) Color(theme.primaryHex) else Color(0xFFE2E8F0)
+                            color = if (isSelected) Color(theme.primaryHex) else MaterialTheme.colorScheme.outlineVariant
                         )
                     ) {
                         Row(
@@ -81,7 +83,7 @@ fun ThemePickerDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                                 Box(
                                     modifier = Modifier
                                         .size(32.dp)
@@ -93,7 +95,8 @@ fun ThemePickerDialog(
                                     Text(
                                         text = theme.name,
                                         style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold
+                                        fontWeight = FontWeight.Bold,
+                                        color = itemTitleColor
                                     )
                                     Text(
                                         text = when (index) {
@@ -103,7 +106,7 @@ fun ThemePickerDialog(
                                             else -> "Minimalismo Profesional"
                                         },
                                         style = MaterialTheme.typography.labelSmall,
-                                        color = Color.Gray
+                                        color = itemSubtitleColor
                                     )
                                 }
                             }

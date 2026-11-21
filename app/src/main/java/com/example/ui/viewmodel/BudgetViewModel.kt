@@ -106,7 +106,18 @@ data class BudgetUiState(
     val monthPaidPaymentsTotal: Double = 0.0,
     val nextUpcomingPayment: PaymentCommitmentEntity? = null,
     // Plantillas Reutilizables de Compras
-    val shoppingTemplates: List<ShoppingTemplateEntity> = emptyList()
+    val shoppingTemplates: List<ShoppingTemplateEntity> = emptyList(),
+    // Preferencias de FAB movible y vista de Registradora
+    val fabOffsetXFraction: Float = 1f,
+    val fabOffsetYFraction: Float = 1f,
+    val isCompactTransactionsMode: Boolean = false
+)
+
+private data class UiOverlayPrefs(
+    val userMessage: String?,
+    val fabOffsetXFraction: Float,
+    val fabOffsetYFraction: Float,
+    val isCompactTransactionsMode: Boolean
 )
 
 private data class BasicFilterBundle(
@@ -178,6 +189,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     private val selectedThemeIndexFlow = MutableStateFlow(prefs.getInt("selected_theme_index", 0))
     private val includeTentativeFlow = MutableStateFlow(true)
     private val userMessageFlow = MutableStateFlow<String?>(null)
+    private val fabXFractionFlow = MutableStateFlow(prefs.getFloat("chapin_fab_x_fraction", 1f).coerceIn(0f, 1f))
+    private val fabYFractionFlow = MutableStateFlow(prefs.getFloat("chapin_fab_y_fraction", 1f).coerceIn(0f, 1f))
+    private val isCompactTransactionsModeFlow = MutableStateFlow(prefs.getBoolean("is_compact_transactions_mode", false))
 
     private val smartCartBudgetFlow = MutableStateFlow(prefs.getFloat("cart_budget_val", 0f).toDouble())
     private val selectedCartStoreFlow = MutableStateFlow(prefs.getString("cart_store_name", "Walmart") ?: "Walmart")
@@ -379,13 +393,28 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         )
     }
 
+    private val uiOverlayPrefsFlow: Flow<UiOverlayPrefs> = combine(
+        userMessageFlow,
+        fabXFractionFlow,
+        fabYFractionFlow,
+        isCompactTransactionsModeFlow
+    ) { msg, fabX, fabY, compact ->
+        UiOverlayPrefs(
+            userMessage = msg,
+            fabOffsetXFraction = fabX,
+            fabOffsetYFraction = fabY,
+            isCompactTransactionsMode = compact
+        )
+    }
+
     val uiState: StateFlow<BudgetUiState> = combine(
         repository.allTransactions,
         plansDataFlow,
         dateFilterFlow,
         filterBundleFlow,
-        userMessageFlow
-    ) { txList, plans, dateRange, filters, message ->
+        uiOverlayPrefsFlow
+    ) { txList, plans, dateRange, filters, overlayPrefs ->
+        val message = overlayPrefs.userMessage
         val budgets = plans.budgets
         val goals = plans.goals
         val recurring = plans.recurring
@@ -810,7 +839,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             overduePaymentsCount = overduePaymentsCountVal,
             monthPaidPaymentsTotal = monthPaidPaymentsTotalVal,
             nextUpcomingPayment = nextUpcomingPaymentVal,
-            shoppingTemplates = plans.templates
+            shoppingTemplates = plans.templates,
+            fabOffsetXFraction = overlayPrefs.fabOffsetXFraction,
+            fabOffsetYFraction = overlayPrefs.fabOffsetYFraction,
+            isCompactTransactionsMode = overlayPrefs.isCompactTransactionsMode
         )
     }.stateIn(
         scope = viewModelScope,
@@ -840,6 +872,27 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         prefs.edit().putBoolean("is_dark_theme", newDark).apply()
         val msg = if (newDark) "Modo Nocturno activado 🌙" else "Modo Claro activado ☀️"
         showToast(msg)
+    }
+
+    fun updateChapinFabPosition(xFraction: Float, yFraction: Float) {
+        val clampedX = xFraction.coerceIn(0f, 1f)
+        val clampedY = yFraction.coerceIn(0f, 1f)
+        fabXFractionFlow.value = clampedX
+        fabYFractionFlow.value = clampedY
+        prefs.edit()
+            .putFloat("chapin_fab_x_fraction", clampedX)
+            .putFloat("chapin_fab_y_fraction", clampedY)
+            .apply()
+    }
+
+    fun resetChapinFabPosition() {
+        updateChapinFabPosition(1f, 1f)
+        showToast("Posición del botón rápido restablecida.")
+    }
+
+    fun setCompactTransactionsMode(compact: Boolean) {
+        isCompactTransactionsModeFlow.value = compact
+        prefs.edit().putBoolean("is_compact_transactions_mode", compact).apply()
     }
 
     fun nextMonth() {
@@ -1087,7 +1140,13 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     fun deleteTransaction(tx: TransactionEntity) {
         viewModelScope.launch {
             repository.deleteTransaction(tx)
-            showToast("Transacción eliminada.")
+        }
+    }
+
+    fun restoreTransaction(tx: TransactionEntity) {
+        viewModelScope.launch {
+            repository.insertTransaction(tx)
+            showToast("Registro «${tx.title}» restaurado.")
         }
     }
 
@@ -1572,6 +1631,29 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             } else {
                 showToast("El pago ya se encontraba confirmado.")
             }
+        }
+    }
+
+    fun postponePaymentCommitment(
+        commitment: PaymentCommitmentEntity,
+        newDueDateMillis: Long,
+        presetLabel: String = ""
+    ) {
+        if (commitment.isPaid || commitment.status == PaymentStatus.PAID) return
+        viewModelScope.launch {
+            val updated = commitment.copy(
+                dueDateMillis = newDueDateMillis,
+                status = PaymentStatus.PENDING,
+                isPaid = false
+            )
+            repository.updatePaymentCommitment(updated)
+            if (updated.reminderDaysBefore >= 0) {
+                com.example.data.service.PaymentReminderManager.scheduleReminder(getApplication(), updated)
+            } else {
+                com.example.data.service.PaymentReminderManager.cancelReminder(getApplication(), updated.id)
+            }
+            val labelSuffix = if (presetLabel.isNotBlank()) " ($presetLabel)" else ""
+            showToast("Compromiso pospuesto$labelSuffix.")
         }
     }
 

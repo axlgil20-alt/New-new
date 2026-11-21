@@ -43,9 +43,9 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.MoreHoriz
-import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
@@ -86,8 +86,10 @@ import com.example.data.model.isMonetarySynchronized
 import com.example.data.model.isOverdue
 import com.example.data.model.isUpcoming
 import com.example.ui.theme.EmeraldGreen
+import com.example.ui.theme.JadeGreen
 import com.example.ui.util.FormatUtils
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -97,6 +99,13 @@ enum class CommitmentPriorityGroup(val rank: Int) {
     DUE_TODAY_OR_UPCOMING(1),
     LATER_PENDING(2),
     PAID(3)
+}
+
+enum class PostponePreset(val label: String, val subtitle: String) {
+    PLUS_1_DAY("+1 día", "Mañana"),
+    PLUS_3_DAYS("+3 días", "En 3 días"),
+    PLUS_1_WEEK("+1 semana", "En 7 días"),
+    NEXT_QUINCENA("Próx. quincena", "Día 15 o fin de mes")
 }
 
 object PaymentCommitmentStackLogic {
@@ -118,7 +127,7 @@ object PaymentCommitmentStackLogic {
     }
 
     /**
-     * Orden de prioridad requerido para Pagos:
+     * Orden de prioridad para el Mazo de Jade:
      * 1. Vencidos, del más antiguo al más reciente.
      * 2. Próximos (hoy y próximos 7 días), priorizando el vencimiento más cercano.
      * 3. Pendientes posteriores en orden cronológico ascendente.
@@ -178,6 +187,46 @@ object PaymentCommitmentStackLogic {
         }
     }
 
+    fun computePostponedDueDate(
+        currentDueDateMillis: Long,
+        preset: PostponePreset,
+        nowMillis: Long = System.currentTimeMillis()
+    ): Long {
+        val todayStartCal = Calendar.getInstance().apply {
+            timeInMillis = nowMillis
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val baseMillis = maxOf(currentDueDateMillis, nowMillis)
+        val cal = Calendar.getInstance().apply {
+            timeInMillis = if (currentDueDateMillis < todayStartCal.timeInMillis) nowMillis else baseMillis
+            set(Calendar.HOUR_OF_DAY, 12)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        when (preset) {
+            PostponePreset.PLUS_1_DAY -> cal.add(Calendar.DAY_OF_YEAR, 1)
+            PostponePreset.PLUS_3_DAYS -> cal.add(Calendar.DAY_OF_YEAR, 3)
+            PostponePreset.PLUS_1_WEEK -> cal.add(Calendar.DAY_OF_YEAR, 7)
+            PostponePreset.NEXT_QUINCENA -> {
+                val day = cal.get(Calendar.DAY_OF_MONTH)
+                val lastDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+                if (day < 15) {
+                    cal.set(Calendar.DAY_OF_MONTH, 15)
+                } else if (day < lastDay) {
+                    cal.set(Calendar.DAY_OF_MONTH, lastDay)
+                } else {
+                    cal.add(Calendar.MONTH, 1)
+                    cal.set(Calendar.DAY_OF_MONTH, 15)
+                }
+            }
+        }
+        return cal.timeInMillis
+    }
+
     fun computeSwipeEndState(
         isCurrentlyOpen: Boolean,
         dragOffsetPx: Float,
@@ -219,7 +268,8 @@ private data class CommitmentSemanticStyle(
     val statusBorderColor: Color,
     val cardBorderColor: Color,
     val cardBg: Color,
-    val backPeekBg: Color
+    val backPeekBg: Color,
+    val jadeBandColor: Color
 )
 
 @Composable
@@ -237,41 +287,48 @@ private fun rememberCommitmentSemanticStyle(
         isPaid -> if (isDarkTheme) Color(0xFF064E3B) else Color(0xFFD1FAE5)
         isOverdue -> if (isDarkTheme) Color(0xFF5C1D24) else Color(0xFFFEE2E2)
         isToday -> if (isDarkTheme) Color(0xFF451A03) else Color(0xFFFEF3C7)
-        isUpcoming -> if (isDarkTheme) Color(0xFF1E3A8A) else Color(0xFFDBEAFE)
-        else -> if (isDarkTheme) Color(0xFF334155) else Color(0xFFF1F5F9)
+        isUpcoming -> if (isDarkTheme) Color(0xFF0D3B34) else Color(0xFFCCFBF1)
+        else -> if (isDarkTheme) Color(0xFF14362C) else Color(0xFFE6F4EF)
     }
     val statusContentColor = when {
         isPaid -> if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF065F46)
         isOverdue -> if (isDarkTheme) Color(0xFFFECACA) else Color(0xFF991B1B)
         isToday -> if (isDarkTheme) Color(0xFFFDE68A) else Color(0xFF92400E)
-        isUpcoming -> if (isDarkTheme) Color(0xFFBFDBFE) else Color(0xFF1E40AF)
-        else -> if (isDarkTheme) Color(0xFFE2E8F0) else Color(0xFF334155)
+        isUpcoming -> if (isDarkTheme) Color(0xFF99F6E4) else Color(0xFF115E59)
+        else -> if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF064E3B)
     }
     val statusBorderColor = when {
-        isPaid -> if (isDarkTheme) Color(0xFF34D399) else Color(0xFF059669)
+        isPaid -> if (isDarkTheme) Color(0xFF34D399) else JadeGreen
         isOverdue -> if (isDarkTheme) Color(0xFFF87171) else Color(0xFFDC2626)
         isToday -> if (isDarkTheme) Color(0xFFFBBF24) else Color(0xFFD97706)
-        isUpcoming -> if (isDarkTheme) Color(0xFF60A5FA) else Color(0xFF2563EB)
-        else -> if (isDarkTheme) Color(0xFF64748B) else Color(0xFF94A3B8)
+        isUpcoming -> if (isDarkTheme) Color(0xFF2DD4BF) else Color(0xFF0F766E)
+        else -> if (isDarkTheme) Color(0xFF10B981) else EmeraldGreen
     }
     val cardBorderColor = when {
         isOverdue -> if (isDarkTheme) Color(0xFFF87171) else Color(0xFFDC2626)
         isToday -> if (isDarkTheme) Color(0xFFFBBF24) else Color(0xFFD97706)
-        isPaid -> if (isDarkTheme) Color(0xFF34D399) else Color(0xFF059669)
-        isUpcoming -> if (isDarkTheme) Color(0xFF60A5FA) else Color(0xFF2563EB)
-        else -> if (isDarkTheme) Color(0xFF475569) else Color(0xFFCBD5E1)
+        isPaid -> if (isDarkTheme) Color(0xFF34D399) else JadeGreen
+        isUpcoming -> if (isDarkTheme) Color(0xFF2DD4BF) else Color(0xFF0F766E)
+        else -> if (isDarkTheme) Color(0xFF10B981) else EmeraldGreen
     }
-    val cardBg = if (isPaid) {
-        if (isDarkTheme) Color(0xFF14241D).copy(alpha = 0.92f) else Color(0xFFF2FAF6).copy(alpha = 0.93f)
-    } else {
-        if (isDarkTheme) Color(0xFF1E293B).copy(alpha = 0.91f) else Color.White.copy(alpha = 0.93f)
+    // 100% opaco: paneles Mazo de Jade sólidos para proteger cifras sobre Antigua
+    val cardBg = when {
+        isPaid -> if (isDarkTheme) Color(0xFF0B241D) else Color(0xFFECFDF5)
+        isOverdue -> if (isDarkTheme) Color(0xFF1C181B) else Color(0xFFFFFBF9)
+        else -> if (isDarkTheme) Color(0xFF0E2620) else Color(0xFFF7FCFA)
     }
     val backPeekBg = when {
-        isOverdue -> if (isDarkTheme) Color(0xFF3B1519) else Color(0xFFFEE2E2)
-        isToday -> if (isDarkTheme) Color(0xFF3B240E) else Color(0xFFFEF3C7)
-        isUpcoming -> if (isDarkTheme) Color(0xFF172554) else Color(0xFFDBEAFE)
-        isPaid -> if (isDarkTheme) Color(0xFF0B2E22) else Color(0xFFD1FAE5)
-        else -> if (isDarkTheme) Color(0xFF0F172A) else Color(0xFFE2E8F0)
+        isOverdue -> if (isDarkTheme) Color(0xFF2B1418) else Color(0xFFFEE2E2)
+        isToday -> if (isDarkTheme) Color(0xFF2D200B) else Color(0xFFFEF3C7)
+        isUpcoming -> if (isDarkTheme) Color(0xFF093029) else Color(0xFFCCFBF1)
+        isPaid -> if (isDarkTheme) Color(0xFF062019) else Color(0xFFD1FAE5)
+        else -> if (isDarkTheme) Color(0xFF07231C) else Color(0xFFE2F5EE)
+    }
+    val jadeBandColor = when {
+        isOverdue -> if (isDarkTheme) Color(0xFF991B1B) else Color(0xFFB91C1C)
+        isToday -> if (isDarkTheme) Color(0xFFB45309) else Color(0xFFD97706)
+        isUpcoming -> Color(0xFF0F766E)
+        else -> EmeraldGreen
     }
 
     val statusBadgeText = when {
@@ -297,14 +354,16 @@ private fun rememberCommitmentSemanticStyle(
         statusBorderColor = statusBorderColor,
         cardBorderColor = cardBorderColor,
         cardBg = cardBg,
-        backPeekBg = backPeekBg
+        backPeekBg = backPeekBg,
+        jadeBandColor = jadeBandColor
     )
 }
 
 /**
- * Stack inteligente reutilizable de compromisos de pago en Pagos.
- * - 1 compromiso: tarjeta individual limpia sin apilamiento artificial.
- * - 2+ compromisos: pila con tarjeta frontal prioritaria + hasta 2 tarjetas reales posteriores asomándose.
+ * Mazo de Jade: stack inteligente de compromisos de pago en quetzales.
+ * - Paneles 100% opacos con identidad jade/esmeralda.
+ * - Acciones limpias sin duplicación (cara frontal: Posponer / Pagar; swipe o menú: Detalle / Editar).
+ * - Estado final claro cuando todos los compromisos visibles ya fueron saldados.
  */
 @Composable
 fun PaymentCommitmentStack(
@@ -318,8 +377,10 @@ fun PaymentCommitmentStack(
     resetActionsKey: Any,
     onSelectCommitment: (Long) -> Unit,
     onRequestPay: (PaymentCommitmentEntity) -> Unit,
+    onRequestPostpone: (PaymentCommitmentEntity) -> Unit,
     onViewDetail: (PaymentCommitmentEntity) -> Unit,
     onEditCommitment: (PaymentCommitmentEntity) -> Unit,
+    onAddNewPayment: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     if (commitments.isEmpty()) return
@@ -343,6 +404,10 @@ fun PaymentCommitmentStack(
                 (it.isDueToday(nowMillis) || it.isUpcoming(nowMillis, 7))
         }
     }
+    val pendingTotalCount = remember(commitments) {
+        commitments.count { PaymentCommitmentStackLogic.canPayCommitment(it) }
+    }
+    val allCaughtUp = pendingTotalCount == 0
 
     val goToPrevious = {
         if (commitments.size > 1) {
@@ -359,10 +424,10 @@ fun PaymentCommitmentStack(
         }
     }
 
-    val barSurface = if (isDarkTheme) Color(0xFF0F172A).copy(alpha = 0.88f) else Color.White.copy(alpha = 0.90f)
-    val barBorder = if (isDarkTheme) Color(0xFF334155) else Color(0xFFCBD5E1)
-    val barText = if (isDarkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
-    val barSubText = if (isDarkTheme) Color(0xFFCBD5E1) else Color(0xFF475569)
+    val barSurface = if (isDarkTheme) Color(0xFF0A241E) else Color(0xFFF0FAF6)
+    val barBorder = if (isDarkTheme) Color(0xFF10B981) else EmeraldGreen
+    val barText = if (isDarkTheme) Color(0xFFECFDF5) else Color(0xFF022C22)
+    val barSubText = if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF065F46)
 
     Column(
         modifier = modifier
@@ -370,11 +435,74 @@ fun PaymentCommitmentStack(
             .testTag("payment_commitment_stack"),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Barra de control y navegación independiente del stack
+        // Estado final del mazo cuando todos los compromisos visibles han sido saldados
+        if (allCaughtUp) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = if (isDarkTheme) Color(0xFF063729) else Color(0xFFD1FAE5),
+                border = BorderStroke(1.4.dp, if (isDarkTheme) Color(0xFF34D399) else JadeGreen),
+                shadowElevation = 3.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("jade_deck_completed_banner")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = EmeraldGreen,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Mazo de Jade al día",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Black,
+                            color = if (isDarkTheme) Color(0xFFECFDF5) else Color(0xFF064E3B)
+                        )
+                        Text(
+                            text = "Todos los compromisos visibles (${commitments.size}) están pagados.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF065F46)
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = onAddNewPayment,
+                        border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFF6EE7B7) else EmeraldGreen),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        modifier = Modifier.heightIn(min = 48.dp)
+                    ) {
+                        Text(
+                            text = "+ Nuevo",
+                            fontWeight = FontWeight.Bold,
+                            color = if (isDarkTheme) Color(0xFFECFDF5) else EmeraldGreen
+                        )
+                    }
+                }
+            }
+        }
+
+        // Barra de control del Mazo de Jade (100% opaca)
         Surface(
             shape = RoundedCornerShape(14.dp),
             color = barSurface,
-            border = BorderStroke(1.dp, barBorder),
+            border = BorderStroke(1.2.dp, barBorder),
+            shadowElevation = 3.dp,
             modifier = Modifier
                 .fillMaxWidth()
                 .testTag("payment_stack_bar")
@@ -402,31 +530,49 @@ fun PaymentCommitmentStack(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 10.dp, vertical = 4.dp),
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
-                    Text(
-                        text = if (commitments.size > 1) {
-                            "Compromiso ${currentIndex + 1} de ${commitments.size}"
-                        } else {
-                            "Compromiso único (1 de 1)"
-                        },
-                        style = MaterialTheme.typography.labelLarge,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = barText,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.testTag("payment_stack_position_label")
-                    )
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = EmeraldGreen
+                        ) {
+                            Text(
+                                text = "MAZO DE JADE",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                        Text(
+                            text = if (commitments.size > 1) {
+                                "${currentIndex + 1} de ${commitments.size}"
+                            } else {
+                                "1 de 1"
+                            },
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = barText,
+                            modifier = Modifier.testTag("payment_stack_position_label")
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(2.dp))
                     val summaryLabel = buildString {
                         if (overdueCount > 0) append("$overdueCount vencido(s)")
                         if (upcomingCount > 0) {
                             if (isNotEmpty()) append(" · ")
                             append("$upcomingCount próximo(s)")
                         }
-                        if (isEmpty()) append("Desliza la tarjeta para acciones rápidas")
+                        if (isEmpty() && pendingTotalCount > 0) append("$pendingTotalCount pendiente(s) · Desliza izquierda para editar/detalle")
+                        if (isEmpty() && pendingTotalCount == 0) append("Historial confirmado al día")
                     }
                     Text(
                         text = summaryLabel,
@@ -436,9 +582,7 @@ fun PaymentCommitmentStack(
                         } else {
                             barSubText
                         },
-                        fontWeight = if (overdueCount > 0) FontWeight.Bold else FontWeight.Normal,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        fontWeight = if (overdueCount > 0) FontWeight.Bold else FontWeight.Medium
                     )
                 }
 
@@ -469,7 +613,7 @@ fun PaymentCommitmentStack(
             }
         }
 
-        // Regla: con 1 compromiso no hay apilamiento artificial; con 2+ se asoman las siguientes reales
+        // Stack escalonado con tarjetas posteriores 100% opacas (sin alpha fade)
         val peekOffsets = when {
             commitments.size >= 3 -> listOf(2, 1)
             commitments.size == 2 -> listOf(1)
@@ -513,14 +657,13 @@ fun PaymentCommitmentStack(
                 val backCommitment = commitments[(currentIndex + layerDepth) % commitments.size]
                 val backStyle = rememberCommitmentSemanticStyle(backCommitment, isDarkTheme, nowMillis)
                 val yShift = if (layerDepth == 1) 22.dp else 42.dp
-                val scale = if (layerDepth == 1) 0.95f else 0.90f
-                val alphaLayer = if (layerDepth == 1) 0.92f else 0.80f
+                val scale = if (layerDepth == 1) 0.96f else 0.92f
                 val backAmount = PaymentCommitmentStackLogic.displayAmountForCommitment(backCommitment)
 
                 Surface(
                     shape = RoundedCornerShape(18.dp),
                     color = backStyle.backPeekBg,
-                    border = BorderStroke(1.dp, backStyle.cardBorderColor),
+                    border = BorderStroke(1.2.dp, backStyle.cardBorderColor),
                     shadowElevation = if (layerDepth == 1) 3.dp else 1.dp,
                     modifier = Modifier
                         .matchParentSize()
@@ -528,7 +671,6 @@ fun PaymentCommitmentStack(
                         .graphicsLayer {
                             scaleX = scale
                             scaleY = scale
-                            alpha = alphaLayer
                         }
                         .clip(RoundedCornerShape(18.dp))
                         .clickable {
@@ -592,6 +734,7 @@ fun PaymentCommitmentStack(
                     creditCardAccountName = activeCommitment.creditCardAccountId?.let { accountNameById[it] },
                     paymentSourceAccountName = activeCommitment.paymentSourceAccountId?.let { accountNameById[it] },
                     onRequestPay = { onRequestPay(activeCommitment) },
+                    onRequestPostpone = { onRequestPostpone(activeCommitment) },
                     onViewDetail = { onViewDetail(activeCommitment) },
                     onEdit = { onEditCommitment(activeCommitment) },
                     cardTestTag = "payment_stack_front_card_${activeCommitment.id}"
@@ -617,8 +760,8 @@ fun PaymentCommitmentStack(
                                 .clip(CircleShape)
                                 .background(
                                     if (isActive) EmeraldGreen
-                                    else if (isDarkTheme) Color(0xFF475569)
-                                    else Color(0xFF94A3B8)
+                                    else if (isDarkTheme) Color(0xFF1F4B3E)
+                                    else Color(0xFF94D2BD)
                                 )
                                 .clickable {
                                     navigationDirection = if (index >= currentIndex) 1 else -1
@@ -633,9 +776,10 @@ fun PaymentCommitmentStack(
 }
 
 /**
- * Tarjeta individual de compromiso financiero en quetzales con swipe horizontal propio
- * (izquierda) para revelar acciones rápidas contextuales (Pagar / Detalle / Editar) sin
- * ejecutar pagos automáticamente y con alternativas accesibles >= 48dp.
+ * Tarjeta frontal del Mazo de Jade (100% opaca, sin acciones duplicadas):
+ * - Cara frontal: decisiones principales (Posponer / Pagar cuando está pendiente, o Pagado + Detalle si ya está saldado).
+ * - Tocar tarjeta: abre Detalle completo.
+ * - Deslizar a la izquierda o botón ⋯: revela utilidades secundarias (Detalle / Editar) sin duplicar Pagar/Posponer.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -649,6 +793,7 @@ fun SwipeablePaymentCard(
     creditCardAccountName: String? = null,
     paymentSourceAccountName: String? = null,
     onRequestPay: () -> Unit,
+    onRequestPostpone: () -> Unit,
     onViewDetail: () -> Unit,
     onEdit: () -> Unit,
     cardTestTag: String = "payment_card_${commitment.id}",
@@ -663,45 +808,30 @@ fun SwipeablePaymentCard(
     val secondaryText = if (isDarkTheme) Color(0xFFCBD5E1) else Color(0xFF475569)
     val accentEmeraldText = if (isDarkTheme) Color(0xFF6EE7B7) else Color(0xFF065F46)
 
-    val quickActions = remember(commitment.id, canPay) {
-        buildList {
-            if (canPay) {
-                add(
-                    PaymentQuickAction(
-                        label = "Pagar",
-                        icon = Icons.Default.Payments,
-                        containerColor = EmeraldGreen,
-                        contentColor = Color.White,
-                        testTag = "payment_swipe_pay_${commitment.id}",
-                        onClick = onRequestPay
-                    )
-                )
-            }
-            add(
-                PaymentQuickAction(
-                    label = "Detalle",
-                    icon = Icons.Default.Visibility,
-                    containerColor = Color(0xFF1E3A8A),
-                    contentColor = Color.White,
-                    testTag = "payment_swipe_detail_${commitment.id}",
-                    onClick = onViewDetail
-                )
+    // Bandeja contextual de utilidades secundarias (sin duplicar los botones Pagar / Posponer de la tarjeta)
+    val quickActions = remember(commitment.id) {
+        listOf(
+            PaymentQuickAction(
+                label = "Detalle",
+                icon = Icons.Default.Visibility,
+                containerColor = Color(0xFF065F46),
+                contentColor = Color.White,
+                testTag = "payment_swipe_detail_${commitment.id}",
+                onClick = onViewDetail
+            ),
+            PaymentQuickAction(
+                label = "Editar",
+                icon = Icons.Default.Edit,
+                containerColor = Color(0xFF0F766E),
+                contentColor = Color.White,
+                testTag = "payment_swipe_edit_${commitment.id}",
+                onClick = onEdit
             )
-            add(
-                PaymentQuickAction(
-                    label = "Editar",
-                    icon = Icons.Default.Edit,
-                    containerColor = Color(0xFF0F766E),
-                    contentColor = Color.White,
-                    testTag = "payment_swipe_edit_${commitment.id}",
-                    onClick = onEdit
-                )
-            )
-        }
+        )
     }
 
     val density = LocalDensity.current
-    val trayWidthDp = (quickActions.size * 66 + 52).dp
+    val trayWidthDp = (quickActions.size * 68 + 56).dp
     val trayWidthPx = with(density) { trayWidthDp.toPx() }
 
     var isActionsOpen by remember(commitment.id, resetActionsKey) { mutableStateOf(false) }
@@ -726,11 +856,11 @@ fun SwipeablePaymentCard(
             .height(IntrinsicSize.Min)
             .clip(RoundedCornerShape(18.dp))
     ) {
-        // Bandeja trasera de acciones rápidas revelables (sin auto-ejecución ni eliminación)
+        // Bandeja trasera opaca del Mazo de Jade
         Surface(
             shape = RoundedCornerShape(18.dp),
-            color = if (isDarkTheme) Color(0xFF0B1320).copy(alpha = 0.95f) else Color(0xFF0F172A).copy(alpha = 0.94f),
-            border = BorderStroke(1.dp, style.cardBorderColor),
+            color = if (isDarkTheme) Color(0xFF041C16) else Color(0xFF063729),
+            border = BorderStroke(1.2.dp, style.cardBorderColor),
             modifier = Modifier
                 .matchParentSize()
                 .testTag("payment_swipe_tray_${commitment.id}")
@@ -746,9 +876,10 @@ fun SwipeablePaymentCard(
                     Surface(
                         shape = RoundedCornerShape(14.dp),
                         color = action.containerColor,
+                        border = BorderStroke(1.dp, Color(0xFF6EE7B7)),
                         modifier = Modifier
                             .padding(horizontal = 3.dp)
-                            .width(60.dp)
+                            .width(62.dp)
                             .fillMaxHeight()
                             .clip(RoundedCornerShape(14.dp))
                             .clickable {
@@ -788,18 +919,18 @@ fun SwipeablePaymentCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "Cerrar acciones",
-                        tint = Color(0xFFE2E8F0)
+                        contentDescription = "Cerrar opciones",
+                        tint = Color(0xFFD1FAE5)
                     )
                 }
             }
         }
 
-        // Cara frontal de la tarjeta
+        // Cara frontal 100% opaca
         Surface(
             shape = RoundedCornerShape(18.dp),
             color = style.cardBg,
-            border = BorderStroke(1.3.dp, style.cardBorderColor),
+            border = BorderStroke(1.5.dp, style.cardBorderColor),
             shadowElevation = if (isPaid) 1.dp else 4.dp,
             modifier = Modifier
                 .fillMaxWidth()
@@ -837,281 +968,283 @@ fun SwipeablePaymentCard(
                 }
                 .testTag(cardTestTag)
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                // Beneficiario + Insignia de estado + Botón accesible MoreHoriz
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Franja superior de acento Jade / Semántico
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(5.dp)
+                        .background(style.jadeBandColor)
+                )
+
+                Column(modifier = Modifier.padding(16.dp)) {
+                    // Beneficiario + Insignia de estado + Menú contextual único (Detalle/Editar)
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = style.statusContainerBg,
+                                border = BorderStroke(1.dp, style.statusBorderColor),
+                                modifier = Modifier.size(38.dp)
+                            ) {
+                                Icon(
+                                    imageVector = style.statusBadgeIcon,
+                                    contentDescription = null,
+                                    tint = style.statusContentColor,
+                                    modifier = Modifier.padding(8.dp).size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = commitment.beneficiaryName,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Black,
+                                    color = primaryText
+                                )
+                                Text(
+                                    text = commitment.category,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = secondaryText
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
                         Surface(
                             shape = RoundedCornerShape(8.dp),
                             color = style.statusContainerBg,
-                            border = BorderStroke(1.dp, style.statusBorderColor),
-                            modifier = Modifier.size(36.dp)
+                            border = BorderStroke(1.dp, style.statusBorderColor)
+                        ) {
+                            Text(
+                                text = style.statusBadgeText,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = style.statusContentColor,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+
+                        IconButton(
+                            onClick = { isActionsOpen = !isActionsOpen },
+                            modifier = Modifier
+                                .size(48.dp)
+                                .testTag("payment_card_actions_toggle_${commitment.id}")
                         ) {
                             Icon(
-                                imageVector = style.statusBadgeIcon,
-                                contentDescription = null,
-                                tint = style.statusContentColor,
-                                modifier = Modifier.padding(8.dp).size(20.dp)
+                                imageVector = if (isActionsOpen) Icons.Default.Close else Icons.Default.MoreHoriz,
+                                contentDescription = if (isActionsOpen) "Cerrar opciones" else "Ver detalle o editar",
+                                tint = secondaryText
                             )
                         }
-                        Spacer(modifier = Modifier.width(10.dp))
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Concepto
+                    Text(
+                        text = commitment.title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = primaryText
+                    )
+
+                    if (commitment.description.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = commitment.description,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = secondaryText,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    if (!creditCardAccountName.isNullOrBlank() || !paymentSourceAccountName.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            if (!creditCardAccountName.isNullOrBlank()) {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = if (isDarkTheme) Color(0xFF1E3A8A) else Color(0xFFDBEAFE),
+                                    border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFF60A5FA) else Color(0xFF2563EB))
+                                ) {
+                                    Text(
+                                        text = "Tarjeta: $creditCardAccountName",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isDarkTheme) Color(0xFFBFDBFE) else Color(0xFF1E40AF),
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                            if (!paymentSourceAccountName.isNullOrBlank()) {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = if (isDarkTheme) Color(0xFF064E3B) else Color(0xFFD1FAE5),
+                                    border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFF34D399) else EmeraldGreen)
+                                ) {
+                                    Text(
+                                        text = "Desde: $paymentSourceAccountName",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF065F46),
+                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Vencimiento y Monto en Quetzales
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
                         Column {
                             Text(
-                                text = commitment.beneficiaryName,
-                                style = MaterialTheme.typography.titleMedium,
+                                text = "Vencimiento",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = secondaryText
+                            )
+                            Text(
+                                text = dateFormatter.format(Date(commitment.dueDateMillis)),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (commitment.isOverdue(nowMillis)) {
+                                    if (isDarkTheme) Color(0xFFFCA5A5) else Color(0xFFB91C1C)
+                                } else {
+                                    primaryText
+                                }
+                            )
+                        }
+
+                        Column(horizontalAlignment = Alignment.End) {
+                            if (commitment.isVariableAmount) {
+                                Text(
+                                    text = "Monto Variable",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (isDarkTheme) Color(0xFFFCD34D) else Color(0xFF92400E),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Text(
+                                text = FormatUtils.formatCurrency(displayAmount, currencySymbol, isDiscreetMode),
+                                style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Black,
-                                color = primaryText,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                color = if (isPaid) accentEmeraldText else primaryText
                             )
+                        }
+                    }
+
+                    if (commitment.frequency != PaymentFrequency.ONCE) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Repeat,
+                                contentDescription = null,
+                                tint = accentEmeraldText,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            val freqLabel = when (commitment.frequency) {
+                                PaymentFrequency.MONTHLY -> "Recurrente Mensual"
+                                PaymentFrequency.BIWEEKLY -> "Recurrente Quincenal"
+                                PaymentFrequency.WEEKLY -> "Recurrente Semanal"
+                                else -> "Recurrente"
+                            }
                             Text(
-                                text = commitment.category,
+                                text = freqLabel,
                                 style = MaterialTheme.typography.labelSmall,
-                                color = secondaryText,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                color = accentEmeraldText,
+                                fontWeight = FontWeight.SemiBold
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = style.statusContainerBg,
-                        border = BorderStroke(1.dp, style.statusBorderColor)
-                    ) {
-                        Text(
-                            text = style.statusBadgeText,
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = style.statusContentColor,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
-                    }
-
-                    IconButton(
-                        onClick = { isActionsOpen = !isActionsOpen },
-                        modifier = Modifier
-                            .size(48.dp)
-                            .testTag("payment_card_actions_toggle_${commitment.id}")
-                    ) {
-                        Icon(
-                            imageVector = if (isActionsOpen) Icons.Default.Close else Icons.Default.MoreHoriz,
-                            contentDescription = if (isActionsOpen) "Cerrar acciones rápidas" else "Abrir acciones rápidas",
-                            tint = secondaryText
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Concepto
-                Text(
-                    text = commitment.title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = primaryText
-                )
-
-                if (commitment.description.isNotBlank()) {
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = commitment.description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = secondaryText,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
-
-                if (!creditCardAccountName.isNullOrBlank() || !paymentSourceAccountName.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                    ) {
-                        if (!creditCardAccountName.isNullOrBlank()) {
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = if (isDarkTheme) Color(0xFF1E3A8A) else Color(0xFFDBEAFE),
-                                border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFF60A5FA) else Color(0xFF2563EB))
-                            ) {
-                                Text(
-                                    text = "Tarjeta: $creditCardAccountName",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isDarkTheme) Color(0xFFBFDBFE) else Color(0xFF1E40AF),
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-                        if (!paymentSourceAccountName.isNullOrBlank()) {
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = if (isDarkTheme) Color(0xFF064E3B) else Color(0xFFD1FAE5),
-                                border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFF34D399) else EmeraldGreen)
-                            ) {
-                                Text(
-                                    text = "Desde: $paymentSourceAccountName",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF065F46),
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Vencimiento y Monto en Quetzales
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.Bottom,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Text(
-                            text = "Vencimiento",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = secondaryText
-                        )
-                        Text(
-                            text = dateFormatter.format(Date(commitment.dueDateMillis)),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (commitment.isOverdue(nowMillis)) {
-                                if (isDarkTheme) Color(0xFFFCA5A5) else Color(0xFFB91C1C)
-                            } else {
-                                primaryText
-                            }
-                        )
-                    }
-
-                    Column(horizontalAlignment = Alignment.End) {
-                        if (commitment.isVariableAmount) {
-                            Text(
-                                text = "Monto Variable",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isDarkTheme) Color(0xFFFCD34D) else Color(0xFF92400E),
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Text(
-                            text = FormatUtils.formatCurrency(displayAmount, currencySymbol, isDiscreetMode),
-                            style = MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.Black,
-                            color = if (isPaid) accentEmeraldText else primaryText
-                        )
-                    }
-                }
-
-                if (commitment.frequency != PaymentFrequency.ONCE) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.Repeat,
-                            contentDescription = null,
-                            tint = accentEmeraldText,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        val freqLabel = when (commitment.frequency) {
-                            PaymentFrequency.MONTHLY -> "Recurrente Mensual"
-                            PaymentFrequency.BIWEEKLY -> "Recurrente Quincenal"
-                            PaymentFrequency.WEEKLY -> "Recurrente Semanal"
-                            else -> "Recurrente"
-                        }
-                        Text(
-                            text = freqLabel,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = accentEmeraldText,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                // Alternativas accesibles visibles >= 48dp para todas las acciones del swipe
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = onViewDetail,
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        modifier = Modifier
-                            .heightIn(min = 48.dp)
-                            .testTag("payment_card_detail_button_${commitment.id}")
-                    ) {
-                        Icon(Icons.Default.Visibility, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Detalle", fontWeight = FontWeight.SemiBold)
-                    }
-
-                    OutlinedButton(
-                        onClick = onEdit,
-                        shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        modifier = Modifier
-                            .heightIn(min = 48.dp)
-                            .testTag("payment_card_edit_button_${commitment.id}")
-                    ) {
-                        Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Editar", fontWeight = FontWeight.SemiBold)
-                    }
-
+                    // Acciones primarias únicas (sin duplicar Detalle/Editar que viven al tocar o deslizar)
                     if (canPay) {
-                        Button(
-                            onClick = onRequestPay,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = EmeraldGreen,
-                                contentColor = Color.White
-                            ),
-                            shape = RoundedCornerShape(10.dp),
-                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
-                            modifier = Modifier
-                                .heightIn(min = 48.dp)
-                                .testTag("stack_pay_button_${commitment.id}")
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("Pagar", fontWeight = FontWeight.Bold)
+                            OutlinedButton(
+                                onClick = onRequestPostpone,
+                                shape = RoundedCornerShape(12.dp),
+                                border = BorderStroke(1.2.dp, if (isDarkTheme) Color(0xFFFBBF24) else Color(0xFFD97706)),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = if (isDarkTheme) Color(0xFF2B200C) else Color(0xFFFFFBEB),
+                                    contentColor = if (isDarkTheme) Color(0xFFFDE68A) else Color(0xFF92400E)
+                                ),
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .heightIn(min = 48.dp)
+                                    .testTag("stack_postpone_button_${commitment.id}")
+                            ) {
+                                Icon(Icons.Default.Update, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Posponer", fontWeight = FontWeight.Bold)
+                            }
+
+                            Button(
+                                onClick = onRequestPay,
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = EmeraldGreen,
+                                    contentColor = Color.White
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .heightIn(min = 48.dp)
+                                    .testTag("stack_pay_button_${commitment.id}")
+                            ) {
+                                Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Pagar", fontWeight = FontWeight.Bold)
+                            }
                         }
                     } else {
                         Surface(
-                            shape = RoundedCornerShape(10.dp),
+                            shape = RoundedCornerShape(12.dp),
                             color = style.statusContainerBg,
                             border = BorderStroke(1.dp, style.statusBorderColor),
-                            modifier = Modifier.heightIn(min = 48.dp)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp)
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center,
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.CheckCircle,
                                     contentDescription = null,
                                     tint = style.statusContentColor,
-                                    modifier = Modifier.size(16.dp)
+                                    modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Pagado ✓",
-                                    style = MaterialTheme.typography.labelMedium,
+                                    text = "Pagado y registrado ✓",
+                                    style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.Bold,
                                     color = style.statusContentColor
                                 )
