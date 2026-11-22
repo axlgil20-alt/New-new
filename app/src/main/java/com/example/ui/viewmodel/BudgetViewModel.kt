@@ -1008,6 +1008,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
     private val bulkDeleteMutex = Mutex()
     private var activeBulkDeleteToken: Long = 0L
     private var activeBulkDeleteSnapshot: List<TransactionEntity> = emptyList()
+    private val pendingSingleDeleteSnapshots = mutableMapOf<Long, List<TransactionEntity>>()
 
     fun deleteTransactions(ids: List<Long>) {
         viewModelScope.launch {
@@ -1016,6 +1017,29 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             }
             if (deleted.isNotEmpty()) {
                 showToast("${deleted.size} registro(s) eliminado(s) correctamente.")
+            }
+        }
+    }
+
+    fun deleteTransactionForUndo(
+        tx: TransactionEntity,
+        onDeleted: (batchToken: Long, deletedCount: Int) -> Unit
+    ) {
+        viewModelScope.launch {
+            var token = 0L
+            var deletedCount = 0
+            bulkDeleteMutex.withLock {
+                val snapshot = repository.deleteTransactionWithSnapshot(tx)
+                if (snapshot.isNotEmpty()) {
+                    activeBulkDeleteToken += 1L
+                    activeBulkDeleteSnapshot = snapshot
+                    pendingSingleDeleteSnapshots[tx.id] = snapshot
+                    token = activeBulkDeleteToken
+                    deletedCount = snapshot.size
+                }
+            }
+            if (deletedCount > 0) {
+                onDeleted(token, deletedCount)
             }
         }
     }
@@ -1050,10 +1074,17 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 val toRestore = activeBulkDeleteSnapshot
                 activeBulkDeleteSnapshot = emptyList()
+                val restoredIds = toRestore.map { it.id }.toSet()
+                pendingSingleDeleteSnapshots.entries.removeAll { (_, snap) ->
+                    snap.any { it.id in restoredIds }
+                }
                 repository.restoreTransactions(toRestore)
             }
             if (restoredCount > 0) {
-                showToast("$restoredCount registro(s) restaurado(s).")
+                showToast(
+                    if (restoredCount == 1) "1 registro restaurado."
+                    else "$restoredCount registro(s) restaurado(s)."
+                )
             }
         }
     }
@@ -1062,7 +1093,11 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             bulkDeleteMutex.withLock {
                 if (activeBulkDeleteToken == batchToken) {
+                    val expiredIds = activeBulkDeleteSnapshot.map { it.id }.toSet()
                     activeBulkDeleteSnapshot = emptyList()
+                    pendingSingleDeleteSnapshots.entries.removeAll { (_, snap) ->
+                        snap.any { it.id in expiredIds }
+                    }
                 }
             }
         }
@@ -1197,14 +1232,44 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
     fun deleteTransaction(tx: TransactionEntity) {
         viewModelScope.launch {
-            repository.deleteTransaction(tx)
+            bulkDeleteMutex.withLock {
+                val snapshot = repository.deleteTransactionWithSnapshot(tx)
+                if (snapshot.isNotEmpty()) {
+                    pendingSingleDeleteSnapshots[tx.id] = snapshot
+                }
+            }
         }
     }
 
     fun restoreTransaction(tx: TransactionEntity) {
         viewModelScope.launch {
-            repository.insertTransaction(tx)
-            showToast("Registro «${tx.title}» restaurado.")
+            val restoredCount = bulkDeleteMutex.withLock {
+                val matchedEntry = pendingSingleDeleteSnapshots.entries.firstOrNull { (_, snap) ->
+                    snap.any {
+                        it.id == tx.id ||
+                            (tx.transferGroupId != null && it.transferGroupId == tx.transferGroupId)
+                    }
+                }
+                val snapshot = pendingSingleDeleteSnapshots.remove(tx.id)
+                    ?: matchedEntry?.let { entry ->
+                        pendingSingleDeleteSnapshots.remove(entry.key)
+                        entry.value
+                    }
+                    ?: listOf(tx)
+                val restoredIds = snapshot.map { it.id }.toSet()
+                if (activeBulkDeleteSnapshot.any { it.id in restoredIds }) {
+                    activeBulkDeleteSnapshot = emptyList()
+                }
+                repository.restoreTransactions(snapshot)
+            }
+            if (restoredCount > 0) {
+                val msg = if (restoredCount > 1) {
+                    "Transferencia «${tx.title}» restaurada ($restoredCount movimientos)."
+                } else {
+                    "Registro «${tx.title}» restaurado."
+                }
+                showToast(msg)
+            }
         }
     }
 

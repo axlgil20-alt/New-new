@@ -509,6 +509,107 @@ class AccountsRepositoryIntegrationRobolectricTest {
         assertTrue(itemsAfterEarlyPayoff.drop(1).all { it.status == InstallmentChargeStatus.PAID_OFF_EARLY })
     }
 
+    @Test
+    fun markPaymentAsPaid_cardStatementWithoutSourceAccount_reducesCardDebtWithoutInflatingBudgetExpenses() = runBlocking {
+        val card = accountsRepo.createAccount(
+            FinancialAccountEntity(
+                name = "Visa Directa",
+                accountType = AccountType.CREDIT_CARD,
+                creditLimitMinor = 4_000_00L,
+                cutoffDay = 15,
+                paymentDueDay = 30
+            )
+        )
+
+        // Cargo real en tarjeta por Q500.00
+        budgetRepo.insertTransaction(
+            TransactionEntity(
+                title = "Supermercado Visa",
+                amount = 500.00,
+                type = TransactionType.EXPENSE,
+                category = "Alimentación & Súper",
+                dateMillis = System.currentTimeMillis(),
+                accountId = card.id,
+                amountMinor = 500_00L,
+                entryKind = TransactionEntryKind.STANDARD
+            )
+        )
+        assertEquals(500_00L, accountsRepo.getAccountSnapshot(card.id).revolvingDebtMinor)
+
+        // Compromiso de estado de cuenta SIN paymentSourceAccountId
+        val stmtCommitmentId = db.paymentCommitmentDao().insertCommitment(
+            PaymentCommitmentEntity(
+                title = "Estado de cuenta Visa Directa",
+                beneficiaryName = "Banco Emisor",
+                amount = 500.00,
+                amountMinor = 500_00L,
+                dueDateMillis = System.currentTimeMillis(),
+                category = "Finanzas y Tarjetas",
+                commitmentKind = CommitmentKind.CREDIT_CARD_STATEMENT,
+                creditCardAccountId = card.id,
+                paymentSourceAccountId = null
+            )
+        )
+
+        val marked = budgetRepo.markPaymentAsPaid(stmtCommitmentId)
+        assertTrue(marked)
+
+        val snapshotAfter = accountsRepo.getAccountSnapshot(card.id)
+        assertEquals(0L, snapshotAfter.revolvingDebtMinor)
+
+        val allTxs = db.transactionDao().getAllTransactionsList()
+        val cardPaymentTx = allTxs.firstOrNull { it.entryKind == TransactionEntryKind.CARD_PAYMENT && it.accountId == card.id }
+        assertNotNull(cardPaymentTx)
+        assertFalse(cardPaymentTx!!.affectsBudgetTotals)
+        // Solo debe contar el gasto original de Q500.00 en presupuesto (no duplicado)
+        val totalBudgetExpenseMinor = allTxs.filter { it.affectsBudgetTotals && it.type == TransactionType.EXPENSE }
+            .sumOf { it.amountMinor }
+        assertEquals(500_00L, totalBudgetExpenseMinor)
+    }
+
+    @Test
+    fun updateTransaction_onLinkedTransferLeg_synchronizesAmountAndDateAcrossBothLegs() = runBlocking {
+        val bank = accountsRepo.createAccount(
+            FinancialAccountEntity(
+                name = "Cuenta Banco",
+                accountType = AccountType.BANK_CHECKING,
+                openingBalanceMinor = 2_000_00L
+            )
+        )
+        val cash = accountsRepo.createAccount(
+            FinancialAccountEntity(
+                name = "Efectivo",
+                accountType = AccountType.CASH,
+                openingBalanceMinor = 200_00L
+            )
+        )
+
+        val initialDate = 1_770_000_000_000L
+        val transferRes = accountsRepo.transferBetweenAccounts(
+            fromAccountId = bank.id,
+            toAccountId = cash.id,
+            amountMinor = 300_00L,
+            dateMillis = initialDate,
+            title = "Retiro ATM",
+            notes = "Efectivo semanal"
+        )
+
+        val legsBefore = db.accountLedgerDao().getTransactionsByTransferGroup(transferRes.transferGroupId)
+        assertEquals(2, legsBefore.size)
+        val outLeg = legsBefore.first { it.entryKind == TransactionEntryKind.TRANSFER_OUT }
+
+        val updatedDate = initialDate + 86_400_000L
+        budgetRepo.updateTransaction(
+            outLeg.withExactAmountMinor(450_00L).copy(dateMillis = updatedDate)
+        )
+
+        val legsAfter = db.accountLedgerDao().getTransactionsByTransferGroup(transferRes.transferGroupId)
+        assertEquals(2, legsAfter.size)
+        assertTrue(legsAfter.all { it.amountMinor == 450_00L && it.dateMillis == updatedDate })
+        assertEquals(1_550_00L, accountsRepo.getAccountSnapshot(bank.id).currentBalanceMinor)
+        assertEquals(650_00L, accountsRepo.getAccountSnapshot(cash.id).currentBalanceMinor)
+    }
+
     private fun millisAt(year: Int, monthIndex: Int, day: Int, hour: Int, tz: TimeZone): Long {
         return Calendar.getInstance(tz).apply {
             clear()

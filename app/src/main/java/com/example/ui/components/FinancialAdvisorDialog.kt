@@ -115,15 +115,15 @@ fun FinancialAdvisorDialog(
 
     val welcomeText = remember(uiState.totalIncome, uiState.totalExpense, uiState.totalDbTransactionsCount, uiState.currentMonthLabel) {
         if (uiState.totalIncome == 0.0 && uiState.totalExpense == 0.0 && uiState.totalDbTransactionsCount > 0) {
-            "¡Qué onda chapín! 🇬🇹 Soy Quetzi, tu Asesor Financiero con IA.\n\n" +
+            "¡Qué onda chapín! 🇬🇹 Soy Ketzi, tu Asesor Financiero con IA.\n\n" +
                     "En ${uiState.currentMonthLabel} no tienes movimientos registrados aún, pero detecté ${uiState.totalDbTransactionsCount} transacciones en tu historial general.\n\n" +
                     "¿En qué te puedo apoyar hoy? Puedes preguntarme por tu margen de ahorro, presupuesto restante o saldo disponible."
         } else if (uiState.totalIncome == 0.0 && uiState.totalExpense == 0.0) {
-            "¡Qué onda chapín! 🇬🇹 Soy Quetzi, tu Asesor Financiero con IA.\n\n" +
+            "¡Qué onda chapín! 🇬🇹 Soy Ketzi, tu Asesor Financiero con IA.\n\n" +
                     "Aún no tienes movimientos registrados. Registra tus ingresos y gastos con el botón (+) o importa tu archivo Excel para comenzar.\n\n" +
                     "¿Tienes dudas sobre cómo presupuestar o usar las herramientas? ¡Escríbeme o pulsa las sugerencias de abajo!"
         } else {
-            "¡Qué onda chapín! 🇬🇹 Soy Quetzi, tu Asesor Financiero con IA.\n\n" +
+            "¡Qué onda chapín! 🇬🇹 Soy Ketzi, tu Asesor Financiero con IA.\n\n" +
                     "Ya revisé tus finanzas de ${uiState.currentMonthLabel}:\n" +
                     "• Saldo Disponible: ${uiState.currencySymbol}${"%,.2f".format(uiState.netBalance)}\n" +
                     "• Ingresos: ${uiState.currencySymbol}${"%,.2f".format(uiState.totalIncome)}\n" +
@@ -211,7 +211,7 @@ fun FinancialAdvisorDialog(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Image(
                                 painter = painterResource(id = R.drawable.quetzi_mascot),
-                                contentDescription = "Quetzi Avatar",
+                                contentDescription = "Ketzi Avatar",
                                 modifier = Modifier
                                     .size(40.dp)
                                     .clip(CircleShape),
@@ -221,7 +221,7 @@ fun FinancialAdvisorDialog(
                             Column {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = "Quetzi Asesor IA",
+                                        text = "Ketzi Asesor IA",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.ExtraBold,
                                         color = Color.White
@@ -352,7 +352,7 @@ fun FinancialAdvisorDialog(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Quetzi está analizando tus registros...",
+                                    text = "Ketzi está analizando tus registros...",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = Color.Gray,
                                     fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
@@ -453,7 +453,7 @@ private fun ChatBubbleItem(msg: AdvisorMessage) {
             Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
                 if (!isUser) {
                     Text(
-                        text = "Quetzi Asesor",
+                        text = "Ketzi Asesor",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = EmeraldGreen,

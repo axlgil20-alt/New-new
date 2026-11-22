@@ -522,7 +522,7 @@ fun SplashScreen(
             // Mascota oficial Quetzi con recorte transparente perfecto
             Image(
                 painter = painterResource(id = R.drawable.quetzi_mascot),
-                contentDescription = "Quetzi",
+                contentDescription = "Ketzi",
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize()
             )
@@ -570,7 +570,7 @@ fun SplashScreen(
             ) {
                 // Aura dorada suave de fondo
                 Text(
-                    text = "QUETZI",
+                    text = "KETZI",
                     style = MaterialTheme.typography.displayMedium,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 3.sp,
@@ -581,7 +581,7 @@ fun SplashScreen(
 
                 // Texto principal en blanco puro de alto contraste
                 Text(
-                    text = "QUETZI",
+                    text = "KETZI",
                     style = MaterialTheme.typography.displayMedium,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 2.5.sp,

@@ -92,15 +92,15 @@ fun FinancialAdvisorScreen(
 
     val welcomeText = remember(uiState.totalIncome, uiState.totalExpense, uiState.totalDbTransactionsCount, uiState.currentMonthLabel) {
         if (uiState.totalIncome == 0.0 && uiState.totalExpense == 0.0 && uiState.totalDbTransactionsCount > 0) {
-            "¡Qué onda chapín! 🇬🇹 Soy Quetzi, tu Asesor Financiero con IA.\n\n" +
+            "¡Qué onda chapín! 🇬🇹 Soy Ketzi, tu Asesor Financiero con IA.\n\n" +
                     "En ${uiState.currentMonthLabel} no tienes movimientos registrados aún, pero detecté ${uiState.totalDbTransactionsCount} transacciones en tu historial general.\n\n" +
                     "¿En qué te puedo apoyar hoy? Puedes preguntarme por tu margen de ahorro, presupuesto restante o saldo disponible."
         } else if (uiState.totalIncome == 0.0 && uiState.totalExpense == 0.0) {
-            "¡Qué onda chapín! 🇬🇹 Soy Quetzi, tu Asesor Financiero con IA.\n\n" +
+            "¡Qué onda chapín! 🇬🇹 Soy Ketzi, tu Asesor Financiero con IA.\n\n" +
                     "Aún no tienes movimientos registrados. Registra tus ingresos y gastos con el botón (+) o importa tu archivo Excel para comenzar.\n\n" +
                     "¿Tienes dudas sobre cómo presupuestar o usar las herramientas? ¡Escríbeme o pulsa las sugerencias de abajo!"
         } else {
-            "¡Qué onda chapín! 🇬🇹 Soy Quetzi, tu Asesor Financiero con IA.\n\n" +
+            "¡Qué onda chapín! 🇬🇹 Soy Ketzi, tu Asesor Financiero con IA.\n\n" +
                     "Ya revisé tus finanzas de ${uiState.currentMonthLabel}:\n" +
                     "• Saldo Disponible: ${uiState.currencySymbol}${"%,.2f".format(uiState.netBalance)}\n" +
                     "• Ingresos: ${uiState.currencySymbol}${"%,.2f".format(uiState.totalIncome)}\n" +
@@ -169,7 +169,7 @@ fun FinancialAdvisorScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Image(
                             painter = painterResource(id = R.drawable.quetzi_mascot),
-                            contentDescription = "Quetzi Avatar",
+                            contentDescription = "Ketzi Avatar",
                             modifier = Modifier
                                 .size(36.dp)
                                 .clip(CircleShape)
@@ -178,7 +178,7 @@ fun FinancialAdvisorScreen(
                         Column {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(
-                                    text = "Asesor Quetzi IA",
+                                    text = "Asesor Ketzi IA",
                                     style = MaterialTheme.typography.titleMedium,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -277,7 +277,7 @@ fun FinancialAdvisorScreen(
                             modifier = Modifier.padding(4.dp)
                         ) {
                             Text(
-                                text = "Quetzi está analizando tus datos... ✨",
+                                text = "Ketzi está analizando tus datos... ✨",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color.DarkGray,
                                 modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
@@ -308,7 +308,7 @@ fun FinancialAdvisorScreen(
                     OutlinedTextField(
                         value = inputText,
                         onValueChange = { inputText = it },
-                        placeholder = { Text("Pregúntale a Quetzi...", fontSize = 13.sp) },
+                        placeholder = { Text("Pregúntale a Ketzi...", fontSize = 13.sp) },
                         modifier = Modifier
                             .weight(1f)
                             .testTag("advisor_input_field"),
@@ -357,7 +357,7 @@ private fun ChatBubble(msg: AdvisorMessage) {
         if (!isUser) {
             Image(
                 painter = painterResource(id = R.drawable.quetzi_mascot),
-                contentDescription = "Quetzi",
+                contentDescription = "Ketzi",
                 modifier = Modifier
                     .size(32.dp)
                     .clip(CircleShape)

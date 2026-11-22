@@ -5,9 +5,14 @@ import android.content.Context
 import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import com.example.data.local.AppDatabase
+import com.example.data.model.AccountType
+import com.example.data.model.FinancialAccountEntity
 import com.example.data.model.TransactionEntity
+import com.example.data.model.TransactionEntryKind
 import com.example.data.model.TransactionType
+import com.example.data.repository.AccountsRepository
 import com.example.ui.components.ChapinFabLayoutLogic
+import com.example.ui.viewmodel.AccountsViewModel
 import com.example.ui.viewmodel.BudgetViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -53,14 +58,24 @@ class CtoPrioritiesLogicTest {
             .commit()
     }
 
-    private fun awaitCondition(timeoutMs: Long = 8_000L, predicate: () -> Boolean) {
-        runBlocking {
-            withTimeout(timeoutMs) {
-                while (!predicate()) {
-                    shadowOf(Looper.getMainLooper()).idle()
-                    delay(10L)
+    private fun awaitCondition(
+        timeoutMs: Long = 8_000L,
+        step: String = "condition",
+        debugInfo: () -> String = { "" },
+        predicate: () -> Boolean
+    ) {
+        try {
+            runBlocking {
+                withTimeout(timeoutMs) {
+                    while (!predicate()) {
+                        shadowOf(Looper.getMainLooper()).idle()
+                        delay(10L)
+                    }
                 }
             }
+        } catch (t: kotlinx.coroutines.TimeoutCancellationException) {
+            val extra = runCatching { debugInfo() }.getOrDefault("")
+            throw AssertionError("Timed out after ${timeoutMs}ms waiting for [$step]. $extra", t)
         }
         shadowOf(Looper.getMainLooper()).idle()
     }
@@ -310,6 +325,190 @@ class CtoPrioritiesLogicTest {
             assertTrue(vm.uiState.value.allTransactions.none { it.id == insertedB.id })
         } finally {
             collector.cancel()
+        }
+    }
+
+    @Test(timeout = 15_000L)
+    fun singleDeleteUndo_linkedTransfer_restoresBothLegsSymmetrically_andPreventsDuplicatesOrStaleUndo() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val db = AppDatabase.getDatabase(app)
+        val vm = BudgetViewModel(app)
+        val accountsVm = AccountsViewModel(app)
+        val budgetCollector = CoroutineScope(Dispatchers.Main).launch { vm.uiState.collect {} }
+        val accountsCollector = CoroutineScope(Dispatchers.Main).launch { accountsVm.uiState.collect {} }
+        try {
+            awaitCondition(
+                step = "initial_load",
+                debugInfo = { "vmLoading=${vm.uiState.value.isLoading}, accLoading=${accountsVm.uiState.value.isLoading}" }
+            ) { !vm.uiState.value.isLoading && !accountsVm.uiState.value.isLoading }
+
+            val jobCheck = accountsVm.createAccount(
+                name = "Monetaria Bi",
+                accountType = AccountType.BANK_CHECKING,
+                openingBalanceMinor = 200_000L
+            )
+            awaitCondition(step = "create_checking_job") { jobCheck?.isCompleted == true }
+
+            val jobSavings = accountsVm.createAccount(
+                name = "Ahorro G&T",
+                accountType = AccountType.BANK_SAVINGS,
+                openingBalanceMinor = 50_000L
+            )
+            awaitCondition(step = "create_savings_job") { jobSavings?.isCompleted == true }
+
+            awaitCondition(
+                step = "accounts_visible_in_vm",
+                debugInfo = {
+                    val dbAcc = runBlocking { db.financialAccountDao().getAllAccountsList().size }
+                    "dbAcc=$dbAcc, vmAcc=${accountsVm.uiState.value.activeAccounts.size}"
+                }
+            ) { accountsVm.uiState.value.activeAccounts.size == 2 }
+
+            val checking = accountsVm.uiState.value.activeAccounts.first { it.name == "Monetaria Bi" }
+            val savings = accountsVm.uiState.value.activeAccounts.first { it.name == "Ahorro G&T" }
+
+            // 1. Crear transferencia enlazada de Q500.00 (50_000 centavos)
+            val jobTransfer = accountsVm.transferBetweenAccounts(
+                fromAccountId = checking.id,
+                toAccountId = savings.id,
+                amountMinor = 50_000L,
+                title = "Traslado a ahorro",
+                notes = "Quincena"
+            )
+            awaitCondition(step = "transfer_job") { jobTransfer?.isCompleted == true }
+
+            awaitCondition(
+                step = "transfer_created",
+                debugInfo = {
+                    "txCount=${vm.uiState.value.allTransactions.size}, checkingBal=${accountsVm.uiState.value.snapshotsByAccountId[checking.id]?.currentBalanceMinor}, savingsBal=${accountsVm.uiState.value.snapshotsByAccountId[savings.id]?.currentBalanceMinor}"
+                }
+            ) {
+                vm.uiState.value.allTransactions.size == 2 &&
+                    accountsVm.uiState.value.snapshotsByAccountId[checking.id]?.currentBalanceMinor == 150_000L &&
+                    accountsVm.uiState.value.snapshotsByAccountId[savings.id]?.currentBalanceMinor == 100_000L
+            }
+
+            val transferGroupId = vm.uiState.value.allTransactions.first().transferGroupId!!
+            val outgoingLeg = vm.uiState.value.allTransactions.first { it.entryKind == TransactionEntryKind.TRANSFER_OUT }
+            val incomingLeg = vm.uiState.value.allTransactions.first { it.entryKind == TransactionEntryKind.TRANSFER_IN }
+
+            // 2. Eliminación individual vía flujo de Snackbar con Deshacer -> borra ambas patas
+            var token1 = -1L
+            var deletedCount1 = 0
+            vm.deleteTransactionForUndo(outgoingLeg) { token, count ->
+                token1 = token
+                deletedCount1 = count
+            }
+            awaitCondition(
+                step = "single_delete_both_legs",
+                debugInfo = {
+                    "deletedCount1=$deletedCount1, token1=$token1, txCount=${vm.uiState.value.allTransactions.size}, checkingBal=${accountsVm.uiState.value.snapshotsByAccountId[checking.id]?.currentBalanceMinor}, savingsBal=${accountsVm.uiState.value.snapshotsByAccountId[savings.id]?.currentBalanceMinor}"
+                }
+            ) {
+                deletedCount1 == 2 &&
+                    vm.uiState.value.allTransactions.none { it.transferGroupId == transferGroupId } &&
+                    accountsVm.uiState.value.snapshotsByAccountId[checking.id]?.currentBalanceMinor == 200_000L &&
+                    accountsVm.uiState.value.snapshotsByAccountId[savings.id]?.currentBalanceMinor == 50_000L
+            }
+
+            // 3. Pulsar Deshacer -> restaura ambas patas con sus IDs, montos y enlace original
+            vm.undoBulkDelete(token1)
+            awaitCondition(
+                step = "undo_restores_both_legs",
+                debugInfo = {
+                    "txCount=${vm.uiState.value.allTransactions.size}, checkingBal=${accountsVm.uiState.value.snapshotsByAccountId[checking.id]?.currentBalanceMinor}, savingsBal=${accountsVm.uiState.value.snapshotsByAccountId[savings.id]?.currentBalanceMinor}"
+                }
+            ) {
+                vm.uiState.value.allTransactions.count { it.transferGroupId == transferGroupId } == 2 &&
+                    accountsVm.uiState.value.snapshotsByAccountId[checking.id]?.currentBalanceMinor == 150_000L &&
+                    accountsVm.uiState.value.snapshotsByAccountId[savings.id]?.currentBalanceMinor == 100_000L
+            }
+
+            val restoredOut = vm.uiState.value.allTransactions.first { it.id == outgoingLeg.id }
+            val restoredIn = vm.uiState.value.allTransactions.first { it.id == incomingLeg.id }
+            assertEquals(50_000L, restoredOut.amountMinor)
+            assertEquals(50_000L, restoredIn.amountMinor)
+            assertEquals(TransactionEntryKind.TRANSFER_OUT, restoredOut.entryKind)
+            assertEquals(TransactionEntryKind.TRANSFER_IN, restoredIn.entryKind)
+            assertEquals(checking.id, restoredOut.accountId)
+            assertEquals(savings.id, restoredOut.counterpartAccountId)
+            assertEquals(savings.id, restoredIn.accountId)
+            assertEquals(checking.id, restoredIn.counterpartAccountId)
+
+            // 4. Doble toque en Deshacer NO debe duplicar registros
+            vm.undoBulkDelete(token1)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(2, vm.uiState.value.allTransactions.count { it.transferGroupId == transferGroupId })
+
+            // 5. Eliminación directa deleteTransaction + restoreTransaction también preserva ambas patas
+            vm.deleteTransaction(restoredIn)
+            awaitCondition(
+                step = "direct_delete_transfer",
+                debugInfo = { "txCount=${vm.uiState.value.allTransactions.size}" }
+            ) { vm.uiState.value.allTransactions.isEmpty() }
+            vm.restoreTransaction(restoredIn)
+            awaitCondition(
+                step = "direct_restore_transfer",
+                debugInfo = { "txCount=${vm.uiState.value.allTransactions.size}" }
+            ) { vm.uiState.value.allTransactions.size == 2 }
+            // Re-invocar restoreTransaction no duplica
+            vm.restoreTransaction(restoredIn)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(2, vm.uiState.value.allTransactions.size)
+
+            // 6. Nueva operación reemplaza el Snackbar anterior sin que el descarte previo borre el snapshot activo
+            val standalone = TransactionEntity(
+                title = "Café individual",
+                amount = 25.0,
+                amountMinor = 2_500L,
+                type = TransactionType.EXPENSE,
+                category = "Antojitos & Gastos Hormiga",
+                dateMillis = System.currentTimeMillis()
+            )
+            vm.addTransaction(standalone)
+            awaitCondition(
+                step = "add_standalone",
+                debugInfo = { "txCount=${vm.uiState.value.allTransactions.size}" }
+            ) { vm.uiState.value.allTransactions.any { it.title == "Café individual" } }
+            val insertedStandalone = vm.uiState.value.allTransactions.first { it.title == "Café individual" }
+
+            var tokenTransfer = -1L
+            vm.deleteTransactionForUndo(restoredOut) { t, _ -> tokenTransfer = t }
+            awaitCondition(
+                step = "delete_transfer_replace_snackbar",
+                debugInfo = { "tokenTransfer=$tokenTransfer, txCount=${vm.uiState.value.allTransactions.size}" }
+            ) { tokenTransfer > 0L && vm.uiState.value.allTransactions.none { it.transferGroupId == transferGroupId } }
+
+            var tokenStandalone = -1L
+            vm.deleteTransactionForUndo(insertedStandalone) { t, _ -> tokenStandalone = t }
+            awaitCondition(
+                step = "delete_standalone_replace_snackbar",
+                debugInfo = { "tokenStandalone=$tokenStandalone, tokenTransfer=$tokenTransfer, txCount=${vm.uiState.value.allTransactions.size}" }
+            ) { tokenStandalone > tokenTransfer && vm.uiState.value.allTransactions.isEmpty() }
+
+            // Descartar token viejo NO invalida el token nuevo
+            vm.clearPendingBulkDeleteIfMatches(tokenTransfer)
+            vm.undoBulkDelete(tokenStandalone)
+            awaitCondition(
+                step = "undo_standalone_after_stale_clear",
+                debugInfo = { "txCount=${vm.uiState.value.allTransactions.size}" }
+            ) { vm.uiState.value.allTransactions.any { it.id == insertedStandalone.id } }
+            assertEquals(1, vm.uiState.value.allTransactions.size)
+
+            // 7. Token vencido / descartado tras clearPendingBulkDeleteIfMatches no restaura al reintentar
+            var expiredToken = -1L
+            vm.deleteTransactionForUndo(insertedStandalone) { t, _ -> expiredToken = t }
+            awaitCondition(
+                step = "delete_for_expired_token",
+                debugInfo = { "expiredToken=$expiredToken, txCount=${vm.uiState.value.allTransactions.size}" }
+            ) { expiredToken > tokenStandalone && vm.uiState.value.allTransactions.isEmpty() }
+            vm.clearPendingBulkDeleteIfMatches(expiredToken)
+            vm.undoBulkDelete(expiredToken)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertTrue(vm.uiState.value.allTransactions.isEmpty())
+        } finally {
+            budgetCollector.cancel()
+            accountsCollector.cancel()
         }
     }
 }

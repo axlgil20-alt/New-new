@@ -330,7 +330,7 @@ fun QuetziMascotView(
                     // Imagen principal sin fondo blanco
                     Image(
                         painter = painterResource(id = R.drawable.quetzi_mascot),
-                        contentDescription = "Quetzi Mascota Chapina",
+                        contentDescription = "Ketzi Mascota Chapina",
                         modifier = Modifier
                             .size(92.dp),
                         contentScale = ContentScale.Fit
@@ -381,7 +381,7 @@ fun QuetziMascotView(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
-                            text = "Quetzi",
+                            text = "Ketzi",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.ExtraBold,
                             color = if (isDark) Color(0xFFA8D5A0) else EmeraldGreen
@@ -421,7 +421,7 @@ fun QuetziMascotView(
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
                                 imageVector = Icons.Default.Flight,
-                                contentDescription = "Volar Quetzi",
+                                contentDescription = "Volar Ketzi",
                                 tint = if (isDark) Color(0xFF8BB9FF) else Color(0xFF0284C7),
                                 modifier = Modifier.size(16.dp)
                             )

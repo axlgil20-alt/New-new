@@ -304,7 +304,7 @@ fun SmartSupermarketModule(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = "Smart Cart Quetzi",
+                                text = "Smart Cart Ketzi",
                                 style = MaterialTheme.typography.titleLarge,
                                 fontWeight = FontWeight.Black,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -1082,7 +1082,7 @@ fun SmartSupermarketModule(
                     CircularProgressIndicator(color = EmeraldGreen, modifier = Modifier.size(32.dp))
                     Spacer(modifier = Modifier.width(16.dp))
                     Text(
-                        text = "Quetzi está reconociendo productos...",
+                        text = "Ketzi está reconociendo productos...",
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -1643,7 +1643,7 @@ fun SetBudgetDialog(
                     color = EmeraldGreen
                 )
                 Text(
-                    text = "Define cuánto planeas gastar en el supermercado para que Quetzi controle tu saldo.",
+                    text = "Define cuánto planeas gastar en el supermercado para que Ketzi controle tu saldo.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

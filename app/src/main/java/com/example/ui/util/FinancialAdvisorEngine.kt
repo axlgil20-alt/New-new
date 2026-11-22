@@ -289,7 +289,7 @@ object FinancialAdvisorEngine {
             return if (antSum > 0.0) {
                 "¡Ojo al piojo con los gastos hormiga! 🐜\n\n" +
                         "Llevas acumulados $currency${"%,.2f".format(antSum)} en compras pequeñas, lo que representa el ${"%.1f".format(antPct)}% de tus ingresos.\n\n" +
-                        "💡 Tip de Quetzi: Si reduces a la mitad esos cafecitos o compras de paso, tendrías $currency${"%,.2f".format(antSum / 2)} extras para tu alcancía este mes."
+                        "💡 Tip de Ketzi: Si reduces a la mitad esos cafecitos o compras de paso, tendrías $currency${"%,.2f".format(antSum / 2)} extras para tu alcancía este mes."
             } else {
                 if (uiState.filteredTransactions.isNotEmpty()) {
                     "¡Felicidades! 🎉 No tienes gastos hormiga registrados en este ciclo. ¡Gran disciplina financiera!"
@@ -353,7 +353,7 @@ object FinancialAdvisorEngine {
             val yellowOrRed = pantryItems.count { it.priceSource.contains("AMARILLO") || it.priceSource.contains("ROJO") }
             val budget = uiState.smartCartBudget
 
-            return "Estado de tu Smart Cart Quetzi:\n\n" +
+            return "Estado de tu Smart Cart Ketzi:\n\n" +
                     "• Artículos en tu lista: $cartCount\n" +
                     "• Productos por reponer (despensa amarilla/roja): $yellowOrRed\n" +
                     "• Presupuesto asignado al súper: $currency${"%,.2f".format(budget)}\n\n" +
@@ -387,7 +387,7 @@ object FinancialAdvisorEngine {
                 tips.add("🛡️ Activa el Modo Discreto (ícono del ojo) al consultar tus finanzas en la calle o transporte.")
             }
 
-            return "Diagnóstico Financiero de Quetzi ($period):\n\n" +
+            return "Diagnóstico Financiero de Ketzi ($period):\n\n" +
                     tips.joinToString("\n\n")
         }
 

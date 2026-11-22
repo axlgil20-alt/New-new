@@ -36,7 +36,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -330,7 +333,9 @@ fun AccountDetailPane(
                 if (accountTransactions.isEmpty()) {
                     Text("Aún no hay movimientos vinculados a esta cuenta.", style = MaterialTheme.typography.bodySmall, color = secondaryText)
                 } else {
-                    accountTransactions.take(25).forEach { tx ->
+                    var showAllMovements by remember(account.id) { mutableStateOf(false) }
+                    val displayedTransactions = if (showAllMovements) accountTransactions else accountTransactions.take(25)
+                    displayedTransactions.forEach { tx ->
                         val isInflow = tx.entryKind == TransactionEntryKind.CARD_PAYMENT ||
                             tx.entryKind == TransactionEntryKind.TRANSFER_IN ||
                             (tx.entryKind != TransactionEntryKind.TRANSFER_OUT && tx.type == TransactionType.INCOME)
@@ -370,6 +375,24 @@ fun AccountDetailPane(
                                     color = if (isInflow) accentEmerald else if (isDarkTheme) Color(0xFFFCA5A5) else Color(0xFFB91C1C)
                                 )
                             }
+                        }
+                    }
+                    if (accountTransactions.size > 25) {
+                        OutlinedButton(
+                            onClick = { showAllMovements = !showAllMovements },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 48.dp)
+                                .testTag("toggle_all_account_movements_button")
+                        ) {
+                            Text(
+                                text = if (showAllMovements) {
+                                    "Mostrar solo los recientes (25)"
+                                } else {
+                                    "Ver todos los movimientos (${accountTransactions.size})"
+                                },
+                                fontWeight = FontWeight.SemiBold
+                            )
                         }
                     }
                 }

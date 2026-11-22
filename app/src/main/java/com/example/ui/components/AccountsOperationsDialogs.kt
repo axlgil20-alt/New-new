@@ -207,24 +207,29 @@ fun CreateInstallmentPlanDialog(
                     }
                 }
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                @OptIn(ExperimentalLayoutApi::class)
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
                     FilterChip(
                         selected = policyOverride == null,
                         onClick = { policyOverride = null },
-                        label = { Text("Política tarjeta") },
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                        label = { Text("Política tarjeta", maxLines = 1) },
+                        modifier = Modifier.heightIn(min = 48.dp)
                     )
                     FilterChip(
                         selected = policyOverride == CreditReservePolicy.RESERVE_FULL_PENDING_PRINCIPAL,
                         onClick = { policyOverride = CreditReservePolicy.RESERVE_FULL_PENDING_PRINCIPAL },
-                        label = { Text("Reservar todo") },
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                        label = { Text("Reservar todo", maxLines = 1) },
+                        modifier = Modifier.heightIn(min = 48.dp)
                     )
                     FilterChip(
                         selected = policyOverride == CreditReservePolicy.RESERVE_BILLED_INSTALLMENTS_ONLY,
                         onClick = { policyOverride = CreditReservePolicy.RESERVE_BILLED_INSTALLMENTS_ONLY },
-                        label = { Text("Solo facturadas") },
-                        modifier = Modifier.weight(1f).heightIn(min = 48.dp)
+                        label = { Text("Solo facturadas", maxLines = 1) },
+                        modifier = Modifier.heightIn(min = 48.dp)
                     )
                 }
 
@@ -445,7 +450,13 @@ fun AssignUnassignedTransactionsDialog(
                             Text("Todos los movimientos ya tienen cuenta asignada.", fontWeight = FontWeight.SemiBold)
                         }
                     } else {
-                        unassignedTransactions.take(40).forEach { tx ->
+                        var showAllUnassigned by remember { mutableStateOf(false) }
+                        val displayedUnassigned = if (showAllUnassigned) {
+                            unassignedTransactions
+                        } else {
+                            unassignedTransactions.take(40)
+                        }
+                        displayedUnassigned.forEach { tx ->
                             val sign = if (tx.type == TransactionType.INCOME) "+" else "-"
                             Surface(
                                 shape = RoundedCornerShape(10.dp),
@@ -473,6 +484,24 @@ fun AssignUnassignedTransactionsDialog(
                                         modifier = Modifier.heightIn(min = 48.dp)
                                     ) { Text("Vincular") }
                                 }
+                            }
+                        }
+                        if (unassignedTransactions.size > 40) {
+                            OutlinedButton(
+                                onClick = { showAllUnassigned = !showAllUnassigned },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = 48.dp)
+                                    .testTag("toggle_all_unassigned_button")
+                            ) {
+                                Text(
+                                    text = if (showAllUnassigned) {
+                                        "Mostrar solo los primeros 40"
+                                    } else {
+                                        "Ver todos los pendientes (${unassignedTransactions.size})"
+                                    },
+                                    fontWeight = FontWeight.SemiBold
+                                )
                             }
                         }
                     }

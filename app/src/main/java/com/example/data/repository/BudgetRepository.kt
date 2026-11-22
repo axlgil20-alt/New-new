@@ -91,16 +91,55 @@ class BudgetRepository(
     suspend fun insertTransaction(tx: TransactionEntity): Long =
         transactionDao.insertTransaction(normalizeTransactionForWrite(tx))
 
-    suspend fun updateTransaction(tx: TransactionEntity) =
-        transactionDao.updateTransaction(normalizeTransactionForWrite(tx))
+    suspend fun updateTransaction(tx: TransactionEntity) = runInTransaction {
+        val normalized = normalizeTransactionForWrite(tx)
+        transactionDao.updateTransaction(normalized)
 
-    suspend fun deleteTransaction(tx: TransactionEntity) = runInTransaction {
+        val groupId = normalized.transferGroupId
+        if (groupId != null) {
+            val siblings = accountLedgerDao?.getTransactionsByTransferGroup(groupId)
+                ?: transactionDao.getAllTransactionsList().filter { it.transferGroupId == groupId }
+            siblings.filter { it.id != normalized.id }.forEach { sibling ->
+                val syncedSibling = sibling
+                    .withExactAmountMinor(normalized.amountMinor)
+                    .copy(dateMillis = normalized.dateMillis)
+                transactionDao.updateTransaction(syncedSibling)
+            }
+        }
+    }
+
+    suspend fun deleteTransaction(tx: TransactionEntity) {
+        deleteTransactionWithSnapshot(tx)
+    }
+
+    suspend fun deleteTransactionWithSnapshot(tx: TransactionEntity): List<TransactionEntity> = runInTransaction {
+        val all = transactionDao.getAllTransactionsList()
         val groupId = tx.transferGroupId
+        val snapshot = when {
+            groupId != null -> {
+                val groupRows = all.filter { it.transferGroupId == groupId }
+                if (groupRows.isNotEmpty()) {
+                    groupRows
+                } else {
+                    listOfNotNull(all.firstOrNull { it.id == tx.id })
+                }
+            }
+            tx.id > 0L -> listOfNotNull(all.firstOrNull { it.id == tx.id })
+            else -> listOf(tx)
+        }
+        if (snapshot.isEmpty()) return@runInTransaction emptyList()
+
         if (groupId != null && accountLedgerDao != null) {
             accountLedgerDao.deleteByTransferGroup(groupId)
         } else {
-            transactionDao.deleteTransaction(tx)
+            val snapshotIds = snapshot.map { it.id }.filter { it > 0L }.distinct()
+            if (snapshotIds.isNotEmpty()) {
+                transactionDao.deleteByIds(snapshotIds)
+            } else {
+                transactionDao.deleteTransaction(tx)
+            }
         }
+        snapshot
     }
 
     suspend fun deleteTransactionById(id: Long) = runInTransaction {
@@ -123,14 +162,10 @@ class BudgetRepository(
         if (requestedIds.isEmpty()) return@runInTransaction emptyList()
         val all = transactionDao.getAllTransactionsList()
         val requestedSet = requestedIds.toSet()
-        val groupIds = if (accountLedgerDao != null) {
-            all.asSequence()
-                .filter { it.id in requestedSet && it.transferGroupId != null }
-                .mapNotNull { it.transferGroupId }
-                .toSet()
-        } else {
-            emptySet()
-        }
+        val groupIds = all.asSequence()
+            .filter { it.id in requestedSet && it.transferGroupId != null }
+            .mapNotNull { it.transferGroupId }
+            .toSet()
         val snapshot = all.filter { tx ->
             tx.id in requestedSet || (tx.transferGroupId != null && tx.transferGroupId in groupIds)
         }
@@ -139,7 +174,10 @@ class BudgetRepository(
         for (groupId in groupIds) {
             accountLedgerDao?.deleteByTransferGroup(groupId)
         }
-        transactionDao.deleteByIds(requestedIds)
+        val snapshotIds = snapshot.map { it.id }.filter { it > 0L }.distinct()
+        if (snapshotIds.isNotEmpty()) {
+            transactionDao.deleteByIds(snapshotIds)
+        }
         snapshot
     }
 
@@ -506,7 +544,7 @@ class BudgetRepository(
                 category = "Alimentación & Súper",
                 dateMillis = System.currentTimeMillis(),
                 paymentMethod = account?.name ?: "Efectivo",
-                notes = "Compra completada con Smart Cart Quetzi en $storeName",
+                notes = "Compra completada con Smart Cart Ketzi en $storeName",
                 amountMinor = amountMinor,
                 accountId = account?.id ?: accountId,
                 entryKind = TransactionEntryKind.STANDARD
@@ -845,95 +883,118 @@ class BudgetRepository(
         val now = System.currentTimeMillis()
         val exactMinor = commitment.amountMinor
         val displayAmount = MoneyMinorUnits.toDisplayDouble(exactMinor)
-        val isCardStatementSettlement =
+        val isCardStatementCommitment =
             commitment.commitmentKind == CommitmentKind.CREDIT_CARD_STATEMENT &&
-                commitment.creditCardAccountId != null &&
-                commitment.paymentSourceAccountId != null
+                commitment.creditCardAccountId != null
 
         var resultingLinkedTxId = commitment.linkedTransactionId
 
-        if (isCardStatementSettlement) {
-            // Liquidación atómica de tarjeta: dos patas enlazadas que ajustan saldos sin duplicar gastos en presupuesto
+        if (isCardStatementCommitment) {
+            // Liquidación atómica de tarjeta: ajusta deuda de tarjeta sin duplicar gastos en presupuesto
             val linkedId = commitment.linkedTransactionId
             if (linkedId != null) {
                 transactionDao.deleteById(linkedId)
             }
-            val transferGroupId = "ccstmt_${commitment.id}_${java.util.UUID.randomUUID()}"
-            val sourceAccount = commitment.paymentSourceAccountId?.let { financialAccountDao?.getAccountById(it) }
             val cardAccount = commitment.creditCardAccountId?.let { financialAccountDao?.getAccountById(it) }
-            val outTx = TransactionEntity(
-                title = "Pago tarjeta ${cardAccount?.name ?: commitment.title}".trim(),
-                amount = displayAmount,
-                type = TransactionType.EXPENSE,
-                category = commitment.category,
-                dateMillis = now,
-                paymentMethod = sourceAccount?.name ?: "Cuenta",
-                notes = "Liquidación de estado de cuenta (${commitment.beneficiaryName})",
-                isVerified = true,
-                isTentative = false,
-                tentativeDecision = "CONFIRMED",
-                amountMinor = exactMinor,
-                accountId = commitment.paymentSourceAccountId,
-                entryKind = TransactionEntryKind.TRANSFER_OUT,
-                transferGroupId = transferGroupId,
-                counterpartAccountId = commitment.creditCardAccountId
-            )
-            val cardPaymentTx = TransactionEntity(
-                title = "Abono ${cardAccount?.name ?: commitment.title}".trim(),
-                amount = displayAmount,
-                type = TransactionType.INCOME,
-                category = commitment.category,
-                dateMillis = now,
-                paymentMethod = sourceAccount?.name ?: "Transferencia",
-                notes = "Pago de estado de cuenta desde ${sourceAccount?.name ?: "cuenta propia"}",
-                isVerified = true,
-                isTentative = false,
-                tentativeDecision = "CONFIRMED",
-                amountMinor = exactMinor,
-                accountId = commitment.creditCardAccountId,
-                entryKind = TransactionEntryKind.CARD_PAYMENT,
-                transferGroupId = transferGroupId,
-                counterpartAccountId = commitment.paymentSourceAccountId
-            )
-            transactionDao.insertTransaction(outTx)
-            resultingLinkedTxId = transactionDao.insertTransaction(cardPaymentTx)
+            val sourceAccountId = commitment.paymentSourceAccountId
+            if (sourceAccountId != null) {
+                val transferGroupId = "ccstmt_${commitment.id}_${java.util.UUID.randomUUID()}"
+                val sourceAccount = financialAccountDao?.getAccountById(sourceAccountId)
+                val outTx = TransactionEntity(
+                    title = "Pago tarjeta ${cardAccount?.name ?: commitment.title}".trim(),
+                    amount = displayAmount,
+                    type = TransactionType.EXPENSE,
+                    category = commitment.category,
+                    dateMillis = now,
+                    paymentMethod = sourceAccount?.name ?: "Cuenta",
+                    notes = "Liquidación de estado de cuenta (${commitment.beneficiaryName})",
+                    isVerified = true,
+                    isTentative = false,
+                    tentativeDecision = "CONFIRMED",
+                    amountMinor = exactMinor,
+                    accountId = sourceAccountId,
+                    entryKind = TransactionEntryKind.TRANSFER_OUT,
+                    transferGroupId = transferGroupId,
+                    counterpartAccountId = commitment.creditCardAccountId
+                )
+                val cardPaymentTx = TransactionEntity(
+                    title = "Abono ${cardAccount?.name ?: commitment.title}".trim(),
+                    amount = displayAmount,
+                    type = TransactionType.INCOME,
+                    category = commitment.category,
+                    dateMillis = now,
+                    paymentMethod = sourceAccount?.name ?: "Transferencia",
+                    notes = "Pago de estado de cuenta desde ${sourceAccount?.name ?: "cuenta propia"}",
+                    isVerified = true,
+                    isTentative = false,
+                    tentativeDecision = "CONFIRMED",
+                    amountMinor = exactMinor,
+                    accountId = commitment.creditCardAccountId,
+                    entryKind = TransactionEntryKind.CARD_PAYMENT,
+                    transferGroupId = transferGroupId,
+                    counterpartAccountId = sourceAccountId
+                )
+                transactionDao.insertTransaction(outTx)
+                resultingLinkedTxId = transactionDao.insertTransaction(cardPaymentTx)
+            } else {
+                // Sin cuenta origen seleccionada: registrar abono directo a la tarjeta (CARD_PAYMENT no infla gastos)
+                val cardPaymentTx = TransactionEntity(
+                    title = "Abono ${cardAccount?.name ?: commitment.title}".trim(),
+                    amount = displayAmount,
+                    type = TransactionType.INCOME,
+                    category = commitment.category,
+                    dateMillis = now,
+                    paymentMethod = "Abono directo",
+                    notes = "Pago de estado de cuenta (${commitment.beneficiaryName})",
+                    isVerified = true,
+                    isTentative = false,
+                    tentativeDecision = "CONFIRMED",
+                    amountMinor = exactMinor,
+                    accountId = commitment.creditCardAccountId,
+                    entryKind = TransactionEntryKind.CARD_PAYMENT
+                )
+                resultingLinkedTxId = transactionDao.insertTransaction(cardPaymentTx)
+            }
         } else {
-            // 1. Actualizar el movimiento vinculado en REGISTROS a GASTO REAL CONFIRMADO
+            // 1. Actualizar o crear el movimiento vinculado en REGISTROS como GASTO REAL CONFIRMADO
             val linkedId = commitment.linkedTransactionId
-            if (linkedId != null) {
-                val allTxs = transactionDao.getAllTransactionsList()
-                val existingTx = allTxs.find { it.id == linkedId }
-                if (existingTx != null) {
-                    val cleanNotes = existingTx.notes.replace("[PENDIENTE]", "")
-                        .replace("Pendiente", "", ignoreCase = true)
-                        .replace("[SUPUESTO]", "")
-                        .replace("Supuesto", "", ignoreCase = true)
-                        .trim()
-                    val confirmedTx = existingTx.withExactAmountMinor(exactMinor).copy(
-                        isTentative = false,
-                        tentativeDecision = "CONFIRMED",
-                        isVerified = true,
-                        accountId = existingTx.accountId ?: commitment.paymentSourceAccountId,
-                        notes = if (cleanNotes.isNotBlank()) "$cleanNotes (Pagado)" else "Pago realizado"
-                    )
-                    transactionDao.updateTransaction(confirmedTx)
-                } else {
-                    val newRealTx = TransactionEntity(
-                        title = commitment.title.ifBlank { commitment.beneficiaryName },
-                        amount = displayAmount,
-                        type = TransactionType.EXPENSE,
-                        category = commitment.category,
-                        dateMillis = now,
-                        isTentative = false,
-                        tentativeDecision = "CONFIRMED",
-                        isVerified = true,
-                        notes = "Pago realizado a ${commitment.beneficiaryName}",
-                        amountMinor = exactMinor,
-                        accountId = commitment.paymentSourceAccountId,
-                        entryKind = TransactionEntryKind.STANDARD
-                    )
-                    resultingLinkedTxId = transactionDao.insertTransaction(newRealTx)
-                }
+            val existingTx = if (linkedId != null) {
+                transactionDao.getAllTransactionsList().find { it.id == linkedId }
+            } else {
+                null
+            }
+            if (existingTx != null) {
+                val cleanNotes = existingTx.notes.replace("[PENDIENTE]", "")
+                    .replace("Pendiente", "", ignoreCase = true)
+                    .replace("[SUPUESTO]", "")
+                    .replace("Supuesto", "", ignoreCase = true)
+                    .trim()
+                val confirmedTx = existingTx.withExactAmountMinor(exactMinor).copy(
+                    isTentative = false,
+                    tentativeDecision = "CONFIRMED",
+                    isVerified = true,
+                    accountId = existingTx.accountId ?: commitment.paymentSourceAccountId,
+                    notes = if (cleanNotes.isNotBlank()) "$cleanNotes (Pagado)" else "Pago realizado"
+                )
+                transactionDao.updateTransaction(confirmedTx)
+            } else {
+                val sourceAccount = commitment.paymentSourceAccountId?.let { financialAccountDao?.getAccountById(it) }
+                val newRealTx = TransactionEntity(
+                    title = commitment.title.ifBlank { commitment.beneficiaryName },
+                    amount = displayAmount,
+                    type = TransactionType.EXPENSE,
+                    category = commitment.category,
+                    dateMillis = now,
+                    paymentMethod = sourceAccount?.name ?: "Efectivo",
+                    isTentative = false,
+                    tentativeDecision = "CONFIRMED",
+                    isVerified = true,
+                    notes = "Pago realizado a ${commitment.beneficiaryName}",
+                    amountMinor = exactMinor,
+                    accountId = commitment.paymentSourceAccountId,
+                    entryKind = TransactionEntryKind.STANDARD
+                )
+                resultingLinkedTxId = transactionDao.insertTransaction(newRealTx)
             }
         }
 

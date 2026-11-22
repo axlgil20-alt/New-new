@@ -288,13 +288,15 @@ fun AccountsScreen(
                             style = MaterialTheme.typography.titleLarge.copy(shadow = heroTextShadow),
                             fontWeight = FontWeight.Black,
                             color = Color.White,
-                            maxLines = 2
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = "Quetzaltenango · ${accountsState.activeAccounts.size} activa(s) · ${accountsState.creditCardAccounts.size} tarjeta(s)",
                             style = MaterialTheme.typography.labelSmall.copy(shadow = heroTextShadow),
                             color = Color(0xFFE2E8F0),
-                            maxLines = 2
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 },
@@ -304,12 +306,12 @@ fun AccountsScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = EmeraldGreen, contentColor = Color.White),
                         border = BorderStroke(1.dp, Color(0xFF6EE7B7)),
                         shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                        modifier = Modifier.heightIn(min = 48.dp).padding(end = 8.dp).testTag("add_account_button")
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        modifier = Modifier.heightIn(min = 48.dp).padding(end = 6.dp).testTag("add_account_button")
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Cuenta", fontWeight = FontWeight.Bold)
+                        Text("Cuenta", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)

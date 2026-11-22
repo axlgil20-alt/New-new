@@ -230,32 +230,22 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         fun getDatabase(context: Context): AppDatabase {
-            val current = INSTANCE
-            if (current != null && current.isOpen) {
-                return current
-            }
-            return synchronized(this) {
-                val existing = INSTANCE
-                if (existing != null && existing.isOpen) {
-                    existing
-                } else {
-                    val instance = Room.databaseBuilder(
-                        context.applicationContext,
-                        AppDatabase::class.java,
-                        "budget_app_database"
-                    )
-                        .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
-                        .addCallback(object : RoomDatabase.Callback() {
-                            override fun onOpen(db: androidx.sqlite.db.SupportSQLiteDatabase) {
-                                super.onOpen(db)
-                                reconcileLegacyMonetaryParity(db)
-                            }
-                        })
-                        .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
-                        .build()
-                    INSTANCE = instance
-                    instance
-                }
+            return INSTANCE ?: synchronized(this) {
+                INSTANCE ?: Room.databaseBuilder(
+                    context.applicationContext,
+                    AppDatabase::class.java,
+                    "budget_app_database"
+                )
+                    .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                    .addCallback(object : RoomDatabase.Callback() {
+                        override fun onOpen(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                            super.onOpen(db)
+                            reconcileLegacyMonetaryParity(db)
+                        }
+                    })
+                    .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
+                    .build()
+                    .also { INSTANCE = it }
             }
         }
 

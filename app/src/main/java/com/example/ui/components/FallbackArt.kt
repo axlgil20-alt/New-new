@@ -53,7 +53,7 @@ fun SafeQuetziAvatar(
         if (hasDrawable) {
             Image(
                 painter = painterResource(id = R.drawable.quetzi_mascot),
-                contentDescription = "Quetzi Mascota",
+                contentDescription = "Ketzi Mascota",
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize()
             )

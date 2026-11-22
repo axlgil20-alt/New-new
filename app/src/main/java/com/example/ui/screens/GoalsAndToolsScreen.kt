@@ -233,7 +233,7 @@ fun GoalsAndToolsScreen(
                         onClick = {
                             val intent = Intent(Intent.ACTION_SENDTO).apply {
                                 data = Uri.parse("mailto:marvg9559@gmail.com")
-                                putExtra(Intent.EXTRA_SUBJECT, "Feedback App Quetzi")
+                                putExtra(Intent.EXTRA_SUBJECT, "Feedback App Ketzi")
                                 putExtra(Intent.EXTRA_TEXT, feedbackMessage)
                             }
                             try {
@@ -354,7 +354,7 @@ fun GoalsAndToolsScreen(
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "Personalización, gestión chapina y soporte de Quetzi.",
+                                text = "Personalización, gestión chapina y soporte de Ketzi.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color(0xFFCBD5E1)
                             )
@@ -640,7 +640,7 @@ fun GoalsAndToolsScreen(
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "Quetzi v1.0",
+                            text = "Ketzi v1.0",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF6EE7B7)
@@ -653,7 +653,7 @@ fun GoalsAndToolsScreen(
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "MarvGr Studios® - Todos los derechos reservados",
+                            text = "MarvGr - Todos los derechos reservados",
                             style = MaterialTheme.typography.labelSmall,
                             color = Color(0xFF34D399),
                             fontWeight = FontWeight.Bold

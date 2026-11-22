@@ -306,7 +306,7 @@ fun PrivacySecurityDialog(
                 PrivacyFeatureCard(
                     icon = Icons.Default.Lock,
                     title = "Sin Venta de Datos ni Rastreadores",
-                    description = "QUETZI no contiene telemetría publicitaria ni rastreadores de terceros. No vendemos ni compartimos tu información financiera con bancos ni agencias."
+                    description = "KETZI no contiene telemetría publicitaria ni rastreadores de terceros. No vendemos ni compartimos tu información financiera con bancos ni agencias."
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -411,7 +411,7 @@ fun AboutQuetziDialog(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
-                    text = "QUETZI",
+                    text = "KETZI",
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 1.sp
@@ -450,7 +450,7 @@ fun AboutQuetziDialog(
                 Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
-                    text = "Diseñado y desarrollado en Guatemala por MarvGr Studios®.",
+                    text = "Diseñado y desarrollado en Guatemala por MarvGr.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     lineHeight = 16.sp

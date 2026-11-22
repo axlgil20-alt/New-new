@@ -130,6 +130,8 @@ fun TransactionInputForm(
         calendar.get(Calendar.DAY_OF_MONTH)
     )
 
+    val isLinkedEntry = initialTransaction?.transferGroupId != null || initialTransaction?.installmentPlanId != null
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -144,6 +146,7 @@ fun TransactionInputForm(
         ) {
             FilterChip(
                 selected = type == TransactionType.EXPENSE,
+                enabled = !isLinkedEntry,
                 onClick = {
                     type = TransactionType.EXPENSE
                     if (category == "Ingreso") category = "Alimentación & Súper"
@@ -158,6 +161,7 @@ fun TransactionInputForm(
 
             FilterChip(
                 selected = type == TransactionType.INCOME,
+                enabled = !isLinkedEntry,
                 onClick = {
                     type = TransactionType.INCOME
                     category = "Ingreso"
@@ -173,7 +177,7 @@ fun TransactionInputForm(
         }
 
         // TARJETA DE GASTO SUPUESTO / SIMULACIÓN ("¿Me alcanzará? ¿Compro o no compro?")
-        if (type == TransactionType.EXPENSE) {
+        if (type == TransactionType.EXPENSE && !isLinkedEntry) {
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -347,7 +351,6 @@ fun TransactionInputForm(
         }
 
         // Cuenta asociada (Mis Cuentas - Opcional)
-        val isLinkedEntry = initialTransaction?.transferGroupId != null || initialTransaction?.installmentPlanId != null
         if (activeAccounts.isNotEmpty() && !isLinkedEntry) {
             val selectedAccount = activeAccounts.firstOrNull { it.id == selectedAccountId }
             val accountLabel = selectedAccount?.let { acc ->
@@ -377,6 +380,9 @@ fun TransactionInputForm(
                         text = { Text("Sin asignar (solo presupuesto)") },
                         onClick = {
                             selectedAccountId = null
+                            if (activeAccounts.any { it.name == paymentMethod }) {
+                                paymentMethod = "Efectivo"
+                            }
                             accountDropdownExpanded = false
                         }
                     )
@@ -491,6 +497,7 @@ fun TransactionInputForm(
                             category = category,
                             dateMillis = dateMillis
                         )
+                        val effectiveTentative = if (isLinkedEntry) false else isTentative
                         val entity = base.withExactAmountMinor(exactMinor).copy(
                             title = title.trim(),
                             type = type,
@@ -500,8 +507,8 @@ fun TransactionInputForm(
                             accountId = selectedAccountId,
                             notes = notes.trim(),
                             isAntExpense = isAntExpense,
-                            isTentative = isTentative,
-                            tentativeDecision = if (isTentative) (initialTransaction?.tentativeDecision?.ifBlank { "PENDING" } ?: "PENDING") else "",
+                            isTentative = effectiveTentative,
+                            tentativeDecision = if (effectiveTentative) (initialTransaction?.tentativeDecision?.ifBlank { "PENDING" } ?: "PENDING") else "",
                             highlightColorHex = selectedHighlightHex,
                             dateMillis = dateMillis
                         )

@@ -240,7 +240,7 @@ fun InicioScreen(
                                 border = androidx.compose.foundation.BorderStroke(0.8.dp, Color(0xFFF59E0B))
                             ) {
                                 Text(
-                                    text = "Quetzi",
+                                    text = "Ketzi",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = Color(0xFFFFFBEB),
@@ -575,7 +575,7 @@ fun InicioScreen(
                             Column(modifier = Modifier.weight(1f)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        text = "Smart Cart Quetzi",
+                                        text = "Smart Cart Ketzi",
                                         style = MaterialTheme.typography.titleMedium,
                                         fontWeight = FontWeight.Black,
                                         color = MaterialTheme.colorScheme.onSurface

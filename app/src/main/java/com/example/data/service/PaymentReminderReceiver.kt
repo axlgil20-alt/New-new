@@ -39,7 +39,7 @@ class PaymentReminderReceiver : BroadcastReceiver() {
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentTitle("Recordatorio de Pago: $title")
             .setContentText(contentText)
-            .setStyle(NotificationCompat.BigTextStyle().bigText("$contentText Mantén tus cuentas al día con Quetzi."))
+            .setStyle(NotificationCompat.BigTextStyle().bigText("$contentText Mantén tus cuentas al día con Ketzi."))
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(pendingIntent)
             .setAutoCancel(true)
@@ -58,7 +58,7 @@ class PaymentReminderReceiver : BroadcastReceiver() {
 
         fun createNotificationChannel(context: Context) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val name = "Recordatorios de Pagos Quetzi"
+                val name = "Recordatorios de Pagos Ketzi"
                 val descriptionText = "Notificaciones sobre fechas de vencimiento de compromisos familiares"
                 val importance = NotificationManager.IMPORTANCE_HIGH
                 val channel = NotificationChannel(CHANNEL_ID, name, importance).apply {

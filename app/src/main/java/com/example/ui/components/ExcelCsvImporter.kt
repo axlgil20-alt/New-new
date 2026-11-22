@@ -647,10 +647,10 @@ fun ExcelCsvImporter(
                                             val sendIntent = Intent().apply {
                                                 action = Intent.ACTION_SEND
                                                 putExtra(Intent.EXTRA_TEXT, exportPreview)
-                                                putExtra(Intent.EXTRA_TITLE, "Reporte_Quetzi_${System.currentTimeMillis()}.csv")
+                                                putExtra(Intent.EXTRA_TITLE, "Reporte_Ketzi_${System.currentTimeMillis()}.csv")
                                                 type = "text/plain"
                                             }
-                                            context.startActivity(Intent.createChooser(sendIntent, "Exportar Reporte Quetzi"))
+                                            context.startActivity(Intent.createChooser(sendIntent, "Exportar Reporte Ketzi"))
                                         }
                                     },
                                     modifier = Modifier.weight(1f),

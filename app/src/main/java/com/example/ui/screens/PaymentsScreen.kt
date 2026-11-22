@@ -87,6 +87,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.BeneficiaryEntity
@@ -341,12 +342,16 @@ fun PaymentsScreen(
                                 style = MaterialTheme.typography.titleLarge.copy(shadow = heroTextShadow),
                                 fontWeight = FontWeight.Black,
                                 color = Color.White,
-                                letterSpacing = 0.5.sp
+                                letterSpacing = 0.5.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = "Compromisos Familiares",
                                 style = MaterialTheme.typography.labelSmall.copy(shadow = heroTextShadow),
-                                color = Color(0xFFF1F5F9)
+                                color = Color(0xFFF1F5F9),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
@@ -361,24 +366,26 @@ fun PaymentsScreen(
                             contentColor = Color.White
                         ),
                         border = BorderStroke(1.2.dp, Color(0xFF6EE7B7)),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
                         modifier = Modifier
                             .heightIn(min = 48.dp)
-                            .padding(end = 6.dp)
+                            .padding(end = 4.dp)
                             .testTag("open_beneficiaries_button")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Business,
                             contentDescription = "Directorio de Beneficiarios",
                             tint = Color.White,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "Benef.",
-                            fontSize = 12.sp,
+                            fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = Color.White,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
 
@@ -394,15 +401,15 @@ fun PaymentsScreen(
                         ),
                         border = BorderStroke(1.dp, Color(0xFF6EE7B7)),
                         shape = RoundedCornerShape(10.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                         modifier = Modifier
                             .heightIn(min = 48.dp)
-                            .padding(end = 8.dp)
+                            .padding(end = 6.dp)
                             .testTag("add_payment_button")
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Pago", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        Icon(Icons.Default.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(3.dp))
+                        Text("Pago", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)

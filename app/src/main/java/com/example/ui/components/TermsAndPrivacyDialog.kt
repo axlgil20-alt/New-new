@@ -123,7 +123,7 @@ fun TermsAndPrivacyDialog(
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                             Text(
-                                text = "Quetzi • MarvGr®",
+                                text = "Ketzi • MarvGr",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = accentEmerald,
                                 fontWeight = FontWeight.Bold
@@ -255,7 +255,7 @@ fun TermsAndPrivacyDialog(
                             )
                         } else if (isMandatory) {
                             Text(
-                                text = "Debes aceptar estos términos expresamente para ingresar a QUETZI.",
+                                text = "Debes aceptar estos términos expresamente para ingresar a KETZI.",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

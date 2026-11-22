@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -62,6 +63,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
@@ -143,8 +145,14 @@ class MainActivity : ComponentActivity() {
             val snackbarHostState = remember { SnackbarHostState() }
             val coroutineScope = rememberCoroutineScope()
 
-            var selectedTab by remember { mutableIntStateOf(0) }
-            val pagerState = rememberPagerState(initialPage = 0) { PrimaryTabPagerLogic.primaryTabsOrder.size }
+            val initialTab = remember {
+                val requested = intent?.getIntExtra("open_tab", 0) ?: 0
+                if (requested in listOf(0, 1, 2, 3, 4, 5, 6, 7, 8)) requested else 0
+            }
+            var selectedTab by remember { mutableIntStateOf(initialTab) }
+            val pagerState = rememberPagerState(
+                initialPage = PrimaryTabPagerLogic.pageIndexForTab(initialTab) ?: 0
+            ) { PrimaryTabPagerLogic.primaryTabsOrder.size }
             var showAddTransactionDialog by remember { mutableStateOf(false) }
             var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
             var preselectedAccountIdForNewTx by remember { mutableStateOf<Long?>(null) }
@@ -164,17 +172,25 @@ class MainActivity : ComponentActivity() {
             var showAboutDialog by remember { mutableStateOf(false) }
 
             val deleteTransactionWithUndo: (TransactionEntity) -> Unit = { tx ->
-                viewModel.deleteTransaction(tx)
-                coroutineScope.launch {
-                    snackbarHostState.currentSnackbarData?.dismiss()
-                    val result = snackbarHostState.showSnackbar(
-                        message = "Eliminado: ${tx.title}",
-                        actionLabel = "Deshacer",
-                        withDismissAction = true,
-                        duration = SnackbarDuration.Short
-                    )
-                    if (result == SnackbarResult.ActionPerformed) {
-                        viewModel.restoreTransaction(tx)
+                viewModel.deleteTransactionForUndo(tx) { batchToken, deletedCount ->
+                    coroutineScope.launch {
+                        snackbarHostState.currentSnackbarData?.dismiss()
+                        val message = if (deletedCount > 1 && tx.transferGroupId != null) {
+                            "Transferencia eliminada ($deletedCount partes): ${tx.title}"
+                        } else {
+                            "Eliminado: ${tx.title}"
+                        }
+                        val result = snackbarHostState.showSnackbar(
+                            message = message,
+                            actionLabel = "Deshacer",
+                            withDismissAction = true,
+                            duration = SnackbarDuration.Long
+                        )
+                        if (result == SnackbarResult.ActionPerformed) {
+                            viewModel.undoBulkDelete(batchToken)
+                        } else {
+                            viewModel.clearPendingBulkDeleteIfMatches(batchToken)
+                        }
                     }
                 }
             }
@@ -301,9 +317,9 @@ class MainActivity : ComponentActivity() {
                             ModalDrawerSheet(
                                 drawerContainerColor = if (uiState.isDarkTheme) Color(0xFF131D1B) else Color(0xFFF7FAF9),
                                 drawerContentColor = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.width(320.dp)
+                                modifier = Modifier.widthIn(max = 320.dp).fillMaxWidth(0.84f)
                             ) {
-                                // Header del Menú Hamburguesa con Identidad Quetzi
+                                // Header del Menú Hamburguesa con Identidad Ketzi
                                 Box(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -331,7 +347,7 @@ class MainActivity : ComponentActivity() {
                                         Spacer(modifier = Modifier.width(12.dp))
                                         Column {
                                             Text(
-                                                text = "QUETZI",
+                                                text = "KETZI",
                                                 style = MaterialTheme.typography.titleLarge,
                                                 fontWeight = FontWeight.Black,
                                                 color = Color.White,
@@ -469,7 +485,7 @@ class MainActivity : ComponentActivity() {
                                 )
 
                                 NavigationDrawerItem(
-                                    label = { Text("Acerca de QUETZI", fontWeight = FontWeight.SemiBold) },
+                                    label = { Text("Acerca de KETZI", fontWeight = FontWeight.SemiBold) },
                                     icon = { Icon(Icons.Default.Info, contentDescription = null, tint = EmeraldGreen) },
                                     selected = false,
                                     onClick = {
@@ -488,13 +504,13 @@ class MainActivity : ComponentActivity() {
                                         .padding(horizontal = 24.dp, vertical = 16.dp)
                                 ) {
                                     Text(
-                                        text = "QUETZI v1.0",
+                                        text = "KETZI v1.0",
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                     Text(
-                                        text = "MarvGr Studios® · Offline-First",
+                                        text = "MarvGr · Offline-First",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                         fontSize = 10.sp
@@ -518,7 +534,7 @@ class MainActivity : ComponentActivity() {
                                 selected = selectedTab == 1,
                                 onClick = { selectedTab = 1 },
                                 icon = { Icon(Icons.Default.ReceiptLong, contentDescription = "Registros") },
-                                label = { Text("Registros", fontSize = 10.sp, maxLines = 1, softWrap = false) }
+                                label = { Text("Registros", fontSize = 10.sp, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) }
                             )
 
                             // 2. QUINCENAS
@@ -526,7 +542,7 @@ class MainActivity : ComponentActivity() {
                                 selected = selectedTab == 2,
                                 onClick = { selectedTab = 2 },
                                 icon = { Icon(Icons.Default.CalendarMonth, contentDescription = "Quincenas") },
-                                label = { Text("Quincenas", fontSize = 10.sp, maxLines = 1, softWrap = false) }
+                                label = { Text("Quincenas", fontSize = 10.sp, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis) }
                             )
 
                             // 3. HOY (Centrado y Destacado con relieve visual)
@@ -556,6 +572,7 @@ class MainActivity : ComponentActivity() {
                                         fontSize = 11.sp,
                                         maxLines = 1,
                                         softWrap = false,
+                                        overflow = TextOverflow.Ellipsis,
                                         fontWeight = if (selectedTab == 0) FontWeight.ExtraBold else FontWeight.Bold,
                                         color = if (selectedTab == 0) EmeraldGreen else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -589,6 +606,7 @@ class MainActivity : ComponentActivity() {
                                         fontSize = 10.sp,
                                         maxLines = 1,
                                         softWrap = false,
+                                        overflow = TextOverflow.Ellipsis,
                                         fontWeight = if (selectedTab == 5) FontWeight.Bold else FontWeight.Normal,
                                         color = if (selectedTab == 5) EmeraldGreen else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -621,6 +639,7 @@ class MainActivity : ComponentActivity() {
                                         fontSize = 10.sp,
                                         maxLines = 1,
                                         softWrap = false,
+                                        overflow = TextOverflow.Ellipsis,
                                         fontWeight = if (selectedTab == 7) FontWeight.Bold else FontWeight.Normal,
                                         color = if (selectedTab == 7) EmeraldGreen else MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -1016,7 +1035,7 @@ class MainActivity : ComponentActivity() {
                     if (showBudgetLimitDialog) {
                         BudgetLimitDialog(
                             initialLimit = budgetLimitBeingEdited,
-                            currencySymbol = "Q ",
+                            currencySymbol = uiState.currencySymbol,
                             onDismiss = {
                                 showBudgetLimitDialog = false
                                 budgetLimitBeingEdited = null
