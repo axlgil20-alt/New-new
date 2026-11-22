@@ -135,12 +135,23 @@ class CtoPrioritiesLogicTest {
 
     @Test
     fun primaryTabPagerLogic_mapsExactFiveBottomBarTabsAndIgnoresSecondary() {
-        assertEquals(listOf(1, 2, 0, 5, 7), PrimaryTabPagerLogic.primaryTabsOrder)
-        assertEquals(0, PrimaryTabPagerLogic.pageIndexForTab(1))
-        assertEquals(1, PrimaryTabPagerLogic.pageIndexForTab(2))
-        assertEquals(2, PrimaryTabPagerLogic.pageIndexForTab(0))
-        assertEquals(3, PrimaryTabPagerLogic.pageIndexForTab(5))
-        assertEquals(4, PrimaryTabPagerLogic.pageIndexForTab(7))
+        assertEquals(listOf(0, 2, 5, 7, 1), PrimaryTabPagerLogic.primaryTabsOrder)
+        assertEquals(0, PrimaryTabPagerLogic.pageIndexForTab(0)) // HOY
+        assertEquals(1, PrimaryTabPagerLogic.pageIndexForTab(2)) // QUINCENAS
+        assertEquals(2, PrimaryTabPagerLogic.pageIndexForTab(5)) // PAGOS
+        assertEquals(3, PrimaryTabPagerLogic.pageIndexForTab(7)) // SMART CART
+        assertEquals(4, PrimaryTabPagerLogic.pageIndexForTab(1)) // REGISTROS
+
+        // Verificación explícita de adyacencias horizontales requeridas
+        val hoyPage = PrimaryTabPagerLogic.pageIndexForTab(0)!!
+        assertEquals(2, PrimaryTabPagerLogic.tabForPageIndex(hoyPage + 1)) // HOY -> izq -> QUINCENAS
+        val quincenasPage = PrimaryTabPagerLogic.pageIndexForTab(2)!!
+        assertEquals(0, PrimaryTabPagerLogic.tabForPageIndex(quincenasPage - 1)) // QUINCENAS -> der -> HOY
+
+        val pagosPage = PrimaryTabPagerLogic.pageIndexForTab(5)!!
+        assertEquals(7, PrimaryTabPagerLogic.tabForPageIndex(pagosPage + 1)) // PAGOS -> izq -> SMART CART
+        val smartCartPage = PrimaryTabPagerLogic.pageIndexForTab(7)!!
+        assertEquals(5, PrimaryTabPagerLogic.tabForPageIndex(smartCartPage - 1)) // SMART CART -> der -> PAGOS
 
         assertNull(PrimaryTabPagerLogic.pageIndexForTab(3))
         assertNull(PrimaryTabPagerLogic.pageIndexForTab(4))
@@ -199,6 +210,104 @@ class CtoPrioritiesLogicTest {
 
             vm.restoreTransaction(inserted)
             awaitCondition { vm.uiState.value.allTransactions.any { it.title == "Café Antigua Reversible" && it.amount == 45.0 } }
+        } finally {
+            collector.cancel()
+        }
+    }
+
+    @Test(timeout = 15_000L)
+    fun budgetViewModel_bulkDeleteWithUndo_restoresExactEntitiesAndPreventsDuplicatesOrPermanentLoss() {
+        val app = ApplicationProvider.getApplicationContext<Application>()
+        val vm = BudgetViewModel(app)
+        val collector = CoroutineScope(Dispatchers.Main).launch { vm.uiState.collect {} }
+        try {
+            awaitCondition { !vm.uiState.value.isLoading }
+
+            val now = System.currentTimeMillis()
+            val txA = TransactionEntity(
+                title = "Compra Masiva A",
+                amount = 123.45,
+                amountMinor = 12345L,
+                type = TransactionType.EXPENSE,
+                category = "Alimentación & Súper",
+                dateMillis = now,
+                notes = "Nota original A",
+                highlightColorHex = 0xFFBBF7D0L,
+                isVerified = true
+            )
+            val txB = TransactionEntity(
+                title = "Compra Masiva B",
+                amount = 67.89,
+                amountMinor = 6789L,
+                type = TransactionType.EXPENSE,
+                category = "Transporte & Combustible",
+                dateMillis = now - 1_000L,
+                notes = "Nota original B",
+                isSuspectedDuplicate = true
+            )
+            val txKeep = TransactionEntity(
+                title = "Compra Conservada C",
+                amount = 50.0,
+                amountMinor = 5000L,
+                type = TransactionType.EXPENSE,
+                category = "Otros Gastos",
+                dateMillis = now - 2_000L
+            )
+
+            vm.addTransaction(txA)
+            vm.addTransaction(txB)
+            vm.addTransaction(txKeep)
+            awaitCondition { vm.uiState.value.allTransactions.size >= 3 }
+
+            val insertedA = vm.uiState.value.allTransactions.first { it.title == "Compra Masiva A" }
+            val insertedB = vm.uiState.value.allTransactions.first { it.title == "Compra Masiva B" }
+            val insertedKeep = vm.uiState.value.allTransactions.first { it.title == "Compra Conservada C" }
+
+            var capturedToken = -1L
+            var capturedCount = 0
+            vm.deleteTransactionsForUndo(listOf(insertedA.id, insertedB.id)) { token, count ->
+                capturedToken = token
+                capturedCount = count
+            }
+            awaitCondition {
+                capturedCount == 2 &&
+                    vm.uiState.value.allTransactions.none { it.id == insertedA.id || it.id == insertedB.id }
+            }
+            assertEquals(1, vm.uiState.value.allTransactions.size)
+            assertEquals(insertedKeep.id, vm.uiState.value.allTransactions.first().id)
+
+            // Deshacer restaura entidades completas con id, amountMinor y metadatos originales
+            vm.undoBulkDelete(capturedToken)
+            awaitCondition { vm.uiState.value.allTransactions.size == 3 }
+
+            val restoredA = vm.uiState.value.allTransactions.first { it.id == insertedA.id }
+            val restoredB = vm.uiState.value.allTransactions.first { it.id == insertedB.id }
+            assertEquals(12345L, restoredA.amountMinor)
+            assertEquals("Nota original A", restoredA.notes)
+            assertEquals(0xFFBBF7D0L, restoredA.highlightColorHex)
+            assertTrue(restoredA.isVerified)
+            assertEquals(6789L, restoredB.amountMinor)
+            assertTrue(restoredB.isSuspectedDuplicate)
+
+            // Doble toque en Deshacer con el mismo token NO debe duplicar registros
+            vm.undoBulkDelete(capturedToken)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(3, vm.uiState.value.allTransactions.size)
+
+            // Eliminación confirmada sin Deshacer (Snackbar descartado) permanece definitiva
+            var secondToken = -1L
+            vm.deleteTransactionsForUndo(listOf(insertedB.id)) { token, _ ->
+                secondToken = token
+            }
+            awaitCondition {
+                secondToken > capturedToken &&
+                    vm.uiState.value.allTransactions.none { it.id == insertedB.id }
+            }
+            vm.clearPendingBulkDeleteIfMatches(secondToken)
+            vm.undoBulkDelete(secondToken)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertEquals(2, vm.uiState.value.allTransactions.size)
+            assertTrue(vm.uiState.value.allTransactions.none { it.id == insertedB.id })
         } finally {
             collector.cancel()
         }

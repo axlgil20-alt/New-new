@@ -40,6 +40,7 @@ import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ErrorOutline
@@ -207,6 +208,9 @@ fun PaymentsScreen(
     val sortedDisplayList = remember(displayList, now) {
         PaymentCommitmentStackLogic.sortCommitmentsForStack(displayList, now)
     }
+    val deckSummary = remember(sortedDisplayList, now) {
+        PaymentCommitmentStackLogic.summarizeDeck(sortedDisplayList, now)
+    }
 
     LaunchedEffect(sortedDisplayList) {
         selectedCommitmentId = PaymentCommitmentStackLogic.resolveSelectedCommitmentId(
@@ -251,10 +255,10 @@ fun PaymentsScreen(
             .fillMaxSize()
             .background(pageBackground)
     ) {
-        // Fotografía de fondo a pantalla completa: Parque Central de Antigua Guatemala
+        // Fotografía de fondo a pantalla completa: Parque Central de la Ciudad de Guatemala (Plaza de la Constitución)
         Image(
-            painter = painterResource(id = R.drawable.img_antigua_parque_central_1795208568243),
-            contentDescription = "Parque Central de Antigua Guatemala",
+            painter = painterResource(id = R.drawable.parque_central_card_1793567079147),
+            contentDescription = "Parque Central de la Ciudad de Guatemala",
             contentScale = ContentScale.Crop,
             alignment = Alignment.Center,
             modifier = Modifier
@@ -849,7 +853,7 @@ fun PaymentsScreen(
                         )
                     }
 
-                    if (sortedDisplayList.size > 1) {
+                    if (sortedDisplayList.size > 1 || deckSummary.isCaughtUp || deckSummary.cancelledCount > 0) {
                         item {
                             Surface(
                                 shape = RoundedCornerShape(14.dp),
@@ -1079,14 +1083,16 @@ fun PaymentCommitmentCard(
     modifier: Modifier = Modifier
 ) {
     val now = remember { System.currentTimeMillis() }
-    val isPaid = commitment.isPaid || commitment.status == PaymentStatus.PAID
-    val isOverdue = commitment.isOverdue(now)
-    val isToday = commitment.isDueToday(now)
-    val isUpcoming = commitment.isUpcoming(now, 7)
+    val isCancelled = commitment.status == PaymentStatus.CANCELLED
+    val isPaid = !isCancelled && (commitment.isPaid || commitment.status == PaymentStatus.PAID)
+    val isOverdue = !isCancelled && commitment.isOverdue(now)
+    val isToday = !isCancelled && !isPaid && commitment.isDueToday(now)
+    val isUpcoming = !isCancelled && commitment.isUpcoming(now, 7)
 
     val dateFormatter = remember { SimpleDateFormat("dd 'de' MMM, yyyy", Locale("es", "GT")) }
 
     val statusContainerBg = when {
+        isCancelled -> if (isDarkTheme) Color(0xFF1E293B) else Color(0xFFE2E8F0)
         isPaid -> if (isDarkTheme) Color(0xFF064E3B) else Color(0xFFD1FAE5)
         isOverdue -> if (isDarkTheme) Color(0xFF5C1D24) else Color(0xFFFEE2E2)
         isToday -> if (isDarkTheme) Color(0xFF451A03) else Color(0xFFFEF3C7)
@@ -1094,6 +1100,7 @@ fun PaymentCommitmentCard(
         else -> if (isDarkTheme) Color(0xFF334155) else Color(0xFFF1F5F9)
     }
     val statusContentColor = when {
+        isCancelled -> if (isDarkTheme) Color(0xFFCBD5E1) else Color(0xFF334155)
         isPaid -> if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF065F46)
         isOverdue -> if (isDarkTheme) Color(0xFFFECACA) else Color(0xFF991B1B)
         isToday -> if (isDarkTheme) Color(0xFFFDE68A) else Color(0xFF92400E)
@@ -1101,6 +1108,7 @@ fun PaymentCommitmentCard(
         else -> if (isDarkTheme) Color(0xFFE2E8F0) else Color(0xFF334155)
     }
     val statusBorderColor = when {
+        isCancelled -> if (isDarkTheme) Color(0xFF64748B) else Color(0xFF94A3B8)
         isPaid -> if (isDarkTheme) Color(0xFF34D399) else Color(0xFF059669)
         isOverdue -> if (isDarkTheme) Color(0xFFF87171) else Color(0xFFDC2626)
         isToday -> if (isDarkTheme) Color(0xFFFBBF24) else Color(0xFFD97706)
@@ -1109,6 +1117,7 @@ fun PaymentCommitmentCard(
     }
     val cardBorderColor = when {
         isHighlighted -> EmeraldGreen
+        isCancelled -> if (isDarkTheme) Color(0xFF475569) else Color(0xFF94A3B8)
         isOverdue -> if (isDarkTheme) Color(0xFFF87171) else Color(0xFFDC2626)
         isToday -> if (isDarkTheme) Color(0xFFFBBF24) else Color(0xFFD97706)
         isPaid -> if (isDarkTheme) Color(0xFF34D399) else Color(0xFF059669)
@@ -1116,6 +1125,7 @@ fun PaymentCommitmentCard(
     }
 
     val statusBadgeText = when {
+        isCancelled -> "CANCELADO"
         isPaid -> "PAGADO"
         isOverdue -> "VENCIDO"
         isToday -> "VENCE HOY"
@@ -1124,6 +1134,7 @@ fun PaymentCommitmentCard(
     }
 
     val statusBadgeIcon = when {
+        isCancelled -> Icons.Default.Close
         isPaid -> Icons.Default.CheckCircle
         isOverdue -> Icons.Default.ErrorOutline
         isToday -> Icons.Default.Warning
@@ -1797,8 +1808,13 @@ private fun PaymentCommitmentDetailDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = primaryText
                 )
+                val detailStatusLabel = when {
+                    commitment.status == PaymentStatus.CANCELLED -> "Cancelado"
+                    commitment.isPaid || commitment.status == PaymentStatus.PAID -> "Pagado"
+                    else -> "Pendiente"
+                }
                 Text(
-                    text = "Estado: ${if (commitment.isPaid || commitment.status == PaymentStatus.PAID) "Pagado" else "Pendiente"}",
+                    text = "Estado: $detailStatusLabel",
                     style = MaterialTheme.typography.bodySmall,
                     color = secondaryText
                 )

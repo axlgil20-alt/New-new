@@ -16,6 +16,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -728,7 +730,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
         val nowTime = System.currentTimeMillis()
         val totalPendingPaymentsVal = payments
-            .filter { !it.isPaid && it.status != PaymentStatus.PAID }
+            .filter { !it.isCancelled && !it.isPaid && it.status != PaymentStatus.PAID }
             .fold(java.math.BigDecimal.ZERO) { acc, p -> acc.add(MoneyMinorUnits.toBigDecimal(p.effectiveAmountMinor)) }
             .toDouble()
         val upcomingPaymentsCountVal = payments.count { it.isUpcoming(nowTime, 7) }
@@ -760,7 +762,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             .fold(java.math.BigDecimal.ZERO) { acc, p -> acc.add(MoneyMinorUnits.toBigDecimal(p.effectiveAmountMinor)) }
             .toDouble()
 
-        val nextUpcomingPaymentVal = payments.filter { !it.isPaid && it.status != PaymentStatus.PAID }
+        val nextUpcomingPaymentVal = payments.filter { !it.isCancelled && !it.isPaid && it.status != PaymentStatus.PAID }
             .minByOrNull { it.dueDateMillis }
 
         BudgetUiState(
@@ -1003,10 +1005,66 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         isAllTimeFlow.value = false
     }
 
+    private val bulkDeleteMutex = Mutex()
+    private var activeBulkDeleteToken: Long = 0L
+    private var activeBulkDeleteSnapshot: List<TransactionEntity> = emptyList()
+
     fun deleteTransactions(ids: List<Long>) {
         viewModelScope.launch {
-            repository.deleteTransactionsByIds(ids)
-            showToast("${ids.size} registro(s) eliminado(s) correctamente.")
+            val deleted = bulkDeleteMutex.withLock {
+                repository.deleteTransactionsByIdsWithSnapshot(ids)
+            }
+            if (deleted.isNotEmpty()) {
+                showToast("${deleted.size} registro(s) eliminado(s) correctamente.")
+            }
+        }
+    }
+
+    fun deleteTransactionsForUndo(
+        ids: List<Long>,
+        onDeleted: (batchToken: Long, deletedCount: Int) -> Unit
+    ) {
+        viewModelScope.launch {
+            var token = 0L
+            var deletedCount = 0
+            bulkDeleteMutex.withLock {
+                val snapshot = repository.deleteTransactionsByIdsWithSnapshot(ids)
+                if (snapshot.isNotEmpty()) {
+                    activeBulkDeleteToken += 1L
+                    activeBulkDeleteSnapshot = snapshot
+                    token = activeBulkDeleteToken
+                    deletedCount = snapshot.size
+                }
+            }
+            if (deletedCount > 0) {
+                onDeleted(token, deletedCount)
+            }
+        }
+    }
+
+    fun undoBulkDelete(batchToken: Long) {
+        viewModelScope.launch {
+            val restoredCount = bulkDeleteMutex.withLock {
+                if (batchToken != activeBulkDeleteToken || activeBulkDeleteSnapshot.isEmpty()) {
+                    return@withLock 0
+                }
+                val toRestore = activeBulkDeleteSnapshot
+                activeBulkDeleteSnapshot = emptyList()
+                repository.restoreTransactions(toRestore)
+            }
+            if (restoredCount > 0) {
+                showToast("$restoredCount registro(s) restaurado(s).")
+            }
+        }
+    }
+
+    fun clearPendingBulkDeleteIfMatches(batchToken: Long) {
+        viewModelScope.launch {
+            bulkDeleteMutex.withLock {
+                if (activeBulkDeleteToken == batchToken) {
+                    activeBulkDeleteSnapshot = emptyList()
+                }
+            }
         }
     }
 

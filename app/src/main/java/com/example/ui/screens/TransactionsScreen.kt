@@ -201,14 +201,14 @@ fun TransactionsScreen(
             onDismissRequest = { showDeleteConfirmDialog = false },
             title = {
                 Text(
-                    text = "Confirmar Eliminación",
+                    text = "Confirmar eliminación",
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.error
                 )
             },
             text = {
                 Text(
-                    text = "¿Deseas eliminar definitivamente $countToDelete registro(s) duplicado(s) por un monto total de ${uiState.currencySymbol}${"%,.2f".format(totalAmountToDelete)}?\n\nEsta acción no se puede deshacer."
+                    text = "¿Deseas eliminar $countToDelete registro(s) seleccionado(s) por un monto total de ${uiState.currencySymbol}${"%,.2f".format(totalAmountToDelete)}?\n\nPodrás deshacer esta acción temporalmente desde el aviso inferior."
                 )
             },
             confirmButton = {
@@ -220,7 +220,7 @@ fun TransactionsScreen(
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = ExpenseRed)
                 ) {
-                    Text("Eliminar Definitivamente", color = Color.White, fontWeight = FontWeight.Bold)
+                    Text("Eliminar", color = Color.White, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {

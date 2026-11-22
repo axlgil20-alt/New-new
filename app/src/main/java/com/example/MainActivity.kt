@@ -109,7 +109,9 @@ import com.example.ui.viewmodel.AccountsViewModel
 import com.example.ui.viewmodel.BudgetViewModel
 
 internal object PrimaryTabPagerLogic {
-    val primaryTabsOrder: List<Int> = listOf(1, 2, 0, 5, 7)
+    // Orden horizontal requerido:
+    // HOY (0) <-> QUINCENAS (2) | PAGOS (5) <-> SMART CART (7) | REGISTROS (1)
+    val primaryTabsOrder: List<Int> = listOf(0, 2, 5, 7, 1)
 
     fun isPrimaryTab(tabId: Int): Boolean = tabId in primaryTabsOrder
 
@@ -142,7 +144,7 @@ class MainActivity : ComponentActivity() {
             val coroutineScope = rememberCoroutineScope()
 
             var selectedTab by remember { mutableIntStateOf(0) }
-            val pagerState = rememberPagerState(initialPage = 2) { PrimaryTabPagerLogic.primaryTabsOrder.size }
+            val pagerState = rememberPagerState(initialPage = 0) { PrimaryTabPagerLogic.primaryTabsOrder.size }
             var showAddTransactionDialog by remember { mutableStateOf(false) }
             var editingTransaction by remember { mutableStateOf<TransactionEntity?>(null) }
             var preselectedAccountIdForNewTx by remember { mutableStateOf<Long?>(null) }
@@ -173,6 +175,30 @@ class MainActivity : ComponentActivity() {
                     )
                     if (result == SnackbarResult.ActionPerformed) {
                         viewModel.restoreTransaction(tx)
+                    }
+                }
+            }
+
+            val deleteTransactionsWithUndo: (List<Long>) -> Unit = { ids ->
+                viewModel.deleteTransactionsForUndo(ids) { batchToken, deletedCount ->
+                    coroutineScope.launch {
+                        snackbarHostState.currentSnackbarData?.dismiss()
+                        val message = if (deletedCount == 1) {
+                            "1 registro eliminado"
+                        } else {
+                            "$deletedCount registros eliminados"
+                        }
+                        val result = snackbarHostState.showSnackbar(
+                            message = message,
+                            actionLabel = "Deshacer",
+                            withDismissAction = true,
+                            duration = SnackbarDuration.Long
+                        )
+                        if (result == SnackbarResult.ActionPerformed) {
+                            viewModel.undoBulkDelete(batchToken)
+                        } else {
+                            viewModel.clearPendingBulkDeleteIfMatches(batchToken)
+                        }
                     }
                 }
             }
@@ -686,7 +712,7 @@ class MainActivity : ComponentActivity() {
                                         onFilterSourceChange = { src -> viewModel.setFilterSource(src) },
                                         onFilterDuplicatesModeChange = { m -> viewModel.setFilterDuplicatesMode(m) },
                                         onClearAllFilters = { viewModel.clearAllFilters() },
-                                        onDeleteTransactions = { ids -> viewModel.deleteTransactions(ids) },
+                                        onDeleteTransactions = deleteTransactionsWithUndo,
                                         onMarkTransactionsAsLegitimate = { ids -> viewModel.markTransactionsAsLegitimate(ids) },
                                         accountNameById = accountNameById,
                                         onSetCompactTransactionsMode = { compact ->

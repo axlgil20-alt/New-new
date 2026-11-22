@@ -430,8 +430,11 @@ val TransactionEntity.quincenaNumber: Int
 val TransactionEntity.quincenaLabel: String
     get() = if (quincenaNumber == 1) "1ra Quincena (1 - 15)" else "2da Quincena (16 - fin de mes)"
 
+val PaymentCommitmentEntity.isCancelled: Boolean
+    get() = status == PaymentStatus.CANCELLED
+
 fun PaymentCommitmentEntity.isOverdue(nowMillis: Long = System.currentTimeMillis()): Boolean {
-    if (isPaid || status == PaymentStatus.PAID) return false
+    if (isCancelled || isPaid || status == PaymentStatus.PAID) return false
     val (todayStart, _) = com.example.ui.util.QuincenaFilterHelper.getDayRange(nowMillis)
     return dueDateMillis < todayStart
 }
@@ -442,7 +445,7 @@ fun PaymentCommitmentEntity.isDueToday(nowMillis: Long = System.currentTimeMilli
 }
 
 fun PaymentCommitmentEntity.isUpcoming(nowMillis: Long = System.currentTimeMillis(), days: Int = 7): Boolean {
-    if (isPaid || status == PaymentStatus.PAID) return false
+    if (isCancelled || isPaid || status == PaymentStatus.PAID) return false
     val (todayStart, _) = com.example.ui.util.QuincenaFilterHelper.getDayRange(nowMillis)
     val horizonMillis = todayStart + days * 24L * 60L * 60L * 1000L + (24L * 60L * 60L * 1000L - 1)
     return dueDateMillis in todayStart..horizonMillis

@@ -114,20 +114,48 @@ class BudgetRepository(
         }
     }
 
-    suspend fun deleteTransactionsByIds(ids: List<Long>) = runInTransaction {
-        if (ids.isEmpty()) return@runInTransaction
-        if (accountLedgerDao != null) {
-            val all = transactionDao.getAllTransactionsList()
-            val groupIds = all.asSequence()
-                .filter { it.id in ids && it.transferGroupId != null }
+    suspend fun deleteTransactionsByIds(ids: List<Long>) {
+        deleteTransactionsByIdsWithSnapshot(ids)
+    }
+
+    suspend fun deleteTransactionsByIdsWithSnapshot(ids: List<Long>): List<TransactionEntity> = runInTransaction {
+        val requestedIds = ids.distinct()
+        if (requestedIds.isEmpty()) return@runInTransaction emptyList()
+        val all = transactionDao.getAllTransactionsList()
+        val requestedSet = requestedIds.toSet()
+        val groupIds = if (accountLedgerDao != null) {
+            all.asSequence()
+                .filter { it.id in requestedSet && it.transferGroupId != null }
                 .mapNotNull { it.transferGroupId }
-                .distinct()
-                .toList()
-            for (groupId in groupIds) {
-                accountLedgerDao.deleteByTransferGroup(groupId)
-            }
+                .toSet()
+        } else {
+            emptySet()
         }
-        transactionDao.deleteByIds(ids)
+        val snapshot = all.filter { tx ->
+            tx.id in requestedSet || (tx.transferGroupId != null && tx.transferGroupId in groupIds)
+        }
+        if (snapshot.isEmpty()) return@runInTransaction emptyList()
+
+        for (groupId in groupIds) {
+            accountLedgerDao?.deleteByTransferGroup(groupId)
+        }
+        transactionDao.deleteByIds(requestedIds)
+        snapshot
+    }
+
+    suspend fun restoreTransactions(transactions: List<TransactionEntity>): Int = runInTransaction {
+        if (transactions.isEmpty()) return@runInTransaction 0
+        val existingIds = transactionDao.getAllTransactionsList().asSequence().map { it.id }.toSet()
+        val toRestore = transactions
+            .distinctBy { if (it.id > 0L) it.id else System.identityHashCode(it).toLong() }
+            .filter { it.id <= 0L || it.id !in existingIds }
+        if (toRestore.isEmpty()) return@runInTransaction 0
+
+        val normalized = toRestore.map { tx ->
+            tx.withSyncedLegacyAmountFromMinor()
+        }
+        transactionDao.insertAll(normalized)
+        normalized.size
     }
 
     suspend fun markTransactionsAsLegitimate(ids: List<Long>) = runInTransaction {

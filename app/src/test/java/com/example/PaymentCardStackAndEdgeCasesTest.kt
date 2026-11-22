@@ -278,4 +278,166 @@ class PaymentCardStackAndEdgeCasesTest {
         assertTrue(nextQuincena > now)
         assertTrue(cal.get(Calendar.DAY_OF_MONTH) >= 28 || cal.get(Calendar.DAY_OF_MONTH) == 15)
     }
+
+    @Test
+    fun summarizeDeck_coversAllSevenRequiredJadeDeckStatesAccurately() {
+        val now = fixedNowMillis()
+        val overdue = sampleCommitment(id = 1L, title = "Vencido", dueDateMillis = now - 3 * dayMs)
+        val pendingFuture = sampleCommitment(id = 2L, title = "Pendiente", dueDateMillis = now + 2 * dayMs)
+        val pendingLater = sampleCommitment(id = 3L, title = "Pendiente 2", dueDateMillis = now + 12 * dayMs)
+        val paidA = sampleCommitment(
+            id = 4L,
+            title = "Pagado A",
+            dueDateMillis = now - 5 * dayMs,
+            isPaid = true,
+            status = PaymentStatus.PAID,
+            paidDateMillis = now - dayMs
+        )
+        val paidB = sampleCommitment(
+            id = 5L,
+            title = "Pagado B",
+            dueDateMillis = now + dayMs,
+            isPaid = true,
+            status = PaymentStatus.PAID,
+            paidDateMillis = now
+        )
+        val cancelledA = sampleCommitment(
+            id = 6L,
+            title = "Cancelado A",
+            dueDateMillis = now - 4 * dayMs,
+            isPaid = false,
+            status = PaymentStatus.CANCELLED
+        )
+        val cancelledB = sampleCommitment(
+            id = 7L,
+            title = "Cancelado B",
+            dueDateMillis = now + 2 * dayMs,
+            isPaid = false,
+            status = PaymentStatus.CANCELLED
+        )
+
+        // 1. Todos los compromisos pendientes
+        val allPendingSummary = PaymentCommitmentStackLogic.summarizeDeck(listOf(pendingFuture, pendingLater), now)
+        assertFalse(allPendingSummary.isEmpty)
+        assertFalse(allPendingSummary.isCaughtUp)
+        assertEquals(2, allPendingSummary.pendingCount)
+        assertEquals(0, allPendingSummary.paidCount)
+        assertEquals(0, allPendingSummary.cancelledCount)
+
+        // 2. Al menos un compromiso vencido
+        val withOverdueSummary = PaymentCommitmentStackLogic.summarizeDeck(listOf(overdue, paidA), now)
+        assertFalse(withOverdueSummary.isEmpty)
+        assertFalse(withOverdueSummary.isCaughtUp)
+        assertEquals(1, withOverdueSummary.overdueCount)
+        assertEquals(1, withOverdueSummary.pendingCount)
+        assertEquals(1, withOverdueSummary.paidCount)
+
+        // 3. Mezcla de pagados y pendientes
+        val paidAndPendingSummary = PaymentCommitmentStackLogic.summarizeDeck(listOf(paidA, pendingFuture), now)
+        assertFalse(paidAndPendingSummary.isEmpty)
+        assertFalse(paidAndPendingSummary.isCaughtUp)
+        assertEquals(1, paidAndPendingSummary.paidCount)
+        assertEquals(1, paidAndPendingSummary.pendingCount)
+
+        // 4. Todos pagados
+        val allPaidSummary = PaymentCommitmentStackLogic.summarizeDeck(listOf(paidA, paidB), now)
+        assertFalse(allPaidSummary.isEmpty)
+        assertTrue(allPaidSummary.isCaughtUp)
+        assertEquals(2, allPaidSummary.paidCount)
+        assertEquals(0, allPaidSummary.pendingCount)
+        assertEquals(0, allPaidSummary.cancelledCount)
+
+        // 5. Todos cancelados (NO debe mostrarse "Mazo de Jade al día" ni contarlos como pagados)
+        val allCancelledSummary = PaymentCommitmentStackLogic.summarizeDeck(listOf(cancelledA, cancelledB), now)
+        assertFalse(allCancelledSummary.isEmpty)
+        assertFalse(allCancelledSummary.isCaughtUp)
+        assertEquals(0, allCancelledSummary.paidCount)
+        assertEquals(0, allCancelledSummary.pendingCount)
+        assertEquals(0, allCancelledSummary.overdueCount)
+        assertEquals(2, allCancelledSummary.cancelledCount)
+        assertEquals(CommitmentPriorityGroup.CANCELLED, PaymentCommitmentStackLogic.classifyPriorityGroup(cancelledA, now))
+        assertFalse(PaymentCommitmentStackLogic.canPayCommitment(cancelledA))
+
+        // 6. Mezcla de pagados y cancelados (todos los relevantes están pagados, cancelados contados aparte)
+        val paidAndCancelledSummary = PaymentCommitmentStackLogic.summarizeDeck(listOf(paidA, cancelledA), now)
+        assertFalse(paidAndCancelledSummary.isEmpty)
+        assertTrue(paidAndCancelledSummary.isCaughtUp)
+        assertEquals(1, paidAndCancelledSummary.paidCount)
+        assertEquals(1, paidAndCancelledSummary.cancelledCount)
+        assertEquals(1, paidAndCancelledSummary.relevantCount)
+        assertEquals(0, paidAndCancelledSummary.pendingCount)
+
+        // 7. Ausencia real de compromisos (NO debe mostrarse "Mazo de Jade al día")
+        val emptySummary = PaymentCommitmentStackLogic.summarizeDeck(emptyList(), now)
+        assertTrue(emptySummary.isEmpty)
+        assertFalse(emptySummary.isCaughtUp)
+        assertEquals(0, emptySummary.totalCount)
+    }
+
+    @Test
+    fun gestureCoordinationHelpers_reserveCardLeftSwipeAndYieldClosedRightSwipe() {
+        // Tray cerrado + arrastre hacia izquierda (< 0): la tarjeta toma el gesto
+        assertTrue(PaymentCommitmentStackLogic.shouldCardHandleHorizontalDrag(isActionsOpen = false, overSlopX = -24f))
+        // Tray cerrado + arrastre hacia derecha (> 0): cede al mazo / HorizontalPager
+        assertFalse(PaymentCommitmentStackLogic.shouldCardHandleHorizontalDrag(isActionsOpen = false, overSlopX = 24f))
+        // Tray abierto + arrastre hacia derecha o izquierda: la tarjeta controla cierre/ajuste
+        assertTrue(PaymentCommitmentStackLogic.shouldCardHandleHorizontalDrag(isActionsOpen = true, overSlopX = 24f))
+        assertTrue(PaymentCommitmentStackLogic.shouldCardHandleHorizontalDrag(isActionsOpen = true, overSlopX = -24f))
+
+        // Umbral de navegación del Mazo
+        assertEquals(1, PaymentCommitmentStackLogic.resolveStackSwipeDirection(dragTotalPx = -120f, thresholdPx = 100f))
+        assertEquals(-1, PaymentCommitmentStackLogic.resolveStackSwipeDirection(dragTotalPx = 120f, thresholdPx = 100f))
+        assertEquals(0, PaymentCommitmentStackLogic.resolveStackSwipeDirection(dragTotalPx = -60f, thresholdPx = 100f))
+    }
+
+    @Test
+    fun paymentsScreen_composesCleanlyAcrossAllPaidAndAllCancelledStatesInRobolectric() {
+        val now = fixedNowMillis()
+        val allPaid = listOf(
+            sampleCommitment(
+                id = 21L,
+                title = "Internet Fibra",
+                dueDateMillis = now - 2 * dayMs,
+                isPaid = true,
+                status = PaymentStatus.PAID,
+                paidDateMillis = now
+            )
+        )
+        val allCancelled = listOf(
+            sampleCommitment(
+                id = 22L,
+                title = "Suscripción Cancelada",
+                dueDateMillis = now - dayMs,
+                isPaid = false,
+                status = PaymentStatus.CANCELLED
+            )
+        )
+        val paidAndCancelled = allPaid + allCancelled
+
+        val controller = Robolectric.buildActivity(ComponentActivity::class.java).setup()
+        val activity = controller.get()
+
+        listOf(allPaid, allCancelled, paidAndCancelled).forEach { scenarioList ->
+            val composeView = ComposeView(activity).apply {
+                setContent {
+                    PaymentsScreen(
+                        uiState = BudgetUiState(paymentCommitments = scenarioList),
+                        onAddPayment = { _, _, _, _, _, _, _, _, _, _, _, _ -> },
+                        onMarkAsPaid = {},
+                        onUpdatePayment = {},
+                        onDeletePayment = {},
+                        onAddBeneficiary = { _, _, _, _, _ -> },
+                        onUpdateBeneficiary = {},
+                        onDeleteBeneficiary = {}
+                    )
+                }
+            }
+            activity.setContentView(composeView)
+            shadowOf(Looper.getMainLooper()).idle()
+            assertNotNull(composeView)
+            assertTrue(composeView.childCount > 0)
+        }
+
+        controller.pause().stop().destroy()
+    }
 }

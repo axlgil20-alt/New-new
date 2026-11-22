@@ -13,7 +13,10 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
+import androidx.compose.foundation.gestures.horizontalDrag
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -70,6 +73,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -81,6 +85,7 @@ import com.example.data.model.MoneyMinorUnits
 import com.example.data.model.PaymentCommitmentEntity
 import com.example.data.model.PaymentFrequency
 import com.example.data.model.PaymentStatus
+import com.example.data.model.isCancelled
 import com.example.data.model.isDueToday
 import com.example.data.model.isMonetarySynchronized
 import com.example.data.model.isOverdue
@@ -98,7 +103,21 @@ enum class CommitmentPriorityGroup(val rank: Int) {
     OVERDUE(0),
     DUE_TODAY_OR_UPCOMING(1),
     LATER_PENDING(2),
-    PAID(3)
+    PAID(3),
+    CANCELLED(4)
+}
+
+data class JadeDeckSummary(
+    val totalCount: Int,
+    val pendingCount: Int,
+    val overdueCount: Int,
+    val upcomingCount: Int,
+    val paidCount: Int,
+    val cancelledCount: Int,
+    val isEmpty: Boolean,
+    val isCaughtUp: Boolean
+) {
+    val relevantCount: Int get() = totalCount - cancelledCount
 }
 
 enum class PostponePreset(val label: String, val subtitle: String) {
@@ -114,6 +133,9 @@ object PaymentCommitmentStackLogic {
         commitment: PaymentCommitmentEntity,
         nowMillis: Long = System.currentTimeMillis()
     ): CommitmentPriorityGroup {
+        if (commitment.isCancelled) {
+            return CommitmentPriorityGroup.CANCELLED
+        }
         if (commitment.isPaid || commitment.status == PaymentStatus.PAID) {
             return CommitmentPriorityGroup.PAID
         }
@@ -132,6 +154,7 @@ object PaymentCommitmentStackLogic {
      * 2. Próximos (hoy y próximos 7 días), priorizando el vencimiento más cercano.
      * 3. Pendientes posteriores en orden cronológico ascendente.
      * 4. Pagados al final (más recientes primero).
+     * 5. Cancelados después de pagados (no cuentan como pagados ni pendientes).
      */
     fun sortCommitmentsForStack(
         commitments: List<PaymentCommitmentEntity>,
@@ -150,6 +173,10 @@ object PaymentCommitmentStackLogic {
                         val dateA = a.paidDateMillis ?: a.dueDateMillis
                         val dateB = b.paidDateMillis ?: b.dueDateMillis
                         val cmp = dateB.compareTo(dateA)
+                        if (cmp != 0) cmp else a.id.compareTo(b.id)
+                    }
+                    CommitmentPriorityGroup.CANCELLED -> {
+                        val cmp = b.dueDateMillis.compareTo(a.dueDateMillis)
                         if (cmp != 0) cmp else a.id.compareTo(b.id)
                     }
                     else -> {
@@ -172,9 +199,9 @@ object PaymentCommitmentStackLogic {
     }
 
     fun canPayCommitment(commitment: PaymentCommitmentEntity): Boolean {
-        return !commitment.isPaid &&
-            commitment.status != PaymentStatus.PAID &&
-            commitment.status != PaymentStatus.CANCELLED
+        return !commitment.isCancelled &&
+            !commitment.isPaid &&
+            commitment.status != PaymentStatus.PAID
     }
 
     fun countUpcomingOrOverdue(
@@ -185,6 +212,59 @@ object PaymentCommitmentStackLogic {
             val group = classifyPriorityGroup(it, nowMillis)
             group == CommitmentPriorityGroup.OVERDUE || group == CommitmentPriorityGroup.DUE_TODAY_OR_UPCOMING
         }
+    }
+
+    /**
+     * Evalúa explícitamente el estado real del Mazo de Jade sin confundir cancelados o vacío con pagos saldados.
+     * Solo está "al día" cuando existen compromisos relevantes no cancelados y todos están efectivamente pagados.
+     */
+    fun summarizeDeck(
+        commitments: List<PaymentCommitmentEntity>,
+        nowMillis: Long = System.currentTimeMillis()
+    ): JadeDeckSummary {
+        val distinct = commitments.distinctBy { it.id }
+        if (distinct.isEmpty()) {
+            return JadeDeckSummary(
+                totalCount = 0,
+                pendingCount = 0,
+                overdueCount = 0,
+                upcomingCount = 0,
+                paidCount = 0,
+                cancelledCount = 0,
+                isEmpty = true,
+                isCaughtUp = false
+            )
+        }
+
+        var overdueCount = 0
+        var upcomingCount = 0
+        var laterPendingCount = 0
+        var paidCount = 0
+        var cancelledCount = 0
+
+        for (item in distinct) {
+            when (classifyPriorityGroup(item, nowMillis)) {
+                CommitmentPriorityGroup.OVERDUE -> overdueCount++
+                CommitmentPriorityGroup.DUE_TODAY_OR_UPCOMING -> upcomingCount++
+                CommitmentPriorityGroup.LATER_PENDING -> laterPendingCount++
+                CommitmentPriorityGroup.PAID -> paidCount++
+                CommitmentPriorityGroup.CANCELLED -> cancelledCount++
+            }
+        }
+
+        val pendingCount = overdueCount + upcomingCount + laterPendingCount
+        val isCaughtUp = pendingCount == 0 && overdueCount == 0 && paidCount > 0
+
+        return JadeDeckSummary(
+            totalCount = distinct.size,
+            pendingCount = pendingCount,
+            overdueCount = overdueCount,
+            upcomingCount = upcomingCount,
+            paidCount = paidCount,
+            cancelledCount = cancelledCount,
+            isEmpty = false,
+            isCaughtUp = isCaughtUp
+        )
     }
 
     fun computePostponedDueDate(
@@ -242,6 +322,24 @@ object PaymentCommitmentStackLogic {
         }
     }
 
+    fun shouldCardHandleHorizontalDrag(
+        isActionsOpen: Boolean,
+        overSlopX: Float
+    ): Boolean {
+        return isActionsOpen || overSlopX < 0f
+    }
+
+    fun resolveStackSwipeDirection(
+        dragTotalPx: Float,
+        thresholdPx: Float
+    ): Int {
+        return when {
+            dragTotalPx <= -thresholdPx -> 1
+            dragTotalPx >= thresholdPx -> -1
+            else -> 0
+        }
+    }
+
     fun displayAmountForCommitment(commitment: PaymentCommitmentEntity): Double {
         return if (commitment.isMonetarySynchronized) {
             MoneyMinorUnits.toDisplayDouble(commitment.amountMinor)
@@ -278,12 +376,14 @@ private fun rememberCommitmentSemanticStyle(
     isDarkTheme: Boolean,
     nowMillis: Long
 ): CommitmentSemanticStyle {
-    val isPaid = commitment.isPaid || commitment.status == PaymentStatus.PAID
-    val isOverdue = commitment.isOverdue(nowMillis)
-    val isToday = commitment.isDueToday(nowMillis)
-    val isUpcoming = commitment.isUpcoming(nowMillis, 7)
+    val isCancelled = commitment.isCancelled
+    val isPaid = !isCancelled && (commitment.isPaid || commitment.status == PaymentStatus.PAID)
+    val isOverdue = !isCancelled && commitment.isOverdue(nowMillis)
+    val isToday = !isCancelled && !isPaid && commitment.isDueToday(nowMillis)
+    val isUpcoming = !isCancelled && commitment.isUpcoming(nowMillis, 7)
 
     val statusContainerBg = when {
+        isCancelled -> if (isDarkTheme) Color(0xFF1E293B) else Color(0xFFE2E8F0)
         isPaid -> if (isDarkTheme) Color(0xFF064E3B) else Color(0xFFD1FAE5)
         isOverdue -> if (isDarkTheme) Color(0xFF5C1D24) else Color(0xFFFEE2E2)
         isToday -> if (isDarkTheme) Color(0xFF451A03) else Color(0xFFFEF3C7)
@@ -291,6 +391,7 @@ private fun rememberCommitmentSemanticStyle(
         else -> if (isDarkTheme) Color(0xFF14362C) else Color(0xFFE6F4EF)
     }
     val statusContentColor = when {
+        isCancelled -> if (isDarkTheme) Color(0xFFCBD5E1) else Color(0xFF334155)
         isPaid -> if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF065F46)
         isOverdue -> if (isDarkTheme) Color(0xFFFECACA) else Color(0xFF991B1B)
         isToday -> if (isDarkTheme) Color(0xFFFDE68A) else Color(0xFF92400E)
@@ -298,6 +399,7 @@ private fun rememberCommitmentSemanticStyle(
         else -> if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF064E3B)
     }
     val statusBorderColor = when {
+        isCancelled -> if (isDarkTheme) Color(0xFF64748B) else Color(0xFF94A3B8)
         isPaid -> if (isDarkTheme) Color(0xFF34D399) else JadeGreen
         isOverdue -> if (isDarkTheme) Color(0xFFF87171) else Color(0xFFDC2626)
         isToday -> if (isDarkTheme) Color(0xFFFBBF24) else Color(0xFFD97706)
@@ -305,19 +407,22 @@ private fun rememberCommitmentSemanticStyle(
         else -> if (isDarkTheme) Color(0xFF10B981) else EmeraldGreen
     }
     val cardBorderColor = when {
+        isCancelled -> if (isDarkTheme) Color(0xFF475569) else Color(0xFF94A3B8)
         isOverdue -> if (isDarkTheme) Color(0xFFF87171) else Color(0xFFDC2626)
         isToday -> if (isDarkTheme) Color(0xFFFBBF24) else Color(0xFFD97706)
         isPaid -> if (isDarkTheme) Color(0xFF34D399) else JadeGreen
         isUpcoming -> if (isDarkTheme) Color(0xFF2DD4BF) else Color(0xFF0F766E)
         else -> if (isDarkTheme) Color(0xFF10B981) else EmeraldGreen
     }
-    // 100% opaco: paneles Mazo de Jade sólidos para proteger cifras sobre Antigua
+    // 100% opaco: paneles Mazo de Jade sólidos para proteger cifras sobre Parque Central
     val cardBg = when {
+        isCancelled -> if (isDarkTheme) Color(0xFF111827) else Color(0xFFF8FAFC)
         isPaid -> if (isDarkTheme) Color(0xFF0B241D) else Color(0xFFECFDF5)
         isOverdue -> if (isDarkTheme) Color(0xFF1C181B) else Color(0xFFFFFBF9)
         else -> if (isDarkTheme) Color(0xFF0E2620) else Color(0xFFF7FCFA)
     }
     val backPeekBg = when {
+        isCancelled -> if (isDarkTheme) Color(0xFF1E293B) else Color(0xFFE2E8F0)
         isOverdue -> if (isDarkTheme) Color(0xFF2B1418) else Color(0xFFFEE2E2)
         isToday -> if (isDarkTheme) Color(0xFF2D200B) else Color(0xFFFEF3C7)
         isUpcoming -> if (isDarkTheme) Color(0xFF093029) else Color(0xFFCCFBF1)
@@ -325,6 +430,7 @@ private fun rememberCommitmentSemanticStyle(
         else -> if (isDarkTheme) Color(0xFF07231C) else Color(0xFFE2F5EE)
     }
     val jadeBandColor = when {
+        isCancelled -> if (isDarkTheme) Color(0xFF475569) else Color(0xFF64748B)
         isOverdue -> if (isDarkTheme) Color(0xFF991B1B) else Color(0xFFB91C1C)
         isToday -> if (isDarkTheme) Color(0xFFB45309) else Color(0xFFD97706)
         isUpcoming -> Color(0xFF0F766E)
@@ -332,6 +438,7 @@ private fun rememberCommitmentSemanticStyle(
     }
 
     val statusBadgeText = when {
+        isCancelled -> "CANCELADO"
         isPaid -> "PAGADO"
         isOverdue -> "VENCIDO"
         isToday -> "VENCE HOY"
@@ -339,6 +446,7 @@ private fun rememberCommitmentSemanticStyle(
         else -> "PENDIENTE"
     }
     val statusBadgeIcon = when {
+        isCancelled -> Icons.Default.Close
         isPaid -> Icons.Default.CheckCircle
         isOverdue -> Icons.Default.ErrorOutline
         isToday -> Icons.Default.Warning
@@ -395,19 +503,13 @@ fun PaymentCommitmentStack(
     val frontCommitment = commitments[currentIndex]
     var navigationDirection by remember { mutableIntStateOf(1) }
 
-    val overdueCount = remember(commitments, nowMillis) {
-        commitments.count { it.isOverdue(nowMillis) }
+    val deckSummary = remember(commitments, nowMillis) {
+        PaymentCommitmentStackLogic.summarizeDeck(commitments, nowMillis)
     }
-    val upcomingCount = remember(commitments, nowMillis) {
-        commitments.count {
-            !it.isPaid && it.status != PaymentStatus.PAID && !it.isOverdue(nowMillis) &&
-                (it.isDueToday(nowMillis) || it.isUpcoming(nowMillis, 7))
-        }
-    }
-    val pendingTotalCount = remember(commitments) {
-        commitments.count { PaymentCommitmentStackLogic.canPayCommitment(it) }
-    }
-    val allCaughtUp = pendingTotalCount == 0
+    val overdueCount = deckSummary.overdueCount
+    val upcomingCount = deckSummary.upcomingCount
+    val pendingTotalCount = deckSummary.pendingCount
+    val allCaughtUp = deckSummary.isCaughtUp
 
     val goToPrevious = {
         if (commitments.size > 1) {
@@ -435,7 +537,7 @@ fun PaymentCommitmentStack(
             .testTag("payment_commitment_stack"),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        // Estado final del mazo cuando todos los compromisos visibles han sido saldados
+        // Estado final del mazo únicamente cuando hay compromisos pagados y 0 pendientes/vencidos
         if (allCaughtUp) {
             Surface(
                 shape = RoundedCornerShape(16.dp),
@@ -474,10 +576,74 @@ fun PaymentCommitmentStack(
                             fontWeight = FontWeight.Black,
                             color = if (isDarkTheme) Color(0xFFECFDF5) else Color(0xFF064E3B)
                         )
+                        val caughtUpSubtitle = if (deckSummary.cancelledCount > 0) {
+                            "${deckSummary.paidCount} compromiso(s) pagado(s) · ${deckSummary.cancelledCount} cancelado(s)."
+                        } else {
+                            "Todos los compromisos relevantes (${deckSummary.paidCount}) están pagados."
+                        }
                         Text(
-                            text = "Todos los compromisos visibles (${commitments.size}) están pagados.",
+                            text = caughtUpSubtitle,
                             style = MaterialTheme.typography.bodySmall,
                             color = if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF065F46)
+                        )
+                    }
+                    OutlinedButton(
+                        onClick = onAddNewPayment,
+                        border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFF6EE7B7) else EmeraldGreen),
+                        shape = RoundedCornerShape(10.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        modifier = Modifier.heightIn(min = 48.dp)
+                    ) {
+                        Text(
+                            text = "+ Nuevo",
+                            fontWeight = FontWeight.Bold,
+                            color = if (isDarkTheme) Color(0xFFECFDF5) else EmeraldGreen
+                        )
+                    }
+                }
+            }
+        } else if (!deckSummary.isEmpty && pendingTotalCount == 0 && deckSummary.cancelledCount > 0) {
+            Surface(
+                shape = RoundedCornerShape(16.dp),
+                color = if (isDarkTheme) Color(0xFF1E293B) else Color(0xFFF1F5F9),
+                border = BorderStroke(1.2.dp, if (isDarkTheme) Color(0xFF64748B) else Color(0xFF94A3B8)),
+                shadowElevation = 2.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("jade_deck_cancelled_banner")
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = if (isDarkTheme) Color(0xFF475569) else Color(0xFF64748B),
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Close,
+                                contentDescription = null,
+                                tint = Color.White,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Sin compromisos activos",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Black,
+                            color = if (isDarkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
+                        )
+                        Text(
+                            text = "${deckSummary.cancelledCount} compromiso(s) cancelado(s) (no cuentan como pagados).",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (isDarkTheme) Color(0xFFCBD5E1) else Color(0xFF475569)
                         )
                     }
                     OutlinedButton(
@@ -508,23 +674,27 @@ fun PaymentCommitmentStack(
                 .testTag("payment_stack_bar")
                 .pointerInput(commitments, currentIndex) {
                     if (commitments.size <= 1) return@pointerInput
-                    var dragTotal = 0f
-                    detectHorizontalDragGestures(
-                        onDragStart = { dragTotal = 0f },
-                        onDragCancel = { dragTotal = 0f },
-                        onDragEnd = {
-                            if (dragTotal <= -stackThresholdPx) {
-                                goToNext()
-                            } else if (dragTotal >= stackThresholdPx) {
-                                goToPrevious()
-                            }
-                            dragTotal = 0f
-                        },
-                        onHorizontalDrag = { change, dragAmount ->
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        var dragTotal = 0f
+                        val dragStart = awaitHorizontalTouchSlopOrCancellation(down.id) { change, overSlop ->
                             change.consume()
-                            dragTotal += dragAmount
+                            dragTotal += overSlop
                         }
-                    )
+                        if (dragStart != null) {
+                            val completed = horizontalDrag(dragStart.id) { change ->
+                                val deltaX = change.positionChange().x
+                                change.consume()
+                                dragTotal += deltaX
+                            }
+                            if (completed) {
+                                when (PaymentCommitmentStackLogic.resolveStackSwipeDirection(dragTotal, stackThresholdPx)) {
+                                    1 -> goToNext()
+                                    -1 -> goToPrevious()
+                                }
+                            }
+                        }
+                    }
                 }
         ) {
             Row(
@@ -571,8 +741,18 @@ fun PaymentCommitmentStack(
                             if (isNotEmpty()) append(" · ")
                             append("$upcomingCount próximo(s)")
                         }
-                        if (isEmpty() && pendingTotalCount > 0) append("$pendingTotalCount pendiente(s) · Desliza izquierda para editar/detalle")
-                        if (isEmpty() && pendingTotalCount == 0) append("Historial confirmado al día")
+                        if (isEmpty() && pendingTotalCount > 0) {
+                            append("$pendingTotalCount pendiente(s) · Desliza izquierda para detalle/editar")
+                        }
+                        if (isEmpty() && pendingTotalCount == 0 && deckSummary.isCaughtUp) {
+                            append("${deckSummary.paidCount} pagado(s) · Al día")
+                            if (deckSummary.cancelledCount > 0) {
+                                append(" · ${deckSummary.cancelledCount} cancelado(s)")
+                            }
+                        }
+                        if (isEmpty() && pendingTotalCount == 0 && !deckSummary.isCaughtUp) {
+                            append("${deckSummary.cancelledCount} cancelado(s) · Sin pendientes activos")
+                        }
                     }
                     Text(
                         text = summaryLabel,
@@ -632,23 +812,27 @@ fun PaymentCommitmentStack(
                 .then(
                     if (commitments.size > 1) {
                         Modifier.pointerInput(commitments, currentIndex) {
-                            var deckDrag = 0f
-                            detectHorizontalDragGestures(
-                                onDragStart = { deckDrag = 0f },
-                                onDragCancel = { deckDrag = 0f },
-                                onDragEnd = {
-                                    if (deckDrag <= -stackThresholdPx) {
-                                        goToNext()
-                                    } else if (deckDrag >= stackThresholdPx) {
-                                        goToPrevious()
-                                    }
-                                    deckDrag = 0f
-                                },
-                                onHorizontalDrag = { change, dragAmount ->
+                            awaitEachGesture {
+                                val down = awaitFirstDown(requireUnconsumed = false)
+                                var deckDrag = 0f
+                                val dragStart = awaitHorizontalTouchSlopOrCancellation(down.id) { change, overSlop ->
                                     change.consume()
-                                    deckDrag += dragAmount
+                                    deckDrag += overSlop
                                 }
-                            )
+                                if (dragStart != null) {
+                                    val completed = horizontalDrag(dragStart.id) { change ->
+                                        val deltaX = change.positionChange().x
+                                        change.consume()
+                                        deckDrag += deltaX
+                                    }
+                                    if (completed) {
+                                        when (PaymentCommitmentStackLogic.resolveStackSwipeDirection(deckDrag, stackThresholdPx)) {
+                                            1 -> goToNext()
+                                            -1 -> goToPrevious()
+                                        }
+                                    }
+                                }
+                            }
                         }
                     } else Modifier
                 )
@@ -801,7 +985,8 @@ fun SwipeablePaymentCard(
 ) {
     val style = rememberCommitmentSemanticStyle(commitment, isDarkTheme, nowMillis)
     val canPay = PaymentCommitmentStackLogic.canPayCommitment(commitment)
-    val isPaid = commitment.isPaid || commitment.status == PaymentStatus.PAID
+    val isCancelled = commitment.isCancelled
+    val isPaid = !isCancelled && (commitment.isPaid || commitment.status == PaymentStatus.PAID)
     val dateFormatter = remember { SimpleDateFormat("dd 'de' MMM, yyyy", Locale("es", "GT")) }
 
     val primaryText = if (isDarkTheme) Color(0xFFF8FAFC) else Color(0xFF0F172A)
@@ -936,27 +1121,33 @@ fun SwipeablePaymentCard(
                 .fillMaxWidth()
                 .offset { IntOffset(animatedOffsetX.roundToInt(), 0) }
                 .pointerInput(commitment.id, trayWidthPx, resetActionsKey) {
-                    detectHorizontalDragGestures(
-                        onDragStart = {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        var cardAccepted = false
+                        val dragStart = awaitHorizontalTouchSlopOrCancellation(down.id) { change, overSlop ->
+                            if (PaymentCommitmentStackLogic.shouldCardHandleHorizontalDrag(isActionsOpen, overSlop)) {
+                                cardAccepted = true
+                                change.consume()
+                            }
+                        }
+                        if (cardAccepted && dragStart != null) {
                             isDragging = true
                             dragOffsetPx = if (isActionsOpen) -trayWidthPx else 0f
-                        },
-                        onDragCancel = {
+                            val completed = horizontalDrag(dragStart.id) { change ->
+                                val dragAmount = change.positionChange().x
+                                change.consume()
+                                dragOffsetPx = (dragOffsetPx + dragAmount).coerceIn(-trayWidthPx, 0f)
+                            }
                             isDragging = false
-                        },
-                        onDragEnd = {
-                            isDragging = false
-                            isActionsOpen = PaymentCommitmentStackLogic.computeSwipeEndState(
-                                isCurrentlyOpen = isActionsOpen,
-                                dragOffsetPx = dragOffsetPx,
-                                trayWidthPx = trayWidthPx
-                            )
-                        },
-                        onHorizontalDrag = { change, dragAmount ->
-                            change.consume()
-                            dragOffsetPx = (dragOffsetPx + dragAmount).coerceIn(-trayWidthPx, 0f)
+                            if (completed) {
+                                isActionsOpen = PaymentCommitmentStackLogic.computeSwipeEndState(
+                                    isCurrentlyOpen = isActionsOpen,
+                                    dragOffsetPx = dragOffsetPx,
+                                    trayWidthPx = trayWidthPx
+                                )
+                            }
                         }
-                    )
+                    }
                 }
                 .clip(RoundedCornerShape(18.dp))
                 .clickable {
@@ -1236,14 +1427,14 @@ fun SwipeablePaymentCard(
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
                             ) {
                                 Icon(
-                                    imageVector = Icons.Default.CheckCircle,
+                                    imageVector = if (isCancelled) Icons.Default.Close else Icons.Default.CheckCircle,
                                     contentDescription = null,
                                     tint = style.statusContentColor,
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Pagado y registrado ✓",
+                                    text = if (isCancelled) "Compromiso cancelado" else "Pagado y registrado ✓",
                                     style = MaterialTheme.typography.labelLarge,
                                     fontWeight = FontWeight.Bold,
                                     color = style.statusContentColor
