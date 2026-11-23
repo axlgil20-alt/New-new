@@ -4,6 +4,7 @@ import androidx.room.withTransaction
 import com.example.data.local.AccountLedgerDao
 import com.example.data.local.AppDatabase
 import com.example.data.local.CurrencyOperationDetailDao
+import com.example.data.local.ExchangeRateDao
 import com.example.data.local.FinancialAccountDao
 import com.example.data.local.InstallmentPlanDao
 import com.example.data.local.InstallmentScheduleDao
@@ -35,9 +36,12 @@ import com.example.data.service.AccountsPortfolioSummary
 import com.example.data.service.CardPaymentValidation
 import com.example.data.service.CreditCardCycleCalculator
 import com.example.data.service.CreditCardStatementSummary
+import com.example.data.service.ConsolidatedPortfolioCalculator
+import com.example.data.model.ConsolidatedPortfolioResult
 import com.example.data.service.InstallmentScheduleEngine
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import java.util.TimeZone
 import java.util.UUID
 
@@ -50,7 +54,8 @@ data class AccountsPortfolioState(
     val installmentPlans: List<InstallmentPlanEntity>,
     val scheduleItemsByPlanId: Map<Long, List<InstallmentScheduleItemEntity>>,
     val unassignedTransactions: List<TransactionEntity>,
-    val allTransactions: List<TransactionEntity> = emptyList()
+    val allTransactions: List<TransactionEntity> = emptyList(),
+    val consolidatedPortfolio: ConsolidatedPortfolioResult
 )
 
 data class TransferResult(
@@ -126,9 +131,11 @@ class AccountsRepository(
     private val transactionDao: TransactionDao,
     private val currencyOperationDetailDao: CurrencyOperationDetailDao? = null,
     private val paymentCommitmentDao: PaymentCommitmentDao? = null,
-    private val database: AppDatabase? = null
+    private val database: AppDatabase? = null,
+    private val exchangeRateDao: ExchangeRateDao? = null
 ) {
     companion object {
+        private const val PRIMARY_CURRENCY_CODE = "GTQ"
         private val SUPPORTED_ACCOUNT_TYPES = setOf(
             AccountType.CASH,
             AccountType.BANK_CHECKING,
@@ -149,7 +156,8 @@ class AccountsRepository(
             transactionDao = db.transactionDao(),
             currencyOperationDetailDao = db.currencyOperationDetailDao(),
             paymentCommitmentDao = db.paymentCommitmentDao(),
-            database = db
+            database = db,
+            exchangeRateDao = db.exchangeRateDao()
         )
     }
 
@@ -173,15 +181,17 @@ class AccountsRepository(
             financialAccountDao.getAllAccounts(),
             transactionDao.getAllTransactions(),
             installmentPlanDao.getAllPlans(),
-            installmentScheduleDao.getAllScheduleItems()
-        ) { accounts, txs, plans, scheduleItems ->
+            installmentScheduleDao.getAllScheduleItems(),
+            exchangeRateDao?.observeAll() ?: flowOf(emptyList())
+        ) { accounts, txs, plans, scheduleItems, rates ->
             buildPortfolioState(
                 accounts = accounts,
                 transactions = txs,
                 plans = plans,
                 scheduleItems = scheduleItems,
                 referenceDateMillis = referenceDateMillisProvider(),
-                timeZone = timeZone
+                timeZone = timeZone,
+                rates = rates
             )
         }
     }
@@ -200,7 +210,8 @@ class AccountsRepository(
         val txs = transactionDao.getAllTransactionsList()
         val plans = installmentPlanDao.getAllPlansList()
         val items = installmentScheduleDao.getItemsListSnapshot()
-        return buildPortfolioState(accounts, txs, plans, items, referenceDateMillis, timeZone)
+        val rates = exchangeRateDao?.getAllRatesList() ?: emptyList()
+        return buildPortfolioState(accounts, txs, plans, items, referenceDateMillis, timeZone, rates)
     }
 
     suspend fun getAccountSnapshot(accountId: Long): AccountBalanceSnapshot {
@@ -638,13 +649,10 @@ class AccountsRepository(
             "Comisión bancaria",
             "Comisión bancaria · transferencia"
         )
-        val fxId = makeSeparateCharge(
-            input.fxDifferenceAmountMinor,
-            input.fxDifferenceCurrencyCode,
-            TransactionEntryKind.TRANSFER_FX_DIFFERENCE,
-            "Diferencia cambiaria",
-            "Diferencia cambiaria · transferencia"
-        )
+        // La diferencia cambiaria es información de conciliación, no un tercer asiento:
+        // el débito de origen, el crédito de destino y la comisión son los únicos movimientos
+        // que modifican saldos. Se conserva íntegra en CurrencyOperationDetailEntity.
+        val fxId: Long? = null
 
         detailDao.insert(
             CurrencyOperationDetailEntity(
@@ -1360,7 +1368,8 @@ class AccountsRepository(
         plans: List<InstallmentPlanEntity>,
         scheduleItems: List<InstallmentScheduleItemEntity>,
         referenceDateMillis: Long,
-        timeZone: TimeZone
+        timeZone: TimeZone,
+        rates: List<com.example.data.model.ExchangeRateEntity>
     ): AccountsPortfolioState {
         val activeAccounts = accounts.filter { !it.isArchived }
         val archivedAccounts = accounts.filter { it.isArchived }
@@ -1369,6 +1378,15 @@ class AccountsRepository(
             transactions = transactions,
             installmentPlans = plans,
             scheduleItems = scheduleItems
+        )
+        val consolidated = ConsolidatedPortfolioCalculator.calculate(
+            primaryCurrencyCode = PRIMARY_CURRENCY_CODE,
+            accounts = activeAccounts,
+            transactions = transactions,
+            rates = rates,
+            installmentPlans = plans,
+            scheduleItems = scheduleItems,
+            valuationDateMillis = referenceDateMillis
         )
         val cardStatements = LinkedHashMap<Long, CreditCardStatementSummary>()
         for (acc in activeAccounts) {
@@ -1390,7 +1408,8 @@ class AccountsRepository(
             installmentPlans = plans,
             scheduleItemsByPlanId = scheduleItems.groupBy { it.planId },
             unassignedTransactions = transactions.filter { it.accountId == null },
-            allTransactions = transactions
+            allTransactions = transactions,
+            consolidatedPortfolio = consolidated
         )
     }
 

@@ -167,6 +167,9 @@ interface ExchangeRateDao {
     @Query("SELECT * FROM exchange_rates ORDER BY effectiveAtMillis DESC")
     fun observeAll(): Flow<List<ExchangeRateEntity>>
 
+    @Query("SELECT * FROM exchange_rates ORDER BY effectiveAtMillis DESC")
+    suspend fun getAllRatesList(): List<ExchangeRateEntity>
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(rate: ExchangeRateEntity): Long
 }

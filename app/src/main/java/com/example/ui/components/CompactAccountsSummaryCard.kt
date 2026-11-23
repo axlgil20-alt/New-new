@@ -152,7 +152,7 @@ fun CompactAccountsSummaryCard(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     AccountsMetricTile(
-                        label = "Liquidez",
+                        label = "Liquidez consolidada",
                         value = liquidityDisplay,
                         containerColor = if (isDarkTheme) Color(0xFF064E3B) else Color(0xFFD1FAE5),
                         borderColor = if (isDarkTheme) Color(0xFF34D399) else EmeraldGreen,
@@ -161,7 +161,7 @@ fun CompactAccountsSummaryCard(
                         modifier = Modifier.weight(1f)
                     )
                     AccountsMetricTile(
-                        label = "Deuda Tarjetas",
+                        label = "Deuda consolidada",
                         value = debtDisplay,
                         containerColor = if (isDarkTheme) Color(0xFF4C1D24) else Color(0xFFFEE2E2),
                         borderColor = if (isDarkTheme) Color(0xFFF87171) else Color(0xFFDC2626),
@@ -170,13 +170,33 @@ fun CompactAccountsSummaryCard(
                         modifier = Modifier.weight(1f)
                     )
                     AccountsMetricTile(
-                        label = "Patrimonio Neto",
+                        label = "Patrimonio consolidado",
                         value = netWorthDisplay,
                         containerColor = if (isDarkTheme) Color(0xFF1E293B) else Color.White,
                         borderColor = if (isDarkTheme) Color(0xFF64748B) else Color(0xFF94A3B8),
                         labelColor = secondaryText,
                         valueColor = primaryText,
                         modifier = Modifier.weight(1f)
+                    )
+                )
+            }
+
+            accountsState.consolidatedPortfolio?.takeIf { it.isPartial }?.let { portfolio ->
+                Spacer(modifier = Modifier.height(10.dp))
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    color = if (isDarkTheme) Color(0xFF3F2A12) else Color(0xFFFFF7ED),
+                    border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFFF59E0B) else Color(0xFFF59E0B)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "PARCIAL: ${portfolio.unvaluedAccounts.size} cuenta(s) sin valoración (${portfolio.missingCurrencyCodes.sorted().joinToString()})." +
+                            (portfolio.staleCurrencyCodes.takeIf { it.isNotEmpty() }?.let { " Tasas desactualizadas: ${it.sorted().joinToString()}." } ?: "") +
+                            " El subtotal disponible permanece visible.",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isDarkTheme) Color(0xFFFDE68A) else Color(0xFF92400E),
+                        modifier = Modifier.padding(10.dp)
                     )
                 }
             }

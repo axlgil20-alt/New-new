@@ -18,7 +18,8 @@ import java.math.RoundingMode
  * válidas para la fecha y política solicitadas; este cálculo no usa una tasa antigua como actual.
  */
 object ConsolidatedPortfolioCalculator {
-    private val ZERO = BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP)
+    private val ZERO = BigDecimal.ZERO.setScale(MoneyMinorUnits.CURRENCY_SCALE, RoundingMode.HALF_UP)
+    const val DEFAULT_MAX_RATE_AGE_MILLIS = 24L * 60L * 60L * 1000L
 
     fun calculate(
         primaryCurrencyCode: String,
@@ -26,13 +27,16 @@ object ConsolidatedPortfolioCalculator {
         transactions: List<TransactionEntity>,
         rates: List<ExchangeRateEntity>,
         installmentPlans: List<InstallmentPlanEntity> = emptyList(),
-        scheduleItems: List<InstallmentScheduleItemEntity> = emptyList()
+        scheduleItems: List<InstallmentScheduleItemEntity> = emptyList(),
+        valuationDateMillis: Long = System.currentTimeMillis(),
+        maxRateAgeMillis: Long = DEFAULT_MAX_RATE_AGE_MILLIS
     ): ConsolidatedPortfolioResult {
         val valued = mutableListOf<ConsolidatedAccountValue>()
         val unvalued = mutableListOf<ConsolidatedAccountValue>()
         var liquidAssets = ZERO
         var debt = ZERO
         val missingCurrencies = linkedSetOf<String>()
+        val staleCurrencies = linkedSetOf<String>()
 
         accounts.filter { !it.isArchived }.forEach { account ->
             val snapshot = AccountBalanceCalculator.calculateAccountSnapshot(
@@ -55,7 +59,9 @@ object ConsolidatedPortfolioCalculator {
                 amountMinor = signedNative,
                 fromCurrency = account.currencyCode,
                 toCurrency = primaryCurrencyCode,
-                rates = rates
+                rates = rates,
+                valuationDateMillis = valuationDateMillis,
+                maxRateAgeMillis = maxRateAgeMillis
             )
             val value = ConsolidatedAccountValue(
                 accountId = account.id,
@@ -63,7 +69,12 @@ object ConsolidatedPortfolioCalculator {
                 nativeBalanceMinor = nativeBalanceMinor,
                 primaryValueMinor = converted?.let { MoneyMinorUnits.fromBigDecimal(it) },
                 isValued = converted != null,
-                reason = if (converted == null) "RATE_MISSING" else null
+                reason = if (converted == null) {
+                    if (rates.any { it.baseCurrencyCode == account.currencyCode && it.quoteCurrencyCode == primaryCurrencyCode }) {
+                        staleCurrencies += account.currencyCode
+                        "RATE_STALE"
+                    } else "RATE_MISSING"
+                } else null
             )
             if (converted == null) {
                 unvalued += value
@@ -89,7 +100,8 @@ object ConsolidatedPortfolioCalculator {
             consolidatedDebtMinor = debtMinor,
             consolidatedNetWorthMinor = netWorthMinor,
             isPartial = unvalued.isNotEmpty(),
-            missingCurrencyCodes = missingCurrencies
+            missingCurrencyCodes = missingCurrencies,
+            staleCurrencyCodes = staleCurrencies
         )
     }
 
@@ -97,12 +109,17 @@ object ConsolidatedPortfolioCalculator {
         amountMinor: Long,
         fromCurrency: String,
         toCurrency: String,
-        rates: List<ExchangeRateEntity>
+        rates: List<ExchangeRateEntity>,
+        valuationDateMillis: Long,
+        maxRateAgeMillis: Long
     ): BigDecimal? {
         if (fromCurrency == toCurrency) return MoneyMinorUnits.toBigDecimal(amountMinor)
-        val rate = rates.firstOrNull {
-            it.baseCurrencyCode == fromCurrency && it.quoteCurrencyCode == toCurrency
-        } ?: return null
+        val rate = rates.asSequence()
+            .filter { it.baseCurrencyCode == fromCurrency && it.quoteCurrencyCode == toCurrency }
+            .filter { !it.isEstimated && it.effectiveAtMillis <= valuationDateMillis && it.observedAtMillis <= valuationDateMillis }
+            .filter { valuationDateMillis - it.effectiveAtMillis in 0..maxRateAgeMillis }
+            .maxByOrNull { it.effectiveAtMillis }
+            ?: return null
         val converted = MoneyMinorUnits.toBigDecimal(amountMinor).multiply(rate.rate())
         return converted.setScale(MoneyMinorUnits.CURRENCY_SCALE, RoundingMode.HALF_UP)
     }

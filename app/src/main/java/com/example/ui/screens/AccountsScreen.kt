@@ -375,6 +375,25 @@ fun AccountsScreen(
                                     )
                                 }
 
+                                accountsState.consolidatedPortfolio?.takeIf { it.isPartial }?.let { portfolio ->
+                                    Surface(
+                                        shape = RoundedCornerShape(10.dp),
+                                        color = if (isDarkTheme) Color(0xFF3F2A12) else Color(0xFFFFF7ED),
+                                        border = BorderStroke(1.dp, Color(0xFFF59E0B)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            text = "PARCIAL: ${portfolio.unvaluedAccounts.size} cuenta(s) sin valorar · monedas: ${portfolio.missingCurrencyCodes.sorted().joinToString()}." +
+                                                (portfolio.staleCurrencyCodes.takeIf { it.isNotEmpty() }?.let { " Tasas desactualizadas: ${it.sorted().joinToString()}." } ?: "") +
+                                                " Los saldos nativos y el subtotal convertido disponible siguen visibles.",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isDarkTheme) Color(0xFFFDE68A) else Color(0xFF92400E),
+                                            modifier = Modifier.padding(10.dp)
+                                        )
+                                    }
+                                }
+
                                 // Barra de acciones rápidas globales
                                 Row(
                                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),

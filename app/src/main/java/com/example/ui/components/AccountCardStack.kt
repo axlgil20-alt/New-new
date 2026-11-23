@@ -780,6 +780,7 @@ fun SwipeableAccountCard(
                     }
 
                     // Fila inferior: saldo/deuda + información secundaria contextual
+                    val nativeCurrencySymbol = "${account.currencyCode} "
                     if (isCard) {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             Row(
@@ -794,7 +795,7 @@ fun SwipeableAccountCard(
                                         color = Color(0xFFCBD5E1)
                                     )
                                     Text(
-                                        text = FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(headlineMinor), currencySymbol, isDiscreetMode),
+                                        text = FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(headlineMinor), nativeCurrencySymbol, isDiscreetMode),
                                         style = MaterialTheme.typography.titleLarge,
                                         fontWeight = FontWeight.Black,
                                         color = if (headlineMinor > 0L) Color(0xFFFCA5A5) else Color(0xFF6EE7B7)
@@ -809,7 +810,7 @@ fun SwipeableAccountCard(
                                     Text(
                                         text = FormatUtils.formatCurrency(
                                             MoneyMinorUnits.toDisplayDouble(snapshot?.availableCreditMinor ?: account.creditLimitMinor),
-                                            currencySymbol,
+                                            nativeCurrencySymbol,
                                             isDiscreetMode
                                         ),
                                         style = MaterialTheme.typography.labelLarge,
@@ -857,7 +858,7 @@ fun SwipeableAccountCard(
                                     color = Color(0xFFE2E8F0)
                                 )
                                 Text(
-                                    text = FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(headlineMinor), currencySymbol, isDiscreetMode),
+                                    text = FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(headlineMinor), nativeCurrencySymbol, isDiscreetMode),
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Black,
                                     color = Color.White

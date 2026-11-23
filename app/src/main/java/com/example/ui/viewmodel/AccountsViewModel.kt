@@ -13,6 +13,7 @@ import com.example.data.model.InstallmentScheduleItemEntity
 import com.example.data.model.MoneyMinorUnits
 import com.example.data.model.ReconciliationStatus
 import com.example.data.model.TransactionEntity
+import com.example.data.model.ConsolidatedPortfolioResult
 import com.example.data.repository.AccountsPortfolioState
 import com.example.data.repository.AccountsRepository
 import com.example.data.repository.BudgetRepository
@@ -61,6 +62,7 @@ data class AccountsUiState(
     val totalLiquidAssetsMinor: Long = 0L,
     val totalCreditCardDebtMinor: Long = 0L,
     val netWorthMinor: Long = 0L,
+    val consolidatedPortfolio: ConsolidatedPortfolioResult? = null,
     val errorMessage: String? = null,
     val successMessage: String? = null
 )
@@ -592,9 +594,10 @@ class AccountsViewModel(
             reconciliationAmbiguousCount = portfolio.allTransactions.count {
                 it.reconciliationStatus == ReconciliationStatus.AMBIGUOUS
             },
-            totalLiquidAssetsMinor = portfolio.summary.totalLiquidAssetsMinor,
-            totalCreditCardDebtMinor = portfolio.summary.totalCreditCardDebtMinor,
-            netWorthMinor = portfolio.summary.netWorthMinor,
+            totalLiquidAssetsMinor = portfolio.consolidatedPortfolio.consolidatedLiquidAssetsMinor,
+            totalCreditCardDebtMinor = portfolio.consolidatedPortfolio.consolidatedDebtMinor,
+            netWorthMinor = portfolio.consolidatedPortfolio.consolidatedNetWorthMinor,
+            consolidatedPortfolio = portfolio.consolidatedPortfolio,
             errorMessage = (opStatus as? AccountsOperationStatus.Error)?.message,
             successMessage = (opStatus as? AccountsOperationStatus.Success)?.message
         )

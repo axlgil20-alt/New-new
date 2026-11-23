@@ -131,5 +131,6 @@ data class ConsolidatedPortfolioResult(
     val consolidatedDebtMinor: Long,
     val consolidatedNetWorthMinor: Long,
     val isPartial: Boolean,
-    val missingCurrencyCodes: Set<String>
+    val missingCurrencyCodes: Set<String>,
+    val staleCurrencyCodes: Set<String> = emptySet()
 )
