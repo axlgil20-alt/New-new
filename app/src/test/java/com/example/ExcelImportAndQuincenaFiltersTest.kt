@@ -162,17 +162,17 @@ class ExcelImportAndQuincenaFiltersTest {
             targetMonthIndex = 9
         )
 
-        // Q1 incluye gastos del 1 al 15
-        assertEquals(3, filtered.q1Transactions.size)
+        // Q1 incluye gastos del 1 al 14
+        assertEquals(2, filtered.q1Transactions.size)
         assertTrue(filtered.q1Transactions.any { it.id == 1L })
         assertTrue(filtered.q1Transactions.any { it.id == 2L })
-        assertTrue(filtered.q1Transactions.any { it.id == 3L })
-        assertFalse(filtered.q1Transactions.any { it.id == 4L })
+        assertFalse(filtered.q1Transactions.any { it.id == 3L || it.id == 4L })
 
-        // Q2 incluye gastos del día 16 hasta el último día del mes
-        assertEquals(1, filtered.q2Transactions.size)
+        // Q2 incluye gastos del día 15 hasta el último día del mes
+        assertEquals(2, filtered.q2Transactions.size)
+        assertTrue(filtered.q2Transactions.any { it.id == 3L })
         assertTrue(filtered.q2Transactions.any { it.id == 4L })
-        assertFalse(filtered.q2Transactions.any { it.id == 1L || it.id == 2L || it.id == 3L })
+        assertFalse(filtered.q2Transactions.any { it.id == 1L || it.id == 2L })
     }
 
     @Test
@@ -243,7 +243,7 @@ class ExcelImportAndQuincenaFiltersTest {
     }
 
     @Test
-    fun testDays14And15BothBelongToQ1ForExpenses() {
+    fun testDay14BelongsToQ1AndDay15StartsQ2ForExpenses() {
         val txs = listOf(
             TransactionEntity(id = 1, title = "Día 14 Inicio", amount = 100.0, type = TransactionType.EXPENSE, category = "Varios", dateMillis = createMillis(2026, 9, 14, 0)),
             TransactionEntity(id = 2, title = "Día 14 Fin", amount = 150.0, type = TransactionType.EXPENSE, category = "Varios", dateMillis = createMillis(2026, 9, 14, 23)),
@@ -257,9 +257,10 @@ class ExcelImportAndQuincenaFiltersTest {
             targetMonthIndex = 9 // Octubre
         )
 
-        assertEquals("Q1 debe incluir los gastos de los días 14 y 15", 4, filtered.q1Transactions.size)
-        assertTrue(filtered.q1Transactions.all { it.title.startsWith("Día 14") || it.title.startsWith("Día 15") })
-        assertTrue(filtered.q2Transactions.isEmpty())
+        assertEquals("Q1 debe incluir únicamente los gastos del día 14", 2, filtered.q1Transactions.size)
+        assertTrue(filtered.q1Transactions.all { it.title.startsWith("Día 14") })
+        assertEquals("Q2 debe iniciar el día 15", 2, filtered.q2Transactions.size)
+        assertTrue(filtered.q2Transactions.all { it.title.startsWith("Día 15") })
     }
 
     @Test
@@ -653,9 +654,9 @@ class ExcelImportAndQuincenaFiltersTest {
             set(year, monthIndex, day, 12, 0, 0)
         }.timeInMillis
 
-        // Gastos: 1-15 Q1 y 16-fin Q2, incluyendo cambios de mes/año.
+        // Gastos: 1-14 Q1 y 15-fin Q2, incluyendo cambios de mes/año.
         val oct15 = QuincenaFilterHelper.getBudgetPeriod(timeAt(2026, Calendar.OCTOBER, 15))
-        assertEquals(BudgetPeriod(2026, Calendar.OCTOBER, 1), oct15)
+        assertEquals(BudgetPeriod(2026, Calendar.OCTOBER, 2), oct15)
         val oct16 = QuincenaFilterHelper.getBudgetPeriod(timeAt(2026, Calendar.OCTOBER, 16))
         assertEquals(BudgetPeriod(2026, Calendar.OCTOBER, 2), oct16)
         val oct31Expense = QuincenaFilterHelper.getBudgetPeriod(timeAt(2026, Calendar.OCTOBER, 31), TransactionType.EXPENSE)
@@ -677,10 +678,10 @@ class ExcelImportAndQuincenaFiltersTest {
 
         val startQ1 = QuincenaFilterHelper.getBudgetPeriodRange(2026, Calendar.OCTOBER, 1)
         val startCal = Calendar.getInstance().apply { timeInMillis = startQ1.first }
-        assertEquals(Calendar.SEPTEMBER, startCal.get(Calendar.MONTH))
-        assertEquals(30, startCal.get(Calendar.DAY_OF_MONTH))
+        assertEquals(Calendar.OCTOBER, startCal.get(Calendar.MONTH))
+        assertEquals(1, startCal.get(Calendar.DAY_OF_MONTH))
         val endCal = Calendar.getInstance().apply { timeInMillis = startQ1.second }
-        assertEquals(15, endCal.get(Calendar.DAY_OF_MONTH))
+        assertEquals(14, endCal.get(Calendar.DAY_OF_MONTH))
 
         // Exhaustividad: cada día de tres años cae exactamente en un ciclo de gasto.
         val iter = Calendar.getInstance().apply { clear(); set(2026, Calendar.JANUARY, 1, 12, 0, 0) }
@@ -690,7 +691,7 @@ class ExcelImportAndQuincenaFiltersTest {
             val bp = QuincenaFilterHelper.getBudgetPeriod(iter.timeInMillis, TransactionType.EXPENSE)
             assertEquals(iter.get(Calendar.YEAR), bp.year)
             assertEquals(iter.get(Calendar.MONTH), bp.monthIndex)
-            assertEquals(if (iter.get(Calendar.DAY_OF_MONTH) <= 15) 1 else 2, bp.quincena)
+            assertEquals(if (iter.get(Calendar.DAY_OF_MONTH) <= 14) 1 else 2, bp.quincena)
             days++
             iter.add(Calendar.DAY_OF_YEAR, 1)
         }

@@ -38,90 +38,26 @@ data class QuincenaFilteredData(
 object QuincenaFilterHelper {
 
     /**
-     * Determina el ciclo financiado por una fecha. Gastos del 1 al 15 pertenecen a Q1;
-     * los del 16 al fin pertenecen a Q2. Un pago el 15 financia Q2, y un pago de fin
-     * de mes financia Q1 del mes siguiente. Sin tipo, se asume gasto.
+     * Determina el ciclo financiado por una fecha. El período 1 cubre del 1 al 14;
+     * el período 2 inicia el día 15. Un pago del 15 financia el período 2 y el último
+     * día del mes financia el período 1 del mes siguiente. Sin tipo, se asume gasto.
      */
     fun getBudgetPeriod(timeMillis: Long, transactionType: String? = null): BudgetPeriod {
-        val cal = Calendar.getInstance().apply { this.timeInMillis = timeMillis }
-        val y = cal.get(Calendar.YEAR)
-        val m = cal.get(Calendar.MONTH)
-        val d = cal.get(Calendar.DAY_OF_MONTH)
-        val maxDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-
-        return if (transactionType == TransactionType.INCOME && d == maxDay) {
-            // El pago de fin de mes financia del 1 al 15 del mes siguiente
-            val nextMonth = if (m == 11) 0 else m + 1
-            val nextYear = if (m == 11) y + 1 else y
-            BudgetPeriod(year = nextYear, monthIndex = nextMonth, quincena = 1)
-        } else if (transactionType == TransactionType.INCOME && d == 15) {
-            // El pago del 15 financia del 16 al último día del mes
-            BudgetPeriod(year = y, monthIndex = m, quincena = 2)
-        } else if (d in 1..15) {
-            BudgetPeriod(year = y, monthIndex = m, quincena = 1)
+        val resolved = if (transactionType == TransactionType.INCOME) {
+            IncomePeriodEngine.resolveIncomePeriod(timeMillis)
         } else {
-            BudgetPeriod(year = y, monthIndex = m, quincena = 2)
+            IncomePeriodEngine.resolveExpensePeriod(timeMillis)
         }
+        return BudgetPeriod(resolved.year, resolved.monthIndex, if (resolved.sequence == 1) 1 else 2)
     }
 
     /**
      * Obtiene el rango de timestamps exactos (inicio 00:00:00.000 a fin 23:59:59.999) para el periodo presupuestario:
-     * Rango inclusivo de fechas que puede contener el ciclo, incluyendo la fecha del pago:
-     * Q1 incluye el pago de fin de mes anterior y gastos del 1 al 15;
-     * Q2 incluye el pago del 15 y gastos del 16 al fin de mes.
+     * Rango inclusivo del período financiado: período 1 del 1 al 14 y período 2 del 15
+     * al último día del mes. La fecha oficial de pago se conserva como evento separado.
      */
     fun getBudgetPeriodRange(year: Int, monthIndex: Int, quincena: Int): Pair<Long, Long> {
-        val cal = Calendar.getInstance()
-
-        val startMillis: Long = if (quincena == 2) {
-            cal.clear()
-            cal.set(Calendar.YEAR, year)
-            cal.set(Calendar.MONTH, monthIndex)
-            cal.set(Calendar.DAY_OF_MONTH, 15)
-            cal.set(Calendar.HOUR_OF_DAY, 0)
-            cal.set(Calendar.MINUTE, 0)
-            cal.set(Calendar.SECOND, 0)
-            cal.set(Calendar.MILLISECOND, 0)
-            cal.timeInMillis
-        } else {
-            cal.clear()
-            val prevMonth = if (monthIndex == 0) 11 else monthIndex - 1
-            val prevYear = if (monthIndex == 0) year - 1 else year
-            cal.set(Calendar.YEAR, prevYear)
-            cal.set(Calendar.MONTH, prevMonth)
-            val prevMaxDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-            cal.set(Calendar.DAY_OF_MONTH, prevMaxDay)
-            cal.set(Calendar.HOUR_OF_DAY, 0)
-            cal.set(Calendar.MINUTE, 0)
-            cal.set(Calendar.SECOND, 0)
-            cal.set(Calendar.MILLISECOND, 0)
-            cal.timeInMillis
-        }
-
-        val endMillis: Long = if (quincena == 1) {
-            cal.clear()
-            cal.set(Calendar.YEAR, year)
-            cal.set(Calendar.MONTH, monthIndex)
-            cal.set(Calendar.DAY_OF_MONTH, 15)
-            cal.set(Calendar.HOUR_OF_DAY, 23)
-            cal.set(Calendar.MINUTE, 59)
-            cal.set(Calendar.SECOND, 59)
-            cal.set(Calendar.MILLISECOND, 999)
-            cal.timeInMillis
-        } else {
-            cal.clear()
-            cal.set(Calendar.YEAR, year)
-            cal.set(Calendar.MONTH, monthIndex)
-            val curMaxDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-            cal.set(Calendar.DAY_OF_MONTH, curMaxDay)
-            cal.set(Calendar.HOUR_OF_DAY, 23)
-            cal.set(Calendar.MINUTE, 59)
-            cal.set(Calendar.SECOND, 59)
-            cal.set(Calendar.MILLISECOND, 999)
-            cal.timeInMillis
-        }
-
-        return Pair(startMillis, endMillis)
+        return IncomePeriodEngine.periodRange(year, monthIndex, if (quincena == 2) 2 else 1)
     }
 
     /**
@@ -134,8 +70,8 @@ object QuincenaFilterHelper {
 
     /**
      * Verifica si la fecha dada corresponde a la quincena indicada:
-     * - 1: Gasto del 1 al 15; pago de fin de mes anterior.
-     * - 2: Gasto del 16 al fin; pago del día 15.
+     * - 1: Gasto del 1 al 14; pago de fin del mes anterior.
+     * - 2: Gasto del 15 al fin; pago del día 15.
      * - <= 0: Todas.
      */
     fun isDateInQuincena(dateMillis: Long, quincenaNumber: Int, transactionType: String? = null): Boolean {

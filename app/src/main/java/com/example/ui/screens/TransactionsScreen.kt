@@ -130,6 +130,7 @@ import com.example.ui.theme.TentativePurpleLight
 import com.example.ui.theme.TurquoiseAccent
 import com.example.ui.theme.TurquoiseLight
 import com.example.ui.viewmodel.BudgetUiState
+import com.example.ui.util.IncomePeriodEngine
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -458,6 +459,46 @@ fun TransactionsScreen(
                     onNextMonth = onNextMonth,
                     onToggleAllTime = onToggleAllTime
                 )
+            }
+
+            item {
+                val sequence = uiState.filterQuincena.takeIf { it in 1..2 } ?: 1
+                val range = IncomePeriodEngine.periodRange(uiState.currentYear, uiState.currentMonthIndex, sequence)
+                val now = System.currentTimeMillis()
+                val progress = when {
+                    now <= range.first -> 0f
+                    now >= range.second -> 1f
+                    else -> ((now - range.first).toFloat() / (range.second - range.first).toFloat()).coerceIn(0f, 1f)
+                }
+                val dateFormat = SimpleDateFormat("dd MMM", Locale.getDefault())
+                val periodLabel = if (sequence == 1) "1er período · días 1–14" else "2do período · día 15–fin"
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).testTag("financial_period_timeline"),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = if (uiState.isDarkTheme) Color(0xFF102A24) else Color(0xFFE8F7F1)),
+                    border = BorderStroke(1.dp, if (uiState.isDarkTheme) Color(0xFF2DD4BF).copy(alpha = 0.45f) else JadeGreen.copy(alpha = 0.45f))
+                ) {
+                    Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(periodLabel, fontWeight = FontWeight.Bold, color = if (uiState.isDarkTheme) Color(0xFFA7F3D0) else EmeraldGreen)
+                            Text(
+                                text = "${dateFormat.format(Date(range.first))} – ${dateFormat.format(Date(range.second))}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        androidx.compose.material3.LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.fillMaxWidth().height(7.dp).clip(RoundedCornerShape(8.dp)),
+                            color = if (uiState.isDarkTheme) Color(0xFF34D399) else EmeraldGreen,
+                            trackColor = if (uiState.isDarkTheme) Color(0xFF1F453A) else Color(0xFFC7EBDD)
+                        )
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Arrastre: ${uiState.currencySymbol}${"%,.2f".format(uiState.quincenaRolloverAmount)}", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(if (progress >= 1f) "Período cerrado" else "Período en curso", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+                }
             }
 
             // 3. Tarjeta de Resumen Financiero Completo (Inspiración Alfombras de Antigua)
@@ -1031,14 +1072,14 @@ fun TransactionsScreen(
                         )
                     )
 
-                    // 1ra Quincena (Fin mes previo - 14)
+                    // 1er período financiero (1 - 14)
                     val q1Selected = uiState.filterQuincena == 1
                     FilterChip(
                         selected = q1Selected,
                         onClick = {
                             onFilterQuincenaChange?.invoke(if (q1Selected) 0 else 1)
                         },
-                        label = { Text("1ra Quincena (Fin de mes - 14)", fontWeight = FontWeight.SemiBold) },
+                        label = { Text("1er período (1 - 14)", fontWeight = FontWeight.SemiBold) },
                         border = FilterChipDefaults.filterChipBorder(
                             enabled = true,
                             selected = q1Selected,
@@ -1054,14 +1095,14 @@ fun TransactionsScreen(
                         )
                     )
 
-                    // 2da Quincena (15 - Penúltimo día)
+                    // 2do período financiero (15 - fin de mes)
                     val q2Selected = uiState.filterQuincena == 2
                     FilterChip(
                         selected = q2Selected,
                         onClick = {
                             onFilterQuincenaChange?.invoke(if (q2Selected) 0 else 2)
                         },
-                        label = { Text("2da Quincena (15 - Penúltimo)", fontWeight = FontWeight.SemiBold) },
+                        label = { Text("2do período (15 - fin de mes)", fontWeight = FontWeight.SemiBold) },
                         border = FilterChipDefaults.filterChipBorder(
                             enabled = true,
                             selected = q2Selected,
@@ -1564,12 +1605,12 @@ private fun AdvancedFiltersSheetContent(
             FilterChip(
                 selected = uiState.filterQuincena == 1,
                 onClick = { onFilterQuincenaChange(1) },
-                label = { Text("1ra (Fin mes - 14)") }
+                label = { Text("1er período (1 - 14)") }
             )
             FilterChip(
                 selected = uiState.filterQuincena == 2,
                 onClick = { onFilterQuincenaChange(2) },
-                label = { Text("2da (15 - Penúltimo)") }
+                label = { Text("2do período (15 - fin)") }
             )
         }
 
