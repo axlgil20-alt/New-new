@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
@@ -29,6 +30,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -79,11 +82,16 @@ fun PlannedVsRealScreen(
     var selectedDate by remember(month) {
         mutableStateOf(LocalDate.now(QuincenaFilterHelper.FINANCIAL_ZONE).takeIf { it.year == month.year && it.monthValue == month.monthValue } ?: month.atDay(1))
     }
+    var searchQuery by remember { mutableStateOf("") }
     val transactions = uiState.allTransactions.filter { it.affectsBudgetTotals }
     val commitments = uiState.paymentCommitments
     val monthTransactions = transactions.filter { QuincenaFilterHelper.localDate(it.dateMillis).let { d -> d.year == month.year && d.monthValue == month.monthValue } }
     val dayTransactions = monthTransactions.filter { QuincenaFilterHelper.localDate(it.dateMillis) == selectedDate }
     val dayCommitments = commitments.filter { QuincenaFilterHelper.localDate(it.dueDateMillis) == selectedDate && !it.isCancelled }
+    val searchedTransactions = monthTransactions.filter { tx ->
+        val query = searchQuery.trim()
+        query.isBlank() || tx.title.contains(query, true) || tx.category.contains(query, true) || tx.notes.contains(query, true) || tx.amount.toString().contains(query)
+    }
     val q = QuincenaFilterHelper.filterByQuincena(transactions, month.year, month.monthValue - 1)
     val q1Rollover = QuincenaFilterHelper.calculateQuincenaRollover(transactions, month.year, month.monthValue - 1, 1)
     val q2Rollover = QuincenaFilterHelper.calculateQuincenaRollover(transactions, month.year, month.monthValue - 1, 2)
@@ -149,8 +157,25 @@ fun PlannedVsRealScreen(
         item {
             DailyDetail(selectedDate, dayTransactions, dayCommitments, uiState, text, muted, onEditTransaction, onDeleteTransaction, onHighlightTransaction, onToggleVerifyTransaction, onDecideTentative)
         }
+        item {
+            TransactionList(searchQuery, { searchQuery = it }, searchedTransactions, uiState, muted, onEditTransaction, onDeleteTransaction, onHighlightTransaction, onToggleVerifyTransaction, onDecideTentative)
+        }
         item { UpcomingAgenda(today, transactions, commitments, uiState, text, muted) }
         item { Spacer(Modifier.height(24.dp)) }
+    }
+}
+
+@Composable
+private fun TransactionList(query: String, onQueryChange: (String) -> Unit, transactions: List<TransactionEntity>, uiState: BudgetUiState, muted: Color, onEdit: (TransactionEntity) -> Unit, onDelete: (TransactionEntity) -> Unit, onHighlight: (TransactionEntity, Long) -> Unit, onVerify: (TransactionEntity) -> Unit, onDecide: (TransactionEntity, String) -> Unit) {
+    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp), colors = CardDefaults.cardColors(if (uiState.isDarkTheme) Color(0xFF102832) else Color.White), shape = RoundedCornerShape(18.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("MOVIMIENTOS DEL MES", color = Jade, fontWeight = FontWeight.ExtraBold)
+            OutlinedTextField(value = query, onValueChange = onQueryChange, modifier = Modifier.fillMaxWidth().testTag("quincenas_search_bar"), singleLine = true, placeholder = { Text("Buscar por concepto, categoría o monto", color = muted) }, leadingIcon = { Icon(Icons.Default.Search, null, tint = Jade) }, colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Jade, unfocusedBorderColor = muted))
+            transactions.forEachIndexed { index, tx ->
+                TransactionItemCard(tx, uiState.currencySymbol, onEdit = { onEdit(tx) }, onDelete = { onDelete(tx) }, onHighlight = { onHighlight(tx, it) }, onToggleVerify = { onVerify(tx) }, onDecideTentative = { onDecide(tx, it) }, onToggleGastoSupuesto = { onDecide(tx, if (tx.isGastoSupuesto) "CONFIRM" else "PENDING") }, isDiscreetMode = uiState.isDiscreetMode, isDarkTheme = uiState.isDarkTheme, rowIndex = index)
+            }
+            if (transactions.isEmpty()) Text(if (query.isBlank()) "No hay movimientos registrados en este mes." else "No se encontraron coincidencias.", color = muted)
+        }
     }
 }
 
