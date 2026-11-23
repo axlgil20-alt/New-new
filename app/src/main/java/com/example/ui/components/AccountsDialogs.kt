@@ -61,6 +61,7 @@ import com.example.data.model.DefaultData
 import com.example.data.model.FinancialAccountEntity
 import com.example.data.model.MoneyMinorUnits
 import com.example.data.model.PaymentCommitmentEntity
+import com.example.data.model.PaymentStatus
 import com.example.data.service.AccountBalanceSnapshot
 import com.example.data.service.CreditCardStatementSummary
 import com.example.ui.theme.EmeraldGreen
@@ -92,6 +93,20 @@ object AccountUiMeta {
             val bd = cleaned.toBigDecimalOrNull() ?: return null
             MoneyMinorUnits.fromBigDecimal(bd)
         }.getOrNull()
+    }
+}
+
+internal fun findCardPaymentCommitment(
+    pendingCommitments: List<PaymentCommitmentEntity>,
+    cardAccountId: Long?
+): PaymentCommitmentEntity? {
+    if (cardAccountId == null) return null
+    return pendingCommitments.firstOrNull {
+        it.commitmentKind == CommitmentKind.CREDIT_CARD_STATEMENT &&
+            it.creditCardAccountId == cardAccountId &&
+            !it.isPaid &&
+            it.status != PaymentStatus.PAID &&
+            it.status != PaymentStatus.CANCELLED
     }
 }
 
@@ -570,11 +585,7 @@ fun PayCreditCardDialog(
         mutableStateOf(if (suggested > 0L) MoneyMinorUnits.toBigDecimal(suggested).toPlainString() else "")
     }
     var selectedCommitment by remember(selectedCard?.id) {
-        mutableStateOf(
-            pendingCommitments.firstOrNull {
-                !it.isPaid && (it.creditCardAccountId == selectedCard?.id || it.commitmentKind == CommitmentKind.CREDIT_CARD_STATEMENT)
-            }
-        )
+        mutableStateOf(findCardPaymentCommitment(pendingCommitments, selectedCard?.id))
     }
     var notes by remember { mutableStateOf("") }
     var expandCard by remember { mutableStateOf(false) }

@@ -741,27 +741,55 @@ class AccountsRepository(
         var closedCommitmentId: Long? = null
         if (linkedCommitmentId != null && paymentCommitmentDao != null) {
             val commitment = paymentCommitmentDao.getCommitmentById(linkedCommitmentId)
-            if (commitment != null && !commitment.isPaid) {
-                require(commitment.creditCardAccountId == null || commitment.creditCardAccountId == targetCard.id) {
+            if (commitment != null && !commitment.isPaid &&
+                commitment.status != PaymentStatus.PAID && commitment.status != PaymentStatus.CANCELLED
+            ) {
+                require(
+                    commitment.commitmentKind == CommitmentKind.CREDIT_CARD_STATEMENT &&
+                        commitment.creditCardAccountId == targetCard.id
+                ) {
                     "El compromiso #$linkedCommitmentId pertenece a otra tarjeta de crédito."
                 }
-                commitment.linkedTransactionId?.let { tentativeTxId ->
-                    val linkedTx = accountLedgerDao.getTransactionById(tentativeTxId)
-                    if (linkedTx != null && linkedTx.isTentative) {
-                        transactionDao.deleteById(tentativeTxId)
+                val remainingCommitmentMinor =
+                    (commitment.effectiveAmountMinor - amountMinor).coerceAtLeast(0L)
+                if (remainingCommitmentMinor == 0L) {
+                    commitment.linkedTransactionId?.let { tentativeTxId ->
+                        val linkedTx = accountLedgerDao.getTransactionById(tentativeTxId)
+                        if (linkedTx != null && linkedTx.isTentative) {
+                            transactionDao.deleteById(tentativeTxId)
+                        }
                     }
-                }
-                paymentCommitmentDao.updateCommitment(
-                    commitment.copy(
-                        isPaid = true,
-                        status = PaymentStatus.PAID,
-                        paidDateMillis = dateMillis,
-                        creditCardAccountId = targetCard.id,
-                        paymentSourceAccountId = sourceAccount.id,
-                        linkedTransactionId = inId
+                    paymentCommitmentDao.updateCommitment(
+                        commitment.copy(
+                            isPaid = true,
+                            status = PaymentStatus.PAID,
+                            paidDateMillis = dateMillis,
+                            creditCardAccountId = targetCard.id,
+                            paymentSourceAccountId = sourceAccount.id,
+                            linkedTransactionId = inId
+                        )
                     )
-                )
-                closedCommitmentId = commitment.id
+                    closedCommitmentId = commitment.id
+                } else {
+                    commitment.linkedTransactionId?.let { tentativeTxId ->
+                        val linkedTx = accountLedgerDao.getTransactionById(tentativeTxId)
+                        if (linkedTx != null && linkedTx.isTentative) {
+                            transactionDao.updateTransaction(
+                                linkedTx.withExactAmountMinor(remainingCommitmentMinor).copy(
+                                    accountId = sourceAccount.id,
+                                    entryKind = TransactionEntryKind.TRANSFER_OUT,
+                                    counterpartAccountId = targetCard.id
+                                )
+                            )
+                        }
+                    }
+                    paymentCommitmentDao.updateCommitment(
+                        commitment.withExactAmountMinor(remainingCommitmentMinor).copy(
+                            creditCardAccountId = targetCard.id,
+                            paymentSourceAccountId = sourceAccount.id
+                        )
+                    )
+                }
             }
         }
 

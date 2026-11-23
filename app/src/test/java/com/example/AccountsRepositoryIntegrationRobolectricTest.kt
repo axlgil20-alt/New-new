@@ -22,6 +22,7 @@ import com.example.data.model.effectiveAmountMinor
 import com.example.data.model.withExactAmountMinor
 import com.example.data.repository.AccountsRepository
 import com.example.data.repository.BudgetRepository
+import com.example.ui.components.findCardPaymentCommitment
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -628,6 +629,163 @@ class AccountsRepositoryIntegrationRobolectricTest {
         assertTrue(budgetRepo.markPaymentAsPaid(commitmentId))
         assertEquals(750_00L, accountsRepo.getAccountSnapshot(checking.id).currentBalanceMinor)
         assertEquals(550_00L, accountsRepo.getAccountSnapshot(card.id).revolvingDebtMinor)
+    }
+
+    @Test
+    fun cardPaymentCommitmentSelection_onlyReturnsPendingStatementForSelectedCard() {
+        val matching = PaymentCommitmentEntity(
+            id = 1L,
+            title = "Corte Visa",
+            beneficiaryName = "Banco",
+            amount = 200.0,
+            dueDateMillis = 1L,
+            commitmentKind = CommitmentKind.CREDIT_CARD_STATEMENT,
+            creditCardAccountId = 10L
+        )
+        val otherCard = matching.copy(id = 2L, creditCardAccountId = 20L)
+        val cancelled = matching.copy(id = 3L, status = PaymentStatus.CANCELLED)
+        val paid = matching.copy(id = 4L, isPaid = true)
+        val ordinaryBill = matching.copy(id = 5L, commitmentKind = CommitmentKind.BILL)
+
+        assertEquals(
+            matching.id,
+            findCardPaymentCommitment(
+                listOf(otherCard, cancelled, paid, ordinaryBill, matching),
+                cardAccountId = 10L
+            )?.id
+        )
+        assertNull(findCardPaymentCommitment(listOf(matching), cardAccountId = null))
+    }
+
+    @Test
+    fun partialCardPayment_reducesLinkedStatementCommitmentUntilFinalPayment() = runBlocking {
+        val checking = accountsRepo.createAccount(
+            FinancialAccountEntity(
+                name = "Cuenta para abonos parciales",
+                accountType = AccountType.BANK_CHECKING,
+                openingBalanceMinor = 2_000_00L
+            )
+        )
+        val card = accountsRepo.createAccount(
+            FinancialAccountEntity(
+                name = "Visa con saldo pendiente",
+                accountType = AccountType.CREDIT_CARD,
+                openingBalanceMinor = 850_00L,
+                creditLimitMinor = 5_000_00L
+            )
+        )
+        val commitmentId = budgetRepo.createPaymentCommitment(
+            PaymentCommitmentEntity(
+                title = "Estado de cuenta Visa",
+                beneficiaryName = "Banco emisor",
+                amount = 850.00,
+                amountMinor = 850_00L,
+                dueDateMillis = System.currentTimeMillis(),
+                category = "Pago de Tarjeta",
+                creditCardAccountId = card.id,
+                paymentSourceAccountId = checking.id,
+                commitmentKind = CommitmentKind.CREDIT_CARD_STATEMENT
+            )
+        )
+        val initialCommitment = db.paymentCommitmentDao().getCommitmentById(commitmentId)!!
+        val firstPayment = accountsRepo.payCreditCard(
+            sourceAccountId = checking.id,
+            cardAccountId = card.id,
+            amountMinor = 350_00L,
+            linkedCommitmentId = commitmentId
+        )
+
+        assertNull(firstPayment.settledCommitmentId)
+        val remainingCommitment = db.paymentCommitmentDao().getCommitmentById(commitmentId)!!
+        assertFalse(remainingCommitment.isPaid)
+        assertEquals(PaymentStatus.PENDING, remainingCommitment.status)
+        assertEquals(500_00L, remainingCommitment.effectiveAmountMinor)
+        assertEquals(checking.id, remainingCommitment.paymentSourceAccountId)
+        val remainingProjection = db.accountLedgerDao().getTransactionById(initialCommitment.linkedTransactionId!!)!!
+        assertTrue(remainingProjection.isTentative)
+        assertEquals(500_00L, remainingProjection.effectiveAmountMinor)
+        assertEquals(TransactionEntryKind.TRANSFER_OUT, remainingProjection.entryKind)
+        assertEquals(card.id, remainingProjection.counterpartAccountId)
+        assertEquals(1_650_00L, accountsRepo.getAccountSnapshot(checking.id).currentBalanceMinor)
+        assertEquals(500_00L, accountsRepo.getAccountSnapshot(card.id).revolvingDebtMinor)
+
+        val finalPayment = accountsRepo.payCreditCard(
+            sourceAccountId = checking.id,
+            cardAccountId = card.id,
+            amountMinor = 500_00L,
+            linkedCommitmentId = commitmentId
+        )
+        assertEquals(commitmentId, finalPayment.settledCommitmentId)
+        val settledCommitment = db.paymentCommitmentDao().getCommitmentById(commitmentId)!!
+        assertTrue(settledCommitment.isPaid)
+        assertEquals(PaymentStatus.PAID, settledCommitment.status)
+        assertEquals(finalPayment.cardPaymentTransactionId, settledCommitment.linkedTransactionId)
+        assertEquals(1_150_00L, accountsRepo.getAccountSnapshot(checking.id).currentBalanceMinor)
+        assertEquals(0L, accountsRepo.getAccountSnapshot(card.id).revolvingDebtMinor)
+        assertEquals(
+            0L,
+            db.transactionDao().getAllTransactionsList()
+                .filter { it.affectsBudgetTotals && it.type == TransactionType.EXPENSE }
+                .sumOf { it.effectiveAmountMinor }
+        )
+    }
+
+    @Test
+    fun payingDifferentCard_cannotSettleAnotherCardsStatement() = runBlocking {
+        val checking = accountsRepo.createAccount(
+            FinancialAccountEntity(
+                name = "Cuenta para prueba cruzada",
+                accountType = AccountType.BANK_CHECKING,
+                openingBalanceMinor = 2_000_00L
+            )
+        )
+        val statementCard = accountsRepo.createAccount(
+            FinancialAccountEntity(
+                name = "Visa vinculada",
+                accountType = AccountType.CREDIT_CARD,
+                openingBalanceMinor = 500_00L,
+                creditLimitMinor = 3_000_00L
+            )
+        )
+        val selectedCard = accountsRepo.createAccount(
+            FinancialAccountEntity(
+                name = "Mastercard seleccionada",
+                accountType = AccountType.CREDIT_CARD,
+                openingBalanceMinor = 300_00L,
+                creditLimitMinor = 3_000_00L
+            )
+        )
+        val commitmentId = budgetRepo.createPaymentCommitment(
+            PaymentCommitmentEntity(
+                title = "Estado de cuenta Visa",
+                beneficiaryName = "Banco emisor",
+                amount = 200.00,
+                amountMinor = 200_00L,
+                dueDateMillis = System.currentTimeMillis(),
+                commitmentKind = CommitmentKind.CREDIT_CARD_STATEMENT,
+                creditCardAccountId = statementCard.id,
+                paymentSourceAccountId = checking.id
+            )
+        )
+        val txCountBefore = db.transactionDao().getAllTransactionsList().size
+
+        val rejected = runCatching {
+            accountsRepo.payCreditCard(
+                sourceAccountId = checking.id,
+                cardAccountId = selectedCard.id,
+                amountMinor = 100_00L,
+                linkedCommitmentId = commitmentId
+            )
+        }
+
+        assertTrue(rejected.isFailure)
+        assertEquals(txCountBefore, db.transactionDao().getAllTransactionsList().size)
+        assertEquals(2_000_00L, accountsRepo.getAccountSnapshot(checking.id).currentBalanceMinor)
+        assertEquals(300_00L, accountsRepo.getAccountSnapshot(selectedCard.id).revolvingDebtMinor)
+        assertEquals(500_00L, accountsRepo.getAccountSnapshot(statementCard.id).revolvingDebtMinor)
+        val unchangedCommitment = db.paymentCommitmentDao().getCommitmentById(commitmentId)!!
+        assertFalse(unchangedCommitment.isPaid)
+        assertEquals(200_00L, unchangedCommitment.effectiveAmountMinor)
     }
 
     @Test
