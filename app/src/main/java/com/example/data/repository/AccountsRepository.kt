@@ -454,6 +454,9 @@ class AccountsRepository(
         require(AccountType.isLiquidAsset(toAccount.accountType)) {
             "Para abonar a la tarjeta «${toAccount.name}» utiliza la operación de pago de tarjeta."
         }
+        require(fromAccount.currencyCode == toAccount.currencyCode) {
+            "Las transferencias ordinarias requieren la misma moneda: ${fromAccount.currencyCode} y ${toAccount.currencyCode} no coinciden."
+        }
 
         val transferGroupId = normalizedKey?.let { "trf_$it" } ?: UUID.randomUUID().toString()
         val displayAmount = MoneyMinorUnits.toDisplayDouble(amountMinor)

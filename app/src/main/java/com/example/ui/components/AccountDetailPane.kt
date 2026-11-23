@@ -89,6 +89,7 @@ fun AccountDetailPane(
     modifier: Modifier = Modifier
 ) {
     val isCard = AccountType.isCreditCard(account.accountType)
+    val nativeCurrencySymbol = "${account.currencyCode} "
     val sdf = remember { SimpleDateFormat("dd MMM yyyy", Locale("es", "GT")) }
     val cardBg = if (isDarkTheme) Color(0xFF1E293B).copy(alpha = 0.88f) else Color.White.copy(alpha = 0.90f)
     val subSurfaceBg = if (isDarkTheme) Color(0xFF0F172A).copy(alpha = 0.84f) else Color(0xFFF8FAFC).copy(alpha = 0.88f)
@@ -149,7 +150,7 @@ fun AccountDetailPane(
                     color = secondaryText
                 )
                 Text(
-                    text = FormatUtils.formatCurrency(headlineAmount, currencySymbol, isDiscreetMode),
+                    text = FormatUtils.formatCurrency(headlineAmount, nativeCurrencySymbol, isDiscreetMode),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Black,
                     color = if (isCard && (snapshot?.totalDebtMinor ?: 0L) > 0L) {
@@ -167,9 +168,9 @@ fun AccountDetailPane(
                         modifier = Modifier.fillMaxWidth().height(8.dp)
                     )
                     Text(
-                        text = "Rotativa: ${FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(snapshot.revolvingDebtMinor), currencySymbol, isDiscreetMode)} · " +
-                            "Visacuotas res.: ${FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(snapshot.reservedInstallmentDebtMinor), currencySymbol, isDiscreetMode)} · " +
-                            "Disponible: ${FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(snapshot.availableCreditMinor), currencySymbol, isDiscreetMode)}",
+                        text = "Rotativa: ${FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(snapshot.revolvingDebtMinor), nativeCurrencySymbol, isDiscreetMode)} · " +
+                            "Visacuotas res.: ${FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(snapshot.reservedInstallmentDebtMinor), nativeCurrencySymbol, isDiscreetMode)} · " +
+                            "Disponible: ${FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(snapshot.availableCreditMinor), nativeCurrencySymbol, isDiscreetMode)}",
                         style = MaterialTheme.typography.bodySmall,
                         color = secondaryText
                     )
@@ -188,8 +189,8 @@ fun AccountDetailPane(
                                     color = primaryText
                                 )
                                 Text(
-                                    text = "Corte cerrado por pagar: ${FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(statement.closedStatementRemainingDueMinor), currencySymbol, isDiscreetMode)} · " +
-                                        "Nuevo ciclo: ${FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(statement.currentCycleNewChargesMinor), currencySymbol, isDiscreetMode)}",
+                                    text = "Corte cerrado por pagar: ${FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(statement.closedStatementRemainingDueMinor), nativeCurrencySymbol, isDiscreetMode)} · " +
+                                        "Nuevo ciclo: ${FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(statement.currentCycleNewChargesMinor), nativeCurrencySymbol, isDiscreetMode)}",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = secondaryText
                                 )
@@ -309,7 +310,7 @@ fun AccountDetailPane(
                                         )
                                     }
                                     Text(
-                                        text = FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(plan.principalTotalMinor), currencySymbol, isDiscreetMode),
+                                        text = FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(plan.principalTotalMinor), nativeCurrencySymbol, isDiscreetMode),
                                         fontWeight = FontWeight.ExtraBold,
                                         color = accentEmerald
                                     )
@@ -370,7 +371,7 @@ fun AccountDetailPane(
                                 }
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = if (isDiscreetMode) "Q ****.**" else "${if (isInflow) "+" else "-"}${FormatUtils.formatCurrency(tx.amount, currencySymbol, false)}",
+                                    text = if (isDiscreetMode) "${account.currencyCode} ****.**" else "${if (isInflow) "+" else "-"}${FormatUtils.formatCurrency(tx.amount, nativeCurrencySymbol, false)}",
                                     fontWeight = FontWeight.ExtraBold,
                                     color = if (isInflow) accentEmerald else if (isDarkTheme) Color(0xFFFCA5A5) else Color(0xFFB91C1C)
                                 )

@@ -82,7 +82,12 @@ object ConsolidatedPortfolioCalculator {
             } else {
                 valued += value
                 if (AccountType.isCreditCard(account.accountType)) {
-                    debt = debt.add(converted.negate())
+                    if (snapshot.totalDebtMinor > 0L) {
+                        debt = debt.add(converted.abs())
+                    } else if (snapshot.totalDebtMinor < 0L) {
+                        // Saldo a favor: es un activo de la tarjeta, no deuda negativa.
+                        liquidAssets = liquidAssets.add(converted.abs())
+                    }
                 } else if (account.includeInTotalLiquidity) {
                     liquidAssets = liquidAssets.add(converted)
                 }

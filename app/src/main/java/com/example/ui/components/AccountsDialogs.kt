@@ -431,8 +431,10 @@ fun AccountTransferDialog(
     var fromAccount by remember {
         mutableStateOf(liquidAccounts.firstOrNull { it.id == initialFromId } ?: liquidAccounts.firstOrNull())
     }
-    var toAccount by remember {
-        mutableStateOf(liquidAccounts.firstOrNull { it.id != fromAccount?.id })
+    var toAccount by remember(fromAccount?.id, liquidAccounts) {
+        mutableStateOf(liquidAccounts.firstOrNull {
+            it.id != fromAccount?.id && it.currencyCode == fromAccount?.currencyCode
+        })
     }
     var amountText by remember { mutableStateOf("") }
     var title by remember { mutableStateOf("") }
@@ -463,7 +465,7 @@ fun AccountTransferDialog(
                 ExposedDropdownMenuBox(expanded = expandFrom, onExpandedChange = { expandFrom = !expandFrom }) {
                     val bal = fromAccount?.let { snapshotsById[it.id]?.currentBalanceMinor ?: 0L } ?: 0L
                     OutlinedTextField(
-                        value = fromAccount?.let { "${it.name} (${FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(bal), currencySymbol, false)})" } ?: "Sin cuentas origen",
+                        value = fromAccount?.let { "${it.name} · ${it.currencyCode} (${FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(bal), "${it.currencyCode} ", false)})" } ?: "Sin cuentas origen",
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Cuenta Origen *") },
@@ -474,11 +476,11 @@ fun AccountTransferDialog(
                         liquidAccounts.forEach { acc ->
                             val accBal = snapshotsById[acc.id]?.currentBalanceMinor ?: 0L
                             DropdownMenuItem(
-                                text = { Text("${acc.name} · ${FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(accBal), currencySymbol, false)}") },
+                                text = { Text("${acc.name} · ${acc.currencyCode} · ${FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(accBal), "${acc.currencyCode} ", false)}") },
                                 onClick = {
                                     fromAccount = acc
-                                    if (toAccount?.id == acc.id) {
-                                        toAccount = liquidAccounts.firstOrNull { it.id != acc.id }
+                                    if (toAccount?.id == acc.id || toAccount?.currencyCode != acc.currencyCode) {
+                                        toAccount = liquidAccounts.firstOrNull { it.id != acc.id && it.currencyCode == acc.currencyCode }
                                     }
                                     expandFrom = false
                                 }
@@ -490,7 +492,7 @@ fun AccountTransferDialog(
                 ExposedDropdownMenuBox(expanded = expandTo, onExpandedChange = { expandTo = !expandTo }) {
                     val bal = toAccount?.let { snapshotsById[it.id]?.currentBalanceMinor ?: 0L } ?: 0L
                     OutlinedTextField(
-                        value = toAccount?.let { "${it.name} (${FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(bal), currencySymbol, false)})" } ?: "Sin cuentas destino",
+                        value = toAccount?.let { "${it.name} · ${it.currencyCode} (${FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(bal), "${it.currencyCode} ", false)})" } ?: "Sin cuentas destino",
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("Cuenta Destino *") },
@@ -498,10 +500,10 @@ fun AccountTransferDialog(
                         modifier = Modifier.fillMaxWidth().menuAnchor()
                     )
                     ExposedDropdownMenu(expanded = expandTo, onDismissRequest = { expandTo = false }) {
-                        liquidAccounts.filter { it.id != fromAccount?.id }.forEach { acc ->
+                        liquidAccounts.filter { it.id != fromAccount?.id && it.currencyCode == fromAccount?.currencyCode }.forEach { acc ->
                             val accBal = snapshotsById[acc.id]?.currentBalanceMinor ?: 0L
                             DropdownMenuItem(
-                                text = { Text("${acc.name} · ${FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(accBal), currencySymbol, false)}") },
+                                text = { Text("${acc.name} · ${acc.currencyCode} · ${FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(accBal), "${acc.currencyCode} ", false)}") },
                                 onClick = { toAccount = acc; expandTo = false }
                             )
                         }
@@ -511,7 +513,7 @@ fun AccountTransferDialog(
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { amountText = it.filter { c -> c.isDigit() || c == '.' }; errorMsg = null },
-                    label = { Text("Monto a transferir ($currencySymbol) *") },
+                    label = { Text("Monto a transferir (${fromAccount?.currencyCode ?: currencySymbol}) *") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth().testTag("transfer_amount_input")
@@ -545,6 +547,10 @@ fun AccountTransferDialog(
                     val amtMinor = AccountUiMeta.parseMinorUnitsOrNull(amountText) ?: 0L
                     if (from == null || to == null || from.id == to.id) {
                         errorMsg = "Selecciona cuentas de origen y destino distintas."
+                        return@Button
+                    }
+                    if (from.currencyCode != to.currencyCode) {
+                        errorMsg = "La transferencia ordinaria requiere la misma moneda en ambas cuentas."
                         return@Button
                     }
                     if (amtMinor <= 0L) {
