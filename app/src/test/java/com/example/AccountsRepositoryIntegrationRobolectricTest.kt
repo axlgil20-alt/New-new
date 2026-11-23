@@ -633,6 +633,61 @@ class AccountsRepositoryIntegrationRobolectricTest {
     }
 
     @Test
+    fun markingCardStatementPaid_rejectsInvalidSourceAccountsWithoutChangingLedger() = runBlocking {
+        val targetCard = accountsRepo.createAccount(
+            FinancialAccountEntity(
+                name = "Tarjeta destino válida",
+                accountType = AccountType.CREDIT_CARD,
+                openingBalanceMinor = 500_00L,
+                creditLimitMinor = 3_000_00L
+            )
+        )
+        val sourceCard = accountsRepo.createAccount(
+            FinancialAccountEntity(
+                name = "Tarjeta no líquida",
+                accountType = AccountType.CREDIT_CARD,
+                openingBalanceMinor = 200_00L,
+                creditLimitMinor = 2_000_00L
+            )
+        )
+        val archivedChecking = accountsRepo.createAccount(
+            FinancialAccountEntity(
+                name = "Cuenta archivada",
+                accountType = AccountType.BANK_CHECKING,
+                openingBalanceMinor = 1_000_00L
+            )
+        )
+        accountsRepo.archiveAccount(archivedChecking.id)
+
+        val invalidSourceIds = listOf(sourceCard.id, archivedChecking.id)
+        for (sourceId in invalidSourceIds) {
+            val commitmentId = budgetRepo.createPaymentCommitment(
+                PaymentCommitmentEntity(
+                    title = "Estado de cuenta por liquidar",
+                    beneficiaryName = "Banco emisor",
+                    amount = 100.00,
+                    amountMinor = 100_00L,
+                    dueDateMillis = System.currentTimeMillis(),
+                    category = "Pago de Tarjeta",
+                    creditCardAccountId = targetCard.id,
+                    paymentSourceAccountId = sourceId,
+                    commitmentKind = CommitmentKind.CREDIT_CARD_STATEMENT
+                )
+            )
+            val countBefore = db.transactionDao().getAllTransactionsList().size
+            val targetDebtBefore = accountsRepo.getAccountSnapshot(targetCard.id).revolvingDebtMinor
+            val result = runCatching { budgetRepo.markPaymentAsPaid(commitmentId) }
+
+            assertTrue("La fuente inválida #$sourceId debe rechazarse", result.isFailure)
+            assertEquals(countBefore, db.transactionDao().getAllTransactionsList().size)
+            assertEquals(targetDebtBefore, accountsRepo.getAccountSnapshot(targetCard.id).revolvingDebtMinor)
+            assertFalse(db.paymentCommitmentDao().getCommitmentById(commitmentId)!!.isPaid)
+        }
+        assertEquals(200_00L, accountsRepo.getAccountSnapshot(sourceCard.id).revolvingDebtMinor)
+        assertEquals(1_000_00L, accountsRepo.getAccountSnapshot(archivedChecking.id).currentBalanceMinor)
+    }
+
+    @Test
     fun cardPaymentCommitmentSelection_onlyReturnsPendingStatementForSelectedCard() {
         val matching = PaymentCommitmentEntity(
             id = 1L,

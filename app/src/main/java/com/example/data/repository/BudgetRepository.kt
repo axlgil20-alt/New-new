@@ -883,9 +883,28 @@ class BudgetRepository(
         val now = System.currentTimeMillis()
         val exactMinor = commitment.amountMinor
         val displayAmount = MoneyMinorUnits.toDisplayDouble(exactMinor)
-        val isCardStatementCommitment =
-            commitment.commitmentKind == CommitmentKind.CREDIT_CARD_STATEMENT &&
-                commitment.creditCardAccountId != null
+        val isCardStatementCommitment = commitment.commitmentKind == CommitmentKind.CREDIT_CARD_STATEMENT
+        val cardAccountForPayment = if (isCardStatementCommitment) {
+            val cardId = commitment.creditCardAccountId
+                ?: throw IllegalArgumentException("El compromiso de tarjeta no tiene una tarjeta asociada.")
+            val card = financialAccountDao?.getAccountById(cardId)
+                ?: throw IllegalArgumentException("La tarjeta #$cardId no existe o no está disponible.")
+            require(AccountType.isCreditCard(card.accountType)) {
+                "La cuenta «${card.name}» asociada al compromiso no es una tarjeta de crédito."
+            }
+            require(!card.isArchived) { "La tarjeta «${card.name}» está archivada." }
+            card
+        } else null
+        val sourceAccountForPayment = if (isCardStatementCommitment && commitment.paymentSourceAccountId != null) {
+            val sourceId = commitment.paymentSourceAccountId
+            val source = financialAccountDao?.getAccountById(sourceId)
+                ?: throw IllegalArgumentException("La cuenta de pago #$sourceId no existe o no está disponible.")
+            require(AccountType.isLiquidAsset(source.accountType)) {
+                "La cuenta de pago «${source.name}» debe ser líquida (efectivo, banco o cooperativa)."
+            }
+            require(!source.isArchived) { "La cuenta de pago «${source.name}» está archivada." }
+            source
+        } else null
 
         var resultingLinkedTxId = commitment.linkedTransactionId
 
@@ -895,11 +914,11 @@ class BudgetRepository(
             if (linkedId != null) {
                 transactionDao.deleteById(linkedId)
             }
-            val cardAccount = commitment.creditCardAccountId?.let { financialAccountDao?.getAccountById(it) }
+            val cardAccount = cardAccountForPayment
             val sourceAccountId = commitment.paymentSourceAccountId
             if (sourceAccountId != null) {
                 val transferGroupId = "ccstmt_${commitment.id}_${java.util.UUID.randomUUID()}"
-                val sourceAccount = financialAccountDao?.getAccountById(sourceAccountId)
+                val sourceAccount = requireNotNull(sourceAccountForPayment)
                 val outTx = TransactionEntity(
                     title = "Pago tarjeta ${cardAccount?.name ?: commitment.title}".trim(),
                     amount = displayAmount,
