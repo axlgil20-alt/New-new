@@ -3,6 +3,11 @@ package com.example
 import com.example.data.model.TransactionEntity
 import com.example.data.model.TransactionEntryKind
 import com.example.data.model.TransactionType
+import com.example.data.model.PaymentCommitmentEntity
+import com.example.data.model.PaymentStatus
+import com.example.data.model.isCancelled
+import com.example.data.model.isIngresoReal
+import com.example.data.model.isIngresoSupuesto
 import com.example.ui.util.BudgetPeriod
 import com.example.ui.util.QuincenaFilterHelper
 import org.junit.Assert.assertEquals
@@ -10,6 +15,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.Instant
 
 class Quincenas20RulesTest {
     private fun date(year: Int, month: Int, day: Int): Long =
@@ -41,6 +47,15 @@ class Quincenas20RulesTest {
         }
     }
 
+    @Test fun ambosCiclosDeFebreroSePuedenConsultarSinSolaparse() {
+        val q1 = QuincenaFilterHelper.getBudgetPeriodRange(2026, 1, 1)
+        val q2 = QuincenaFilterHelper.getBudgetPeriodRange(2026, 1, 2)
+        assertEquals(LocalDate.of(2026, 1, 31), QuincenaFilterHelper.localDate(q1.first))
+        assertEquals(LocalDate.of(2026, 2, 14), QuincenaFilterHelper.localDate(q1.second))
+        assertEquals(LocalDate.of(2026, 2, 15), QuincenaFilterHelper.localDate(q2.first))
+        assertEquals(LocalDate.of(2026, 2, 27), QuincenaFilterHelper.localDate(q2.second))
+    }
+
     @Test fun rolloverNoSeCuentaComoIngresoNuevoYTransferenciasSeExcluyen() {
         val txs = listOf(
             tx(1, 100.0, TransactionType.INCOME, 2026, 1, 15),
@@ -60,5 +75,33 @@ class Quincenas20RulesTest {
         val millis = QuincenaFilterHelper.atStartOfDay(local)
         assertEquals(local, QuincenaFilterHelper.localDate(millis))
         assertEquals(2, QuincenaFilterHelper.getBudgetPeriod(millis).quincena)
+    }
+
+    @Test fun timestampsUtcRespetanElDiaLocalDeGuatemala() {
+        val antesDeMedianocheLocal = Instant.parse("2026-02-15T05:30:00Z").toEpochMilli()
+        val despuesDeMedianocheLocal = Instant.parse("2026-02-15T06:30:00Z").toEpochMilli()
+        assertEquals(LocalDate.of(2026, 2, 14), QuincenaFilterHelper.localDate(antesDeMedianocheLocal))
+        assertEquals(1, QuincenaFilterHelper.getBudgetPeriod(antesDeMedianocheLocal).quincena)
+        assertEquals(LocalDate.of(2026, 2, 15), QuincenaFilterHelper.localDate(despuesDeMedianocheLocal))
+        assertEquals(2, QuincenaFilterHelper.getBudgetPeriod(despuesDeMedianocheLocal).quincena)
+
+        val ultimoDiaLocal = Instant.parse("2026-03-01T05:30:00Z").toEpochMilli()
+        assertEquals(LocalDate.of(2026, 2, 28), QuincenaFilterHelper.localDate(ultimoDiaLocal))
+        assertEquals(BudgetPeriod(2026, 2, 1), QuincenaFilterHelper.getBudgetPeriod(ultimoDiaLocal))
+    }
+
+    @Test fun ingresosTentativosNoSeConfundenConIngresosConfirmados() {
+        val tentativeIncome = tx(10, 500.0, TransactionType.INCOME, 2026, 2, 10, tentative = true)
+        assertTrue(tentativeIncome.isIngresoSupuesto)
+        assertTrue(!tentativeIncome.isIngresoReal)
+        assertEquals(0.0, QuincenaFilterHelper.filterByQuincena(listOf(tentativeIncome), 2026, 1).totalIncome, 0.001)
+    }
+    @Test fun estadosDeCompromisoDistinguenPagadoCanceladoYPendiente() {
+        val pending = PaymentCommitmentEntity(title = "Pendiente", beneficiaryName = "Prueba", amount = 10.0, dueDateMillis = date(2026, 2, 10))
+        val paid = pending.copy(title = "Pagado", isPaid = true, status = PaymentStatus.PAID)
+        val cancelled = pending.copy(title = "Cancelado", status = PaymentStatus.CANCELLED)
+        assertTrue(!pending.isPaid && !pending.isCancelled)
+        assertTrue(paid.isPaid && !paid.isCancelled)
+        assertTrue(!cancelled.isPaid && cancelled.isCancelled)
     }
 }
