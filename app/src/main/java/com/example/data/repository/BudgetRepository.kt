@@ -1281,9 +1281,14 @@ class BudgetRepository(
                 val generatedHash = "$baseSig|#$occIndex"
 
                 // 1. Detección por ID externo estable si está presente en el archivo
-                val matchByIdIdx = if (!parsed.externalId.isNullOrBlank()) {
+                val scopedExternalId = parsed.externalId?.trim()?.ifBlank { null }?.let {
+                    if (targetAccountId != null) "ACC$targetAccountId|$it" else it
+                }
+                val matchByIdIdx = if (scopedExternalId != null) {
                     existing.indexOfFirst {
-                        !it.externalId.isNullOrBlank() && it.externalId.equals(parsed.externalId.trim(), ignoreCase = true)
+                        it.accountId == targetAccountId &&
+                            !it.externalId.isNullOrBlank() &&
+                            it.externalId.equals(scopedExternalId, ignoreCase = true)
                     }
                 } else -1
 
@@ -1317,16 +1322,32 @@ class BudgetRepository(
                 }
 
                 if (matchedIdx != -1) {
-                    // La transacción ya existe en la base de datos: se omite para evitar duplicados
-                    existing.removeAt(matchedIdx)
+                    // Coincidencia exacta: conserva el ID, historial y naturaleza del movimiento.
+                    // Solo se agrega la trazabilidad bancaria y el estado conciliado.
+                    val matched = existing.removeAt(matchedIdx)
+                    transactionDao.updateTransaction(
+                        matched.copy(
+                            bankReference = parsed.externalId?.trim()?.ifBlank { matched.bankReference },
+                            importSource = "CSV/XLSX${targetAccount?.name?.let { " · $it" } ?: ""}",
+                            reconciliationStatus = ReconciliationStatus.RECONCILED,
+                            isSuspectedDuplicate = false
+                        )
+                    )
                     dupCount++
                 } else {
-                    // Verificar si existe una coincidencia probable en BD (mismo día y monto exacto) para marcarla como posible duplicado
-                    val hasProbableMatch = existing.any {
+                    // Una sola candidata puede proponerse; varias candidatas son ambiguas y jamás se fusionan.
+                    val probableMatches = existing.filter {
                         it.type.equals(parsed.type, ignoreCase = true) &&
-                            (targetAccountId == null || it.accountId == null || it.accountId == targetAccountId) &&
+                            it.accountId == targetAccountId &&
                             it.effectiveAmountMinor == parsedMinor &&
-                            com.example.ui.util.QuincenaFilterHelper.isSameCalendarDay(it.dateMillis, parsed.dateMillis)
+                            com.example.ui.util.QuincenaFilterHelper.isSameCalendarDay(it.dateMillis, parsed.dateMillis) &&
+                            it.entryKind == TransactionEntryKind.STANDARD
+                    }
+                    val hasProbableMatch = probableMatches.isNotEmpty()
+                    val reconciliationStatus = when {
+                        probableMatches.size == 1 -> ReconciliationStatus.PROBABLE
+                        probableMatches.size > 1 -> ReconciliationStatus.AMBIGUOUS
+                        else -> ReconciliationStatus.NONE
                     }
 
                     if (hasProbableMatch) {
@@ -1342,12 +1363,16 @@ class BudgetRepository(
                             dateMillis = parsed.dateMillis,
                             paymentMethod = targetAccount?.name ?: "Efectivo",
                             notes = parsed.notes.trim(),
-                            externalId = parsed.externalId?.trim()?.ifBlank { null },
+                            externalId = scopedExternalId,
                             importHash = generatedHash,
                             isSuspectedDuplicate = hasProbableMatch,
                             amountMinor = parsedMinor,
                             accountId = targetAccountId,
-                            entryKind = TransactionEntryKind.STANDARD
+                            entryKind = TransactionEntryKind.STANDARD,
+                            bankReference = parsed.externalId?.trim()?.ifBlank { null },
+                            importSource = "CSV/XLSX${targetAccount?.name?.let { " · $it" } ?: ""}",
+                            reconciliationStatus = reconciliationStatus,
+                            reconciliationCandidateId = probableMatches.singleOrNull()?.id
                         )
                     )
                 }
@@ -1365,6 +1390,44 @@ class BudgetRepository(
                 suspectedDuplicateCount = suspectedDupCount
             )
         }
+    }
+
+    /**
+     * Acepta una candidata: el movimiento bancario temporal se elimina y el movimiento local
+     * conserva su UUID, categoría, tipo, historial y efecto contable.
+     */
+    suspend fun confirmReconciliation(importedTransactionId: Long, existingTransactionId: Long): Boolean =
+        runInTransaction {
+            val imported = accountLedgerDao?.getTransactionById(importedTransactionId)
+                ?: transactionDao.getAllTransactionsList().firstOrNull { it.id == importedTransactionId }
+            val existing = accountLedgerDao?.getTransactionById(existingTransactionId)
+                ?: transactionDao.getAllTransactionsList().firstOrNull { it.id == existingTransactionId }
+            if (imported == null || existing == null || imported.reconciliationCandidateId != existing.id) return@runInTransaction false
+            transactionDao.updateTransaction(
+                existing.copy(
+                    bankReference = imported.bankReference ?: existing.bankReference,
+                    importSource = imported.importSource ?: existing.importSource,
+                    reconciliationStatus = ReconciliationStatus.RECONCILED,
+                    isSuspectedDuplicate = false
+                )
+            )
+            transactionDao.deleteTransaction(imported)
+            true
+        }
+
+    /** Rechazar no altera saldos: conserva el movimiento bancario como registro independiente. */
+    suspend fun rejectReconciliation(importedTransactionId: Long): Boolean = runInTransaction {
+        val imported = accountLedgerDao?.getTransactionById(importedTransactionId)
+            ?: transactionDao.getAllTransactionsList().firstOrNull { it.id == importedTransactionId }
+        if (imported == null) return@runInTransaction false
+        transactionDao.updateTransaction(
+            imported.copy(
+                reconciliationStatus = ReconciliationStatus.REJECTED,
+                reconciliationCandidateId = null,
+                isSuspectedDuplicate = false
+            )
+        )
+        true
     }
 
     fun exportToCsv(transactions: List<TransactionEntity>): String {

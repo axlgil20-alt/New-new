@@ -310,6 +310,55 @@ class ExcelImportAndQuincenaFiltersTest {
     }
 
     @Test
+    fun testExactMatchKeepsLocalIdAndMarksReconciled() = runBlocking {
+        val csv = "ID,Fecha,Tipo,Concepto,Categoría,Monto Gasto,Monto Ingreso\nBANK-1,10/10/2026,Gasto,Café,Comida,25.00,0.00"
+        repository.importFromCsv(csv, targetAccountId = 7L)
+        val local = fakeTxDao.transactions.single()
+        val localId = local.id
+        val second = repository.importFromCsv(csv, targetAccountId = 7L)
+        assertEquals(1, second.duplicateCount)
+        assertEquals(localId, fakeTxDao.transactions.single().id)
+        assertEquals(ReconciliationStatus.RECONCILED, fakeTxDao.transactions.single().reconciliationStatus)
+        assertEquals("BANK-1", fakeTxDao.transactions.single().bankReference)
+    }
+
+    @Test
+    fun testProbableMatchIsPendingAndRejectKeepsBothRows() = runBlocking {
+        val localCsv = "Fecha,Tipo,Concepto,Categoría,Monto Gasto,Monto Ingreso\n10/10/2026,Gasto,Café,Comida,25.00,0.00"
+        repository.importFromCsv(localCsv, targetAccountId = 7L)
+        val bankCsv = "ID,Fecha,Tipo,Concepto,Categoría,Monto Gasto,Monto Ingreso\nBANK-2,10/10/2026,Gasto,Café,Comida,25.00,0.00"
+        val summary = repository.importFromCsv(bankCsv, targetAccountId = 7L)
+        assertEquals(1, summary.suspectedDuplicateCount)
+        val imported = fakeTxDao.transactions.maxBy { it.id }
+        assertEquals(ReconciliationStatus.PROBABLE, imported.reconciliationStatus)
+        assertTrue(repository.rejectReconciliation(imported.id))
+        assertEquals(2, fakeTxDao.transactions.size)
+        assertEquals(ReconciliationStatus.REJECTED, fakeTxDao.transactions.maxBy { it.id }.reconciliationStatus)
+    }
+
+    @Test
+    fun testConfirmProbableRemovesOnlyBankShadowAndPreservesLocalIdentity() = runBlocking {
+        val localCsv = "Fecha,Tipo,Concepto,Categoría,Monto Gasto,Monto Ingreso\n10/10/2026,Gasto,Café,Comida,25.00,0.00"
+        repository.importFromCsv(localCsv, targetAccountId = 7L)
+        val localId = fakeTxDao.transactions.single().id
+        val bankCsv = "ID,Fecha,Tipo,Concepto,Categoría,Monto Gasto,Monto Ingreso\nBANK-3,10/10/2026,Gasto,Café,Comida,25.00,0.00"
+        repository.importFromCsv(bankCsv, targetAccountId = 7L)
+        val imported = fakeTxDao.transactions.maxBy { it.id }
+        assertTrue(repository.confirmReconciliation(imported.id, localId))
+        assertEquals(listOf(localId), fakeTxDao.transactions.map { it.id })
+        assertEquals(ReconciliationStatus.RECONCILED, fakeTxDao.transactions.single().reconciliationStatus)
+    }
+
+    @Test
+    fun testSameExternalIdOnDifferentAccountsDoesNotCollide() = runBlocking {
+        val csv = "ID,SOURCE,Fecha,Tipo,Concepto,Categoría,Monto Gasto,Monto Ingreso\nSAME,bank,10/10/2026,Gasto,Café,Comida,25.00,0.00"
+        repository.importFromCsv(csv, targetAccountId = 1L)
+        repository.importFromCsv(csv, targetAccountId = 2L)
+        assertEquals(2, fakeTxDao.transactions.size)
+        assertTrue(fakeTxDao.transactions.map { it.externalId }.distinct().size == 2)
+    }
+
+    @Test
     fun testImportFailureDoesNotLeavePartialState() = runBlocking {
         val failingDao = object : FakeTransactionDao() {
             var shouldFail = false
@@ -928,8 +977,11 @@ class ExcelImportAndQuincenaFiltersTest {
         open override suspend fun insertAll(txs: List<TransactionEntity>) {
             for (t in txs) insertTransaction(t)
         }
-        override suspend fun updateTransaction(tx: TransactionEntity) {}
-        override suspend fun deleteTransaction(tx: TransactionEntity) {}
+        override suspend fun updateTransaction(tx: TransactionEntity) {
+            val index = transactions.indexOfFirst { it.id == tx.id }
+            if (index >= 0) transactions[index] = tx
+        }
+        override suspend fun deleteTransaction(tx: TransactionEntity) { transactions.removeAll { it.id == tx.id } }
         override suspend fun deleteById(id: Long) { transactions.removeAll { it.id == id } }
         override suspend fun deleteByIds(ids: List<Long>) { transactions.removeAll { it.id in ids } }
         override suspend fun clearAll() { transactions.clear() }

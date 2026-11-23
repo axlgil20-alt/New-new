@@ -971,6 +971,12 @@ class MainActivity : ComponentActivity() {
                                     onImportCsvToAccount = { csv, targetAccId ->
                                         accountsViewModel.importCsvToAccount(csv, targetAccId)
                                     },
+                                    onConfirmReconciliation = { importedId, existingId ->
+                                        accountsViewModel.confirmReconciliation(importedId, existingId)
+                                    },
+                                    onRejectReconciliation = { importedId ->
+                                        accountsViewModel.rejectReconciliation(importedId)
+                                    },
                                     onExportCsv = { viewModel.getCsvExport() },
                                     onAddStandardMovementForAccount = { acc ->
                                         editingTransaction = null

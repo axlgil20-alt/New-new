@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -47,6 +48,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -82,6 +84,7 @@ import com.example.data.model.FinancialAccountEntity
 import com.example.data.model.InstallmentPlanEntity
 import com.example.data.model.MoneyMinorUnits
 import com.example.data.model.PaymentCommitmentEntity
+import com.example.data.model.ReconciliationStatus
 import com.example.ui.components.AccountCardStack
 import com.example.ui.components.AccountDetailPane
 import com.example.ui.components.AccountTransferDialog
@@ -130,6 +133,8 @@ fun AccountsScreen(
     onCloseInstallmentPlan: (planId: Long, paidOffEarly: Boolean) -> Unit,
     onAssignTransaction: (txId: Long, accountId: Long) -> Unit,
     onImportCsvToAccount: (csvText: String, targetAccountId: Long) -> Unit,
+    onConfirmReconciliation: (importedId: Long, existingId: Long) -> Unit,
+    onRejectReconciliation: (importedId: Long) -> Unit,
     onExportCsv: suspend () -> String,
     onAddStandardMovementForAccount: (FinancialAccountEntity) -> Unit,
     modifier: Modifier = Modifier
@@ -150,6 +155,7 @@ fun AccountsScreen(
     var selectedPlanForDetail by remember { mutableStateOf<InstallmentPlanEntity?>(null) }
     var showUnassignedDialog by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
+    var showReconciliationDialog by remember { mutableStateOf(false) }
 
     val pageBg = if (isDarkTheme) Color(0xFF0B1117) else Color(0xFFF3F6F4)
     val backgroundScrimBrush = if (isDarkTheme) {
@@ -451,6 +457,40 @@ fun AccountsScreen(
                                         Icon(Icons.Default.Link, contentDescription = null, modifier = Modifier.size(16.dp))
                                         Spacer(modifier = Modifier.width(4.dp))
                                         Text("Vincular")
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (accountsState.reconciliationPendingCount > 0) {
+                        item {
+                            Surface(
+                                shape = RoundedCornerShape(14.dp),
+                                color = if (isDarkTheme) Color(0xFF3B2F12) else Color(0xFFFFFBEB),
+                                border = BorderStroke(1.dp, if (isDarkTheme) Color(0xFFFBBF24) else Color(0xFFD97706)),
+                                modifier = Modifier.fillMaxWidth().testTag("reconciliation_status_card")
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text(
+                                        text = "Conciliación bancaria pendiente",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isDarkTheme) Color(0xFFFDE68A) else Color(0xFF92400E)
+                                    )
+                                    Text(
+                                        text = "${accountsState.reconciliationPendingCount} movimiento(s) esperan confirmación" +
+                                            if (accountsState.reconciliationAmbiguousCount > 0) " · ${accountsState.reconciliationAmbiguousCount} ambiguo(s)" else "",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = if (isDarkTheme) Color(0xFFFDE68A) else Color(0xFF78350F)
+                                    )
+                                    Text(
+                                        text = "Las coincidencias no reducen saldos hasta ser válidas; usa Registros para aceptar o rechazar.",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (isDarkTheme) Color(0xFFFDE68A) else Color(0xFF92400E)
+                                    )
+                                    TextButton(onClick = { showReconciliationDialog = true }) {
+                                        Text("Revisar coincidencias", fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -786,6 +826,54 @@ fun AccountsScreen(
             onDismiss = { showImportDialog = false },
             onImportToAccount = onImportCsvToAccount,
             onExportCsv = onExportCsv
+        )
+    }
+
+    if (showReconciliationDialog) {
+        val pending = accountsState.selectedAccountTransactions.filter {
+            it.reconciliationStatus == ReconciliationStatus.PROBABLE ||
+                it.reconciliationStatus == ReconciliationStatus.AMBIGUOUS
+        }
+        AlertDialog(
+            onDismissRequest = { showReconciliationDialog = false },
+            title = { Text("Revisar conciliaciones") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    if (pending.isEmpty()) {
+                        Text("No hay candidatas pendientes para la cuenta seleccionada.")
+                    } else {
+                        pending.forEach { imported ->
+                            val candidate = accountsState.selectedAccountTransactions.firstOrNull {
+                                it.id == imported.reconciliationCandidateId
+                            }
+                            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text(imported.title, fontWeight = FontWeight.Bold)
+                                Text("Banco: ${imported.bankReference ?: "sin referencia"} · ${FormatUtils.formatCurrency(imported.amount, currencySymbol, isDiscreetMode)}")
+                                if (candidate != null) {
+                                    Text("Candidata: ${candidate.title}", style = MaterialTheme.typography.bodySmall)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        TextButton(onClick = {
+                                            onConfirmReconciliation(imported.id, candidate.id)
+                                            showReconciliationDialog = false
+                                        }) { Text("Aceptar") }
+                                        TextButton(onClick = {
+                                            onRejectReconciliation(imported.id)
+                                            showReconciliationDialog = false
+                                        }) { Text("Rechazar") }
+                                    }
+                                } else {
+                                    Text("Ambigua: no se fusionará automáticamente.", style = MaterialTheme.typography.bodySmall)
+                                    TextButton(onClick = {
+                                        onRejectReconciliation(imported.id)
+                                        showReconciliationDialog = false
+                                    }) { Text("Conservar separada") }
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showReconciliationDialog = false }) { Text("Cerrar") } }
         )
     }
 }

@@ -24,6 +24,15 @@ data class ImportSummary(
     val suspectedDuplicateCount: Int = 0
 )
 
+/** Estados explícitos del vínculo entre un movimiento local y un estado bancario. */
+object ReconciliationStatus {
+    const val NONE = "NONE"
+    const val RECONCILED = "RECONCILED"
+    const val PROBABLE = "PROBABLE"
+    const val AMBIGUOUS = "AMBIGUOUS"
+    const val REJECTED = "REJECTED"
+}
+
 data class HighlightColorOption(
     val name: String,
     val colorHex: Long,
@@ -85,7 +94,14 @@ data class TransactionEntity(
     val transferGroupId: String? = null,
     val counterpartAccountId: Long? = null,
     val installmentPlanId: Long? = null,
-    val installmentNumber: Int? = null
+    val installmentNumber: Int? = null,
+    /** Referencia tal como llegó del banco; no sustituye la identidad UUID/local. */
+    val bankReference: String? = null,
+    /** Procedencia legible y auditable, por ejemplo nombre del archivo o banco. */
+    val importSource: String? = null,
+    val reconciliationStatus: String = ReconciliationStatus.NONE,
+    /** ID local de la candidata probable, sin fusionar automáticamente. */
+    val reconciliationCandidateId: Long? = null
 )
 
 @Entity(tableName = "budget_limits")
@@ -418,7 +434,9 @@ val TransactionEntity.status: String
     }
 
 val TransactionEntity.source: String
-    get() = if (!importHash.isNullOrBlank() || !externalId.isNullOrBlank() || notes.contains("Importado de Excel", ignoreCase = true)) {
+    get() = if (!importHash.isNullOrBlank() || !externalId.isNullOrBlank() ||
+        !bankReference.isNullOrBlank() || !importSource.isNullOrBlank() ||
+        notes.contains("Importado de Excel", ignoreCase = true)) {
         TransactionSource.IMPORTED
     } else {
         TransactionSource.MANUAL

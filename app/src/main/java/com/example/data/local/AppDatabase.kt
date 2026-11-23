@@ -30,7 +30,7 @@ import com.example.data.model.TransactionEntity
         InstallmentPlanEntity::class,
         InstallmentScheduleItemEntity::class
     ],
-    version = 13,
+    version = 14,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -229,6 +229,15 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_13_14 = object : androidx.room.migration.Migration(13, 14) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transactions ADD COLUMN bankReference TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE transactions ADD COLUMN importSource TEXT DEFAULT NULL")
+                db.execSQL("ALTER TABLE transactions ADD COLUMN reconciliationStatus TEXT NOT NULL DEFAULT 'NONE'")
+                db.execSQL("ALTER TABLE transactions ADD COLUMN reconciliationCandidateId INTEGER DEFAULT NULL")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -236,7 +245,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "budget_app_database"
                 )
-                    .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13)
+                    .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
                     .addCallback(object : RoomDatabase.Callback() {
                         override fun onOpen(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                             super.onOpen(db)

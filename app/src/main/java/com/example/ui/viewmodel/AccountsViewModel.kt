@@ -11,6 +11,7 @@ import com.example.data.model.ImportSummary
 import com.example.data.model.InstallmentPlanEntity
 import com.example.data.model.InstallmentScheduleItemEntity
 import com.example.data.model.MoneyMinorUnits
+import com.example.data.model.ReconciliationStatus
 import com.example.data.model.TransactionEntity
 import com.example.data.repository.AccountsPortfolioState
 import com.example.data.repository.AccountsRepository
@@ -55,6 +56,8 @@ data class AccountsUiState(
     val unassignedTransactions: List<TransactionEntity> = emptyList(),
     val unassignedTransactionsCount: Int = 0,
     val unassignedNetImpactMinor: Long = 0L,
+    val reconciliationPendingCount: Int = 0,
+    val reconciliationAmbiguousCount: Int = 0,
     val totalLiquidAssetsMinor: Long = 0L,
     val totalCreditCardDebtMinor: Long = 0L,
     val netWorthMinor: Long = 0L,
@@ -483,6 +486,24 @@ class AccountsViewModel(
         "Importación a «${account.name}»: ${summary.newCount} nuevos, ${summary.duplicateCount} duplicados omitidos."
     }
 
+    fun confirmReconciliation(importedId: Long, existingId: Long): Job? = launchGuarded(
+        operationSignature = "confirm_reconciliation:$importedId:$existingId",
+        loadingLabel = "Confirmando conciliación..."
+    ) {
+        val repo = budgetRepository ?: error("La conciliación requiere BudgetRepository configurado.")
+        if (!repo.confirmReconciliation(importedId, existingId)) error("La candidata ya no está disponible.")
+        "Movimiento conciliado sin duplicar su identidad."
+    }
+
+    fun rejectReconciliation(importedId: Long): Job? = launchGuarded(
+        operationSignature = "reject_reconciliation:$importedId",
+        loadingLabel = "Conservando movimientos separados..."
+    ) {
+        val repo = budgetRepository ?: error("La conciliación requiere BudgetRepository configurado.")
+        if (!repo.rejectReconciliation(importedId)) error("El movimiento ya no está disponible.")
+        "Coincidencia rechazada; ambos movimientos se conservaron."
+    }
+
     // =========================================================================
     // MOTOR INTERNO DE BLOQUEO CONTRA EVENTOS REPETIDOS Y ESTADOS
     // =========================================================================
@@ -564,6 +585,13 @@ class AccountsViewModel(
             unassignedTransactions = portfolio.unassignedTransactions,
             unassignedTransactionsCount = portfolio.summary.unassignedTransactionsCount,
             unassignedNetImpactMinor = portfolio.summary.unassignedNetImpactMinor,
+            reconciliationPendingCount = portfolio.allTransactions.count {
+                it.reconciliationStatus == ReconciliationStatus.PROBABLE ||
+                    it.reconciliationStatus == ReconciliationStatus.AMBIGUOUS
+            },
+            reconciliationAmbiguousCount = portfolio.allTransactions.count {
+                it.reconciliationStatus == ReconciliationStatus.AMBIGUOUS
+            },
             totalLiquidAssetsMinor = portfolio.summary.totalLiquidAssetsMinor,
             totalCreditCardDebtMinor = portfolio.summary.totalCreditCardDebtMinor,
             netWorthMinor = portfolio.summary.netWorthMinor,
