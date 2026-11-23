@@ -485,22 +485,14 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
             when {
                 isTentative && decision == "DISCARDED" -> {
-                    discardedTentativeSavingsBd = discardedTentativeSavingsBd.add(txAmtBd)
+                    if (tx.type == TransactionType.EXPENSE) discardedTentativeSavingsBd = discardedTentativeSavingsBd.add(txAmtBd)
                 }
-                isTentative && (decision.isBlank() || decision == "PENDING") -> {
-                    if (tx.type == TransactionType.EXPENSE) {
-                        tentativeExpensePendingBd = tentativeExpensePendingBd.add(txAmtBd)
-                    } else {
-                        tentativeIncomePendingBd = tentativeIncomePendingBd.add(txAmtBd)
-                    }
-                }
-                else -> {
-                    if (tx.isIngresoReal) {
-                        confirmedIncomeBd = confirmedIncomeBd.add(txAmtBd)
-                    } else if (tx.type == TransactionType.EXPENSE) {
-                        confirmedExpenseBd = confirmedExpenseBd.add(txAmtBd)
-                        catMapBd[tx.category] = (catMapBd[tx.category] ?: java.math.BigDecimal.ZERO).add(txAmtBd)
-                    }
+                tx.isIngresoSupuesto -> tentativeIncomePendingBd = tentativeIncomePendingBd.add(txAmtBd)
+                tx.isGastoSupuesto -> tentativeExpensePendingBd = tentativeExpensePendingBd.add(txAmtBd)
+                tx.isIngresoReal -> confirmedIncomeBd = confirmedIncomeBd.add(txAmtBd)
+                tx.isGastoReal -> {
+                    confirmedExpenseBd = confirmedExpenseBd.add(txAmtBd)
+                    catMapBd[tx.category] = (catMapBd[tx.category] ?: java.math.BigDecimal.ZERO).add(txAmtBd)
                 }
             }
         }
@@ -628,16 +620,20 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             .fold(java.math.BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
         val filteredSupuestoExpBd = filtered.filter { it.isGastoSupuesto }
             .fold(java.math.BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
+        val filteredSupuestoIncBd = filtered.filter { it.isIngresoSupuesto }
+            .fold(java.math.BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
         val filteredTotalBothExpBd = filteredConfirmedExpBd.add(filteredSupuestoExpBd)
         val rolloverBd = java.math.BigDecimal.valueOf(rolloverAmt)
 
         val totalAmountToSpendBd = filteredRealIncBd.add(rolloverBd)
         val filteredRealRemainingBd = totalAmountToSpendBd.subtract(filteredConfirmedExpBd)
-        val filteredProjectedRemainingBd = totalAmountToSpendBd.subtract(filteredTotalBothExpBd)
+        val filteredProjectedIncomeBd = filteredRealIncBd.add(filteredSupuestoIncBd)
+        val filteredProjectedRemainingBd = filteredProjectedIncomeBd.add(rolloverBd).subtract(filteredTotalBothExpBd)
 
         val filteredRealInc = filteredRealIncBd.toDouble()
         val filteredConfirmedExp = filteredConfirmedExpBd.toDouble()
         val filteredSupuestoExp = filteredSupuestoExpBd.toDouble()
+        val filteredProjectedInc = filteredProjectedIncomeBd.toDouble()
         val filteredTotalBothExp = filteredTotalBothExpBd.toDouble()
         val totalAmountToSpendVal = totalAmountToSpendBd.toDouble()
         val filteredRealRemaining = filteredRealRemainingBd.toDouble()
@@ -823,7 +819,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             filteredRealIncome = filteredRealInc,
             filteredRealExpense = filteredConfirmedExp,
             filteredRealNetBalance = filteredRealNet,
-            filteredProjectedIncome = 0.0,
+            filteredProjectedIncome = filteredProjectedInc,
             filteredProjectedExpense = filteredSupuestoExp,
             filteredProjectedNetBalance = filteredProjNet,
             filteredCategorySubtotals = filteredCatStats,

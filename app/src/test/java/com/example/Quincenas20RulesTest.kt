@@ -21,8 +21,8 @@ class Quincenas20RulesTest {
     private fun date(year: Int, month: Int, day: Int): Long =
         QuincenaFilterHelper.atStartOfDay(LocalDate.of(year, month, day))
 
-    private fun tx(id: Long, amount: Double, type: String, year: Int, month: Int, day: Int, kind: String = TransactionEntryKind.STANDARD, tentative: Boolean = false) =
-        TransactionEntity(id = id, title = "Movimiento $id", amount = amount, type = type, category = "Prueba", dateMillis = date(year, month, day), entryKind = kind, isTentative = tentative)
+    private fun tx(id: Long, amount: Double, type: String, year: Int, month: Int, day: Int, kind: String = TransactionEntryKind.STANDARD, tentative: Boolean = false, decision: String = "") =
+        TransactionEntity(id = id, title = "Movimiento $id", amount = amount, type = type, category = "Prueba", dateMillis = date(year, month, day), entryKind = kind, isTentative = tentative, tentativeDecision = decision)
 
     @Test fun ultimoDiaIniciaCicloDelMesSiguienteParaCualquierTipo() {
         assertEquals(BudgetPeriod(2026, 1, 1), QuincenaFilterHelper.getBudgetPeriod(date(2026, 1, 31), TransactionType.EXPENSE))
@@ -103,5 +103,17 @@ class Quincenas20RulesTest {
         assertTrue(!pending.isPaid && !pending.isCancelled)
         assertTrue(paid.isPaid && !paid.isCancelled)
         assertTrue(!cancelled.isPaid && cancelled.isCancelled)
+    }
+
+    @Test fun ingresoSupuestoConfirmadoPasaARealSinDuplicarseYDescartadoNoCuenta() {
+        val pending = tx(20, 100.0, TransactionType.INCOME, 2026, 2, 10, tentative = true)
+        val confirmed = pending.copy(isTentative = true, tentativeDecision = "CONFIRMED")
+        val discarded = pending.copy(tentativeDecision = "DISCARDED")
+        assertTrue(pending.isIngresoSupuesto && !pending.isIngresoReal)
+        assertTrue(!confirmed.isIngresoSupuesto && confirmed.isIngresoReal)
+        assertTrue(!discarded.isIngresoSupuesto && !discarded.isIngresoReal)
+        assertEquals(0.0, QuincenaFilterHelper.filterByQuincena(listOf(pending), 2026, 1).totalIncome, 0.001)
+        assertEquals(100.0, QuincenaFilterHelper.filterByQuincena(listOf(confirmed), 2026, 1).totalIncome, 0.001)
+        assertEquals(0.0, QuincenaFilterHelper.filterByQuincena(listOf(discarded), 2026, 1).totalIncome, 0.001)
     }
 }

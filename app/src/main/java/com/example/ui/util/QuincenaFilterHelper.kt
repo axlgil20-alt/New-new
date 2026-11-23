@@ -6,6 +6,7 @@ import com.example.data.model.effectiveAmountBigDecimal
 import com.example.data.model.isGastoReal
 import com.example.data.model.isGastoSupuesto
 import com.example.data.model.isIngresoReal
+import com.example.data.model.isIngresoSupuesto
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
@@ -31,7 +32,10 @@ data class QuincenaFilteredData(
     val totalIncome: Double,
     val totalExpense: Double,
     val totalPendingExpense: Double,
-    val totalNet: Double
+    val totalNet: Double,
+    val q1PendingIncome: Double = 0.0,
+    val q2PendingIncome: Double = 0.0,
+    val totalPendingIncome: Double = 0.0
 )
 
 /** Motor de fechas oficial de Quincenas 2.0. Todas las fechas financieras son locales de Guatemala. */
@@ -86,12 +90,13 @@ object QuincenaFilterHelper {
             }
         }
         fun income(list: List<TransactionEntity>) = list.filter { it.isIngresoReal }.fold(BigDecimal.ZERO) { a, tx -> a.add(tx.effectiveAmountBigDecimal) }
+        fun pendingIncome(list: List<TransactionEntity>) = list.filter { it.isIngresoSupuesto }.fold(BigDecimal.ZERO) { a, tx -> a.add(tx.effectiveAmountBigDecimal) }
         fun expense(list: List<TransactionEntity>) = list.filter { it.isGastoReal }.fold(BigDecimal.ZERO) { a, tx -> a.add(tx.effectiveAmountBigDecimal) }
         fun pending(list: List<TransactionEntity>) = list.filter { it.isGastoSupuesto && it.tentativeDecision != "DISCARDED" }.fold(BigDecimal.ZERO) { a, tx -> a.add(tx.effectiveAmountBigDecimal) }
-        val q1i = income(q1); val q1e = expense(q1); val q1p = pending(q1)
-        val q2i = income(q2); val q2e = expense(q2); val q2p = pending(q2)
-        val ti = income(monthList); val te = expense(monthList); val tp = pending(monthList)
-        return QuincenaFilteredData(q1, q2, monthList, q1i.toDouble(), q1e.toDouble(), q1p.toDouble(), q1i.subtract(q1e).toDouble(), q2i.toDouble(), q2e.toDouble(), q2p.toDouble(), q2i.subtract(q2e).toDouble(), ti.toDouble(), te.toDouble(), tp.toDouble(), ti.subtract(te).toDouble())
+        val q1i = income(q1); val q1e = expense(q1); val q1p = pending(q1); val q1pi = pendingIncome(q1)
+        val q2i = income(q2); val q2e = expense(q2); val q2p = pending(q2); val q2pi = pendingIncome(q2)
+        val ti = income(monthList); val te = expense(monthList); val tp = pending(monthList); val tpi = pendingIncome(monthList)
+        return QuincenaFilteredData(q1, q2, monthList, q1i.toDouble(), q1e.toDouble(), q1p.toDouble(), q1i.subtract(q1e).toDouble(), q2i.toDouble(), q2e.toDouble(), q2p.toDouble(), q2i.subtract(q2e).toDouble(), ti.toDouble(), te.toDouble(), tp.toDouble(), ti.subtract(te).toDouble(), q1pi.toDouble(), q2pi.toDouble(), tpi.toDouble())
     }
 
     fun isSameCalendarDay(time1: Long, time2: Long): Boolean = localDate(time1) == localDate(time2)
