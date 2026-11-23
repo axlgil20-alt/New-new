@@ -426,13 +426,14 @@ val TransactionEntity.isGastoReal: Boolean
 val TransactionEntity.isIngresoReal: Boolean
     get() = affectsBudgetTotals &&
         (type == TransactionType.INCOME) &&
-        !isTentative &&
+        (tentativeDecision == "CONFIRMED" || !isTentative) &&
         tentativeDecision != "PENDING" &&
         tentativeDecision != "DISCARDED"
 
 val TransactionEntity.isIngresoSupuesto: Boolean
     get() = affectsBudgetTotals &&
         (type == TransactionType.INCOME) &&
+        tentativeDecision != "CONFIRMED" &&
         (isTentative || tentativeDecision == "PENDING") &&
         tentativeDecision != "DISCARDED"
 

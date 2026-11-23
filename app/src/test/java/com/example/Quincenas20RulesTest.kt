@@ -116,4 +116,39 @@ class Quincenas20RulesTest {
         assertEquals(100.0, QuincenaFilterHelper.filterByQuincena(listOf(confirmed), 2026, 1).totalIncome, 0.001)
         assertEquals(0.0, QuincenaFilterHelper.filterByQuincena(listOf(discarded), 2026, 1).totalIncome, 0.001)
     }
+
+    @Test fun gastoSupuestoVinculadoACompromisoSeRestaUnaSolaVez() {
+        val linkedExpense = tx(30, 500.0, TransactionType.EXPENSE, 2026, 2, 10, tentative = true)
+        val unlinkedExpense = tx(31, 100.0, TransactionType.EXPENSE, 2026, 2, 11, tentative = true)
+        val linkedCommitment = PaymentCommitmentEntity(
+            title = "Compromiso vinculado",
+            beneficiaryName = "Prueba",
+            amount = 500.0,
+            dueDateMillis = date(2026, 2, 10),
+            linkedTransactionId = linkedExpense.id
+        )
+        val unlinkedCommitment = PaymentCommitmentEntity(
+            title = "Compromiso separado",
+            beneficiaryName = "Prueba",
+            amount = 200.0,
+            dueDateMillis = date(2026, 2, 12)
+        )
+
+        assertEquals(
+            800.0,
+            QuincenaFilterHelper.calculateProjectedPendingOutflow(
+                commitments = listOf(linkedCommitment, unlinkedCommitment),
+                pendingExpenses = listOf(linkedExpense, unlinkedExpense)
+            ),
+            0.001
+        )
+    }
+
+    @Test fun navegacionTemporalMantieneCicloParaFechasHistoricasFuturasYCambioDeAnio() {
+        assertEquals(BudgetPeriod(2026, 1, 1), QuincenaFilterHelper.getBudgetPeriod(date(2026, 2, 1)))
+        assertEquals(BudgetPeriod(2026, 1, 2), QuincenaFilterHelper.getBudgetPeriod(date(2026, 2, 15)))
+        assertEquals(BudgetPeriod(2026, 2, 1), QuincenaFilterHelper.getBudgetPeriod(date(2026, 2, 28)))
+        assertEquals(BudgetPeriod(2027, 0, 1), QuincenaFilterHelper.getBudgetPeriod(date(2026, 12, 31)))
+        assertEquals(BudgetPeriod(2027, 0, 2), QuincenaFilterHelper.getBudgetPeriod(date(2027, 1, 15)))
+    }
 }

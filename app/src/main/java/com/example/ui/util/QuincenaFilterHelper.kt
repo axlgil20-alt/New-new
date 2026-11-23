@@ -1,12 +1,15 @@
 package com.example.ui.util
 
 import com.example.data.model.TransactionEntity
+import com.example.data.model.PaymentCommitmentEntity
+import com.example.data.model.PaymentStatus
 import com.example.data.model.affectsBudgetTotals
 import com.example.data.model.effectiveAmountBigDecimal
 import com.example.data.model.isGastoReal
 import com.example.data.model.isGastoSupuesto
 import com.example.data.model.isIngresoReal
 import com.example.data.model.isIngresoSupuesto
+import com.example.data.model.isCancelled
 import java.math.BigDecimal
 import java.time.Instant
 import java.time.LocalDate
@@ -144,5 +147,26 @@ object QuincenaFilterHelper {
             rollover = if (closing.signum() > 0) closing else BigDecimal.ZERO
         }
         return rollover.toDouble()
+    }
+
+    /**
+     * Suma las salidas futuras una sola vez. Un gasto supuesto vinculado a un
+     * compromiso pendiente representa la misma salida y no se vuelve a restar.
+     */
+    fun calculateProjectedPendingOutflow(
+        commitments: List<PaymentCommitmentEntity>,
+        pendingExpenses: List<TransactionEntity>
+    ): Double {
+        val pendingCommitments = commitments.filter {
+            !it.isCancelled && !it.isPaid && it.status != PaymentStatus.PAID
+        }
+        val linkedExpenseIds = pendingCommitments.mapNotNull { it.linkedTransactionId }.toSet()
+        val commitmentsTotal = pendingCommitments.fold(BigDecimal.ZERO) { total, commitment ->
+            total.add(commitment.effectiveAmountBigDecimal)
+        }
+        val unlinkedExpensesTotal = pendingExpenses
+            .filter { it.isGastoSupuesto && it.id !in linkedExpenseIds }
+            .fold(BigDecimal.ZERO) { total, transaction -> total.add(transaction.effectiveAmountBigDecimal) }
+        return commitmentsTotal.add(unlinkedExpensesTotal).toDouble()
     }
 }
