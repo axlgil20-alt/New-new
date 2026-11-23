@@ -117,7 +117,7 @@ object ConsolidatedPortfolioCalculator {
         val rate = rates.asSequence()
             .filter { it.baseCurrencyCode == fromCurrency && it.quoteCurrencyCode == toCurrency }
             .filter { !it.isEstimated && it.effectiveAtMillis <= valuationDateMillis && it.observedAtMillis <= valuationDateMillis }
-            .filter { valuationDateMillis - it.effectiveAtMillis in 0..maxRateAgeMillis }
+            .filter { valuationDateMillis - it.observedAtMillis in 0..maxRateAgeMillis }
             .maxByOrNull { it.effectiveAtMillis }
             ?: return null
         val converted = MoneyMinorUnits.toBigDecimal(amountMinor).multiply(rate.rate())
