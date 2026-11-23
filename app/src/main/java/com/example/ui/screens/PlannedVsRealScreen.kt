@@ -191,7 +191,7 @@ fun PlannedVsRealScreen(
 
 @Composable
 private fun PreviousCycleDayCard(date: LocalDate, movementCount: Int, income: Double, expense: Double, uiState: BudgetUiState, muted: Color) {
-    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp), colors = CardDefaults.cardColors(if (uiState.isDarkTheme) Color(0xFF102832) else Color.White), shape = RoundedCornerShape(14.dp)) {
+    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp).testTag("quincenas_previous_cycle_day"), colors = CardDefaults.cardColors(if (uiState.isDarkTheme) Color(0xFF102832) else Color.White), shape = RoundedCornerShape(14.dp)) {
         Column(Modifier.padding(14.dp)) {
             Text("INICIO DEL CICLO 1", color = Jade, fontWeight = FontWeight.ExtraBold)
             Text("${date.format(GuatemalaDateFormatter).replaceFirstChar { it.uppercase() }} · $movementCount movimientos registrados", color = muted)
