@@ -973,7 +973,7 @@ class BudgetRepository(
                     isTentative = false,
                     tentativeDecision = "CONFIRMED",
                     isVerified = true,
-                    accountId = existingTx.accountId ?: commitment.paymentSourceAccountId,
+                    accountId = commitment.paymentSourceAccountId,
                     notes = if (cleanNotes.isNotBlank()) "$cleanNotes (Pagado)" else "Pago realizado"
                 )
                 transactionDao.updateTransaction(confirmedTx)
@@ -1062,7 +1062,17 @@ class BudgetRepository(
                     } else normalized.title,
                     category = normalized.category,
                     dateMillis = normalized.dueDateMillis,
-                    accountId = normalized.paymentSourceAccountId ?: existingTx.accountId
+                    accountId = normalized.paymentSourceAccountId,
+                    entryKind = if (normalized.commitmentKind == CommitmentKind.CREDIT_CARD_STATEMENT) {
+                        TransactionEntryKind.TRANSFER_OUT
+                    } else {
+                        TransactionEntryKind.STANDARD
+                    },
+                    counterpartAccountId = if (normalized.commitmentKind == CommitmentKind.CREDIT_CARD_STATEMENT) {
+                        normalized.creditCardAccountId
+                    } else {
+                        null
+                    }
                 )
                 transactionDao.updateTransaction(updatedTx)
             }

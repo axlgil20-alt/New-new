@@ -383,15 +383,30 @@ class AccountsRepository(
         if (outExtId != null) {
             val existingOut = accountLedgerDao.getTransactionByExternalId(outExtId)
             if (existingOut != null) {
-                val groupTxs = existingOut.transferGroupId
-                    ?.let { accountLedgerDao.getTransactionsByTransferGroup(it) }
-                    .orEmpty()
-                val existingIn = groupTxs.firstOrNull { it.entryKind == TransactionEntryKind.TRANSFER_IN }
-                    ?: accountLedgerDao.getTransactionByExternalId(inExtId!!)
+                val requestMatches = existingOut.entryKind == TransactionEntryKind.TRANSFER_OUT &&
+                    existingOut.accountId == fromAccountId &&
+                    existingOut.counterpartAccountId == toAccountId &&
+                    existingOut.effectiveAmountMinor == amountMinor &&
+                    !existingOut.transferGroupId.isNullOrBlank()
+                check(requestMatches) {
+                    "La clave de operación ya fue utilizada para una transferencia diferente."
+                }
+                val groupId = existingOut.transferGroupId!!
+                val groupTxs = accountLedgerDao.getTransactionsByTransferGroup(groupId)
+                val existingIn = groupTxs.singleOrNull { it.entryKind == TransactionEntryKind.TRANSFER_IN }
+                check(
+                    groupTxs.size == 2 &&
+                        existingIn != null &&
+                        existingIn.accountId == toAccountId &&
+                        existingIn.counterpartAccountId == fromAccountId &&
+                        existingIn.effectiveAmountMinor == amountMinor
+                ) {
+                    "La transferencia existente está incompleta o sus dos movimientos no coinciden."
+                }
                 return@runInTransaction TransferResult(
-                    transferGroupId = existingOut.transferGroupId.orEmpty(),
+                    transferGroupId = groupId,
                     outgoingTransactionId = existingOut.id,
-                    incomingTransactionId = existingIn?.id ?: 0L,
+                    incomingTransactionId = existingIn.id,
                     amountMinor = existingOut.effectiveAmountMinor,
                     wasDeduplicated = true
                 )
@@ -618,15 +633,30 @@ class AccountsRepository(
         if (outExtId != null) {
             val existingOut = accountLedgerDao.getTransactionByExternalId(outExtId)
             if (existingOut != null) {
-                val groupTxs = existingOut.transferGroupId
-                    ?.let { accountLedgerDao.getTransactionsByTransferGroup(it) }
-                    .orEmpty()
-                val existingIn = groupTxs.firstOrNull { it.entryKind == TransactionEntryKind.CARD_PAYMENT }
-                    ?: accountLedgerDao.getTransactionByExternalId(inExtId!!)
+                val requestMatches = existingOut.entryKind == TransactionEntryKind.TRANSFER_OUT &&
+                    existingOut.accountId == sourceAccountId &&
+                    existingOut.counterpartAccountId == cardAccountId &&
+                    existingOut.effectiveAmountMinor == amountMinor &&
+                    !existingOut.transferGroupId.isNullOrBlank()
+                check(requestMatches) {
+                    "La clave de operación ya fue utilizada para un pago de tarjeta diferente."
+                }
+                val groupId = existingOut.transferGroupId!!
+                val groupTxs = accountLedgerDao.getTransactionsByTransferGroup(groupId)
+                val existingIn = groupTxs.singleOrNull { it.entryKind == TransactionEntryKind.CARD_PAYMENT }
+                check(
+                    groupTxs.size == 2 &&
+                        existingIn != null &&
+                        existingIn.accountId == cardAccountId &&
+                        existingIn.counterpartAccountId == sourceAccountId &&
+                        existingIn.effectiveAmountMinor == amountMinor
+                ) {
+                    "El pago de tarjeta existente está incompleto o sus dos movimientos no coinciden."
+                }
                 return@runInTransaction CreditCardPaymentResult(
-                    transferGroupId = existingOut.transferGroupId.orEmpty(),
+                    transferGroupId = groupId,
                     sourceOutflowTransactionId = existingOut.id,
-                    cardPaymentTransactionId = existingIn?.id ?: 0L,
+                    cardPaymentTransactionId = existingIn.id,
                     amountMinor = existingOut.effectiveAmountMinor,
                     validation = CardPaymentValidation(isValid = true),
                     settledCommitmentId = linkedCommitmentId,

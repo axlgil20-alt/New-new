@@ -80,9 +80,7 @@ object AccountBalanceCalculator {
         val accountTxs = transactions.asSequence()
             .filter { tx ->
                 tx.accountId == account.id &&
-                    !tx.isGastoSupuesto &&
-                    tx.tentativeDecision != "DISCARDED" &&
-                    !tx.isSuspectedDuplicate
+                    tx.isCountableInAccountBalance()
             }
             .toList()
 
@@ -212,9 +210,7 @@ object AccountBalanceCalculator {
 
         val unassignedTxs = transactions.filter {
             it.accountId == null &&
-                !it.isGastoSupuesto &&
-                it.tentativeDecision != "DISCARDED" &&
-                !it.isSuspectedDuplicate
+                it.isCountableInAccountBalance()
         }
         var unassignedNetBd = BigDecimal.ZERO.setScale(MoneyMinorUnits.CURRENCY_SCALE, MoneyMinorUnits.ROUNDING_MODE)
         for (tx in unassignedTxs) {
@@ -269,6 +265,13 @@ object AccountBalanceCalculator {
             sourceRemainingBalanceMinor = sourceRemainingMinor
         )
     }
+
+    private fun TransactionEntity.isCountableInAccountBalance(): Boolean =
+        !isGastoSupuesto &&
+            tentativeDecision != "DISCARDED" &&
+            tentativeDecision != "PENDING" &&
+            (!isTentative || tentativeDecision == "CONFIRMED") &&
+            !isSuspectedDuplicate
 }
 
 data class CardPaymentValidation(
