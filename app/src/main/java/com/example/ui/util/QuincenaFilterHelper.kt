@@ -189,7 +189,11 @@ object QuincenaFilterHelper {
             total.add(commitment.effectiveAmountBigDecimal)
         }
         val unlinkedExpensesTotal = pendingExpenses
-            .filter { it.isGastoSupuesto && it.id !in linkedExpenseIds }
+            .filter {
+                it.isGastoSupuesto &&
+                    !it.tentativeDecision.equals("DISCARDED", ignoreCase = true) &&
+                    it.id !in linkedExpenseIds
+            }
             .fold(BigDecimal.ZERO) { total, transaction -> total.add(transaction.effectiveAmountBigDecimal) }
         return commitmentsTotal.add(unlinkedExpensesTotal).toDouble()
     }

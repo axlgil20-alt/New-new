@@ -410,6 +410,7 @@ val TransactionEntity.beneficiary: String
 val TransactionEntity.isGastoSupuesto: Boolean
     get() = affectsBudgetTotals &&
         (type == TransactionType.EXPENSE) &&
+        !tentativeDecision.equals("DISCARDED", ignoreCase = true) &&
         (tentativeDecision != "CONFIRMED") &&
         (isTentative ||
          tentativeDecision == "PENDING" ||
@@ -421,7 +422,7 @@ val TransactionEntity.isGastoSupuesto: Boolean
 val TransactionEntity.isGastoReal: Boolean
     get() = affectsBudgetTotals &&
         (type == TransactionType.EXPENSE) &&
-        (tentativeDecision != "DISCARDED") &&
+        !tentativeDecision.equals("DISCARDED", ignoreCase = true) &&
         !isGastoSupuesto
 
 val TransactionEntity.isIngresoReal: Boolean

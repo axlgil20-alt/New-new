@@ -1,13 +1,14 @@
 package com.example
 
 import com.example.data.model.TransactionEntity
-import com.example.data.model.TransactionEntryKind
 import com.example.data.model.TransactionStatus
 import com.example.data.model.TransactionType
 import com.example.data.model.isGastoReal
+import com.example.data.model.isGastoSupuesto
 import com.example.data.model.isIngresoSupuesto
 import com.example.data.model.status
 import com.example.ui.util.QuincenaFilterHelper
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -43,7 +44,38 @@ class Registros30ClassificationAndDuplicatesTest {
     fun discardedNoDependeDeLaBanderaTentativeYNoEsGastoReal() {
         val discarded = tx(1, tentative = false, decision = "DISCARDED")
         assertTrue(discarded.status == TransactionStatus.DISCARDED)
+        assertFalse(discarded.isGastoSupuesto)
         assertFalse(discarded.isGastoReal)
+    }
+
+    @Test
+    fun descartadoNoRestaProyeccionPeroPendienteLegitimoSi() {
+        val discarded = tx(10, amount = 40.0, tentative = false, decision = "DISCARDED")
+        val pending = tx(11, amount = 15.0, tentative = true, decision = "PENDING")
+
+        assertEquals(
+            15.0,
+            QuincenaFilterHelper.calculateProjectedPendingOutflow(
+                commitments = emptyList(),
+                pendingExpenses = listOf(discarded, pending)
+            ),
+            0.001
+        )
+        assertTrue(pending.isGastoSupuesto)
+    }
+
+    @Test
+    fun descartadoNoSeIncluyeEnSumaDeGastosSupuestosFiltrados() {
+        val discarded = tx(12, amount = 40.0, tentative = false, decision = "DISCARDED")
+        val pending = tx(13, amount = 15.0, tentative = true, decision = "PENDING")
+        val filteredSupuestoExpense = listOf(discarded, pending)
+            .filter {
+                it.isGastoSupuesto &&
+                    !it.tentativeDecision.equals("DISCARDED", ignoreCase = true)
+            }
+            .sumOf { it.amount }
+
+        assertEquals(15.0, filteredSupuestoExpense, 0.001)
     }
 
     @Test

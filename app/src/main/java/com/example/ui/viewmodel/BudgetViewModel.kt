@@ -621,7 +621,10 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             .fold(java.math.BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
         val filteredConfirmedExpBd = filtered.filter { it.isGastoReal }
             .fold(java.math.BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
-        val filteredSupuestoExpBd = filtered.filter { it.isGastoSupuesto }
+        val filteredSupuestoExpBd = filtered.filter {
+            it.isGastoSupuesto &&
+                !it.tentativeDecision.equals("DISCARDED", ignoreCase = true)
+        }
             .fold(java.math.BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
         val filteredSupuestoIncBd = filtered.filter { it.isIngresoSupuesto }
             .fold(java.math.BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
