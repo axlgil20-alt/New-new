@@ -7,6 +7,8 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.example.data.model.FinancialAccountEntity
+import com.example.data.model.ExchangeRateEntity
+import com.example.data.model.CurrencyOperationDetailEntity
 import com.example.data.model.InstallmentPlanEntity
 import com.example.data.model.InstallmentScheduleItemEntity
 import com.example.data.model.TransactionEntity
@@ -155,4 +157,28 @@ interface AccountLedgerDao {
 
     @Query("DELETE FROM transactions WHERE transferGroupId = :transferGroupId")
     suspend fun deleteByTransferGroup(transferGroupId: String)
+}
+
+@Dao
+interface ExchangeRateDao {
+    @Query("SELECT * FROM exchange_rates WHERE baseCurrencyCode = :base AND quoteCurrencyCode = :quote ORDER BY effectiveAtMillis DESC")
+    suspend fun getRatesForPair(base: String, quote: String): List<ExchangeRateEntity>
+
+    @Query("SELECT * FROM exchange_rates ORDER BY effectiveAtMillis DESC")
+    fun observeAll(): Flow<List<ExchangeRateEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insert(rate: ExchangeRateEntity): Long
+}
+
+@Dao
+interface CurrencyOperationDetailDao {
+    @Query("SELECT * FROM currency_operation_details WHERE operationGroupId = :groupId LIMIT 1")
+    suspend fun getByOperationGroupId(groupId: String): CurrencyOperationDetailEntity?
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(detail: CurrencyOperationDetailEntity): Long
+
+    @Query("DELETE FROM currency_operation_details WHERE operationGroupId = :groupId")
+    suspend fun deleteByOperationGroupId(groupId: String)
 }

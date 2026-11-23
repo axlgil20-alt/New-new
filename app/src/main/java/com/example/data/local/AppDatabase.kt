@@ -15,6 +15,8 @@ import com.example.data.model.SavingsGoalEntity
 import com.example.data.model.ShoppingTemplateEntity
 import com.example.data.model.SmartCartItemEntity
 import com.example.data.model.TransactionEntity
+import com.example.data.model.CurrencyOperationDetailEntity
+import com.example.data.model.ExchangeRateEntity
 
 @Database(
     entities = [
@@ -28,9 +30,11 @@ import com.example.data.model.TransactionEntity
         ShoppingTemplateEntity::class,
         FinancialAccountEntity::class,
         InstallmentPlanEntity::class,
-        InstallmentScheduleItemEntity::class
+        InstallmentScheduleItemEntity::class,
+        ExchangeRateEntity::class,
+        CurrencyOperationDetailEntity::class
     ],
-    version = 14,
+    version = 15,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -46,6 +50,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun installmentPlanDao(): InstallmentPlanDao
     abstract fun installmentScheduleDao(): InstallmentScheduleDao
     abstract fun accountLedgerDao(): AccountLedgerDao
+    abstract fun exchangeRateDao(): ExchangeRateDao
+    abstract fun currencyOperationDetailDao(): CurrencyOperationDetailDao
 
     companion object {
         @Volatile
@@ -238,6 +244,58 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_14_15 = object : androidx.room.migration.Migration(14, 15) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `exchange_rates` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `baseCurrencyCode` TEXT NOT NULL,
+                        `quoteCurrencyCode` TEXT NOT NULL,
+                        `rateNumerator` TEXT NOT NULL,
+                        `rateDenominator` TEXT NOT NULL,
+                        `effectiveAtMillis` INTEGER NOT NULL,
+                        `observedAtMillis` INTEGER NOT NULL,
+                        `source` TEXT NOT NULL,
+                        `sourceReference` TEXT,
+                        `isManual` INTEGER NOT NULL,
+                        `isEstimated` INTEGER NOT NULL,
+                        `createdAtMillis` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `idx_exchange_rates_pair_effective` ON `exchange_rates` (`baseCurrencyCode`, `quoteCurrencyCode`, `effectiveAtMillis`)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `idx_exchange_rates_source_reference` ON `exchange_rates` (`source`, `sourceReference`)")
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `currency_operation_details` (
+                        `id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                        `operationGroupId` TEXT NOT NULL,
+                        `operationType` TEXT NOT NULL,
+                        `sourceAccountId` INTEGER NOT NULL,
+                        `destinationAccountId` INTEGER NOT NULL,
+                        `sourceAmountMinor` INTEGER NOT NULL,
+                        `sourceCurrencyCode` TEXT NOT NULL,
+                        `destinationAmountMinor` INTEGER NOT NULL,
+                        `destinationCurrencyCode` TEXT NOT NULL,
+                        `feeAmountMinor` INTEGER NOT NULL,
+                        `feeCurrencyCode` TEXT,
+                        `fxDifferenceAmountMinor` INTEGER NOT NULL,
+                        `fxDifferenceCurrencyCode` TEXT,
+                        `rateId` INTEGER,
+                        `rateNumerator` TEXT NOT NULL,
+                        `rateDenominator` TEXT NOT NULL,
+                        `rateAsOfMillis` INTEGER NOT NULL,
+                        `rateSource` TEXT NOT NULL,
+                        `createdAtMillis` INTEGER NOT NULL
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `idx_currency_operation_group_unique` ON `currency_operation_details` (`operationGroupId`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `idx_currency_operation_rate` ON `currency_operation_details` (`rateId`)")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
@@ -245,7 +303,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "budget_app_database"
                 )
-                    .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14)
+                    .addMigrations(MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15)
                     .addCallback(object : RoomDatabase.Callback() {
                         override fun onOpen(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                             super.onOpen(db)

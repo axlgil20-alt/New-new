@@ -3,6 +3,7 @@ package com.example.data.repository
 import androidx.room.withTransaction
 import com.example.data.local.AccountLedgerDao
 import com.example.data.local.AppDatabase
+import com.example.data.local.CurrencyOperationDetailDao
 import com.example.data.local.FinancialAccountDao
 import com.example.data.local.InstallmentPlanDao
 import com.example.data.local.InstallmentScheduleDao
@@ -23,6 +24,9 @@ import com.example.data.model.PaymentStatus
 import com.example.data.model.TransactionEntity
 import com.example.data.model.TransactionEntryKind
 import com.example.data.model.TransactionType
+import com.example.data.model.CurrencyOperationDetailEntity
+import com.example.data.model.CurrencyOperationType
+import com.example.data.model.CurrencyTransferInput
 import com.example.data.model.effectiveAmountMinor
 import com.example.data.model.withExactAmountMinor
 import com.example.data.service.AccountBalanceCalculator
@@ -54,6 +58,17 @@ data class TransferResult(
     val outgoingTransactionId: Long,
     val incomingTransactionId: Long,
     val amountMinor: Long,
+    val wasDeduplicated: Boolean = false
+)
+
+data class CurrencyTransferResult(
+    val transferGroupId: String,
+    val outgoingTransactionId: Long,
+    val incomingTransactionId: Long,
+    val feeTransactionId: Long? = null,
+    val fxDifferenceTransactionId: Long? = null,
+    val sourceAmountMinor: Long,
+    val destinationAmountMinor: Long,
     val wasDeduplicated: Boolean = false
 )
 
@@ -109,6 +124,7 @@ class AccountsRepository(
     private val installmentScheduleDao: InstallmentScheduleDao,
     private val accountLedgerDao: AccountLedgerDao,
     private val transactionDao: TransactionDao,
+    private val currencyOperationDetailDao: CurrencyOperationDetailDao? = null,
     private val paymentCommitmentDao: PaymentCommitmentDao? = null,
     private val database: AppDatabase? = null
 ) {
@@ -131,6 +147,7 @@ class AccountsRepository(
             installmentScheduleDao = db.installmentScheduleDao(),
             accountLedgerDao = db.accountLedgerDao(),
             transactionDao = db.transactionDao(),
+            currencyOperationDetailDao = db.currencyOperationDetailDao(),
             paymentCommitmentDao = db.paymentCommitmentDao(),
             database = db
         )
@@ -481,9 +498,190 @@ class AccountsRepository(
         )
     }
 
+    /**
+     * Registra una transferencia entre monedas sin sustituir ningún importe nativo. La salida,
+     * entrada, comisión y diferencia cambiaria son asientos distintos dentro de una transacción
+     * Room; los dos últimos no afectan presupuestos por su [TransactionEntryKind].
+     */
+    suspend fun transferBetweenAccountsMultiCurrency(
+        input: CurrencyTransferInput
+    ): CurrencyTransferResult = runInTransaction {
+        val detailDao = currencyOperationDetailDao
+            ?: error("La operación multicurrency requiere AppDatabase con el DAO configurado.")
+        require(input.sourceAccountId != input.destinationAccountId) {
+            "Las cuentas origen y destino deben ser distintas."
+        }
+        require(input.sourceAmountMinor > 0L) { "El importe de origen debe ser mayor que cero." }
+        require(input.destinationAmountMinor > 0L) { "El importe de destino debe ser mayor que cero." }
+        require(input.feeAmountMinor >= 0L) { "La comisión no puede ser negativa." }
+        require(input.fxDifferenceAmountMinor >= 0L) { "La diferencia cambiaria no puede ser negativa." }
+        require(input.rateNumerator.toBigDecimal().signum() > 0) { "La tasa debe ser positiva." }
+        require(input.rateDenominator.toBigDecimal().signum() > 0) { "El denominador de la tasa debe ser positivo." }
+
+        val source = financialAccountDao.getAccountById(input.sourceAccountId)
+            ?: throw IllegalArgumentException("La cuenta origen #${input.sourceAccountId} no existe.")
+        val destination = financialAccountDao.getAccountById(input.destinationAccountId)
+            ?: throw IllegalArgumentException("La cuenta destino #${input.destinationAccountId} no existe.")
+        require(!source.isArchived && !destination.isArchived) { "No se puede operar con una cuenta archivada." }
+        require(AccountType.isLiquidAsset(source.accountType) && AccountType.isLiquidAsset(destination.accountType)) {
+            "Esta operación solo admite cuentas líquidas."
+        }
+        require(input.feeAmountMinor == 0L || input.feeCurrencyCode == source.currencyCode || input.feeCurrencyCode == destination.currencyCode) {
+            "La comisión debe pertenecer a la moneda origen o destino."
+        }
+        require(input.fxDifferenceAmountMinor == 0L || input.fxDifferenceCurrencyCode == source.currencyCode || input.fxDifferenceCurrencyCode == destination.currencyCode) {
+            "La diferencia cambiaria debe pertenecer a la moneda origen o destino."
+        }
+
+        val operationGroupId = input.operationKey?.trim()?.takeIf { it.isNotEmpty() }?.let { "fxtrf_$it" }
+            ?: UUID.randomUUID().toString()
+        val existingDetail = detailDao.getByOperationGroupId(operationGroupId)
+        if (existingDetail != null) {
+            val group = accountLedgerDao.getTransactionsByTransferGroup(operationGroupId)
+            val out = group.singleOrNull { it.entryKind == TransactionEntryKind.TRANSFER_OUT }
+            val incoming = group.singleOrNull { it.entryKind == TransactionEntryKind.TRANSFER_IN }
+            check(out != null && incoming != null) { "La operación multicurrency existente está incompleta." }
+            val fee = group.singleOrNull { it.entryKind == TransactionEntryKind.TRANSFER_FEE }
+            val fx = group.singleOrNull { it.entryKind == TransactionEntryKind.TRANSFER_FX_DIFFERENCE }
+            return@runInTransaction CurrencyTransferResult(
+                transferGroupId = operationGroupId,
+                outgoingTransactionId = out.id,
+                incomingTransactionId = incoming.id,
+                feeTransactionId = fee?.id,
+                fxDifferenceTransactionId = fx?.id,
+                sourceAmountMinor = existingDetail.sourceAmountMinor,
+                destinationAmountMinor = existingDetail.destinationAmountMinor,
+                wasDeduplicated = true
+            )
+        }
+
+        val out = TransactionEntity(
+            title = input.title.ifBlank { "Transferencia hacia ${destination.name}" },
+            amount = MoneyMinorUnits.toDisplayDouble(input.sourceAmountMinor),
+            type = TransactionType.EXPENSE,
+            category = "Transferencia entre cuentas",
+            dateMillis = input.dateMillis,
+            paymentMethod = source.name,
+            notes = input.notes.ifBlank { "Salida hacia ${destination.name}" },
+            isVerified = true,
+            tentativeDecision = "CONFIRMED",
+            externalId = "${operationGroupId}_out",
+            amountMinor = input.sourceAmountMinor,
+            accountId = source.id,
+            entryKind = TransactionEntryKind.TRANSFER_OUT,
+            transferGroupId = operationGroupId,
+            counterpartAccountId = destination.id
+        )
+        val incoming = TransactionEntity(
+            title = input.title.ifBlank { "Transferencia desde ${source.name}" },
+            amount = MoneyMinorUnits.toDisplayDouble(input.destinationAmountMinor),
+            type = TransactionType.INCOME,
+            category = "Transferencia entre cuentas",
+            dateMillis = input.dateMillis,
+            paymentMethod = destination.name,
+            notes = input.notes.ifBlank { "Ingreso desde ${source.name}" },
+            isVerified = true,
+            tentativeDecision = "CONFIRMED",
+            externalId = "${operationGroupId}_in",
+            amountMinor = input.destinationAmountMinor,
+            accountId = destination.id,
+            entryKind = TransactionEntryKind.TRANSFER_IN,
+            transferGroupId = operationGroupId,
+            counterpartAccountId = source.id
+        )
+        val outId = transactionDao.insertTransaction(out)
+        val inId = transactionDao.insertTransaction(incoming)
+
+        fun feeAccountId(currency: String?): Long? = when (currency) {
+            null -> null
+            source.currencyCode -> source.id
+            destination.currencyCode -> destination.id
+            else -> null
+        }
+
+        fun makeSeparateCharge(
+            amountMinor: Long,
+            currencyCode: String?,
+            entryKind: String,
+            category: String,
+            title: String
+        ): Long? {
+            if (amountMinor == 0L) return null
+            val accountId = feeAccountId(currencyCode)
+                ?: error("El cargo separado no corresponde a una cuenta de la operación.")
+            val account = if (accountId == source.id) source else destination
+            return transactionDao.insertTransaction(
+                TransactionEntity(
+                    title = title,
+                    amount = MoneyMinorUnits.toDisplayDouble(amountMinor),
+                    type = TransactionType.EXPENSE,
+                    category = category,
+                    dateMillis = input.dateMillis,
+                    paymentMethod = account.name,
+                    notes = "Operación $operationGroupId; cargo separado en $currencyCode",
+                    isVerified = true,
+                    tentativeDecision = "CONFIRMED",
+                    externalId = "${operationGroupId}_${entryKind.lowercase()}",
+                    amountMinor = amountMinor,
+                    accountId = account.id,
+                    entryKind = entryKind,
+                    transferGroupId = operationGroupId,
+                    counterpartAccountId = if (account.id == source.id) destination.id else source.id
+                )
+            )
+        }
+
+        val feeId = makeSeparateCharge(
+            input.feeAmountMinor,
+            input.feeCurrencyCode,
+            TransactionEntryKind.TRANSFER_FEE,
+            "Comisión bancaria",
+            "Comisión bancaria · transferencia"
+        )
+        val fxId = makeSeparateCharge(
+            input.fxDifferenceAmountMinor,
+            input.fxDifferenceCurrencyCode,
+            TransactionEntryKind.TRANSFER_FX_DIFFERENCE,
+            "Diferencia cambiaria",
+            "Diferencia cambiaria · transferencia"
+        )
+
+        detailDao.insert(
+            CurrencyOperationDetailEntity(
+                operationGroupId = operationGroupId,
+                operationType = CurrencyOperationType.TRANSFER,
+                sourceAccountId = source.id,
+                destinationAccountId = destination.id,
+                sourceAmountMinor = input.sourceAmountMinor,
+                sourceCurrencyCode = source.currencyCode,
+                destinationAmountMinor = input.destinationAmountMinor,
+                destinationCurrencyCode = destination.currencyCode,
+                feeAmountMinor = input.feeAmountMinor,
+                feeCurrencyCode = input.feeCurrencyCode,
+                fxDifferenceAmountMinor = input.fxDifferenceAmountMinor,
+                fxDifferenceCurrencyCode = input.fxDifferenceCurrencyCode,
+                rateId = input.rateId,
+                rateNumerator = input.rateNumerator,
+                rateDenominator = input.rateDenominator,
+                rateAsOfMillis = input.rateAsOfMillis,
+                rateSource = input.rateSource
+            )
+        )
+        CurrencyTransferResult(
+            transferGroupId = operationGroupId,
+            outgoingTransactionId = outId,
+            incomingTransactionId = inId,
+            feeTransactionId = feeId,
+            fxDifferenceTransactionId = fxId,
+            sourceAmountMinor = input.sourceAmountMinor,
+            destinationAmountMinor = input.destinationAmountMinor
+        )
+    }
+
     suspend fun deleteTransferGroup(transferGroupId: String) = runInTransaction {
         require(transferGroupId.isNotBlank()) { "El identificador de transferencia es requerido." }
         accountLedgerDao.deleteByTransferGroup(transferGroupId)
+        currencyOperationDetailDao?.deleteByOperationGroupId(transferGroupId)
     }
 
     // =========================================================================

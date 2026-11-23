@@ -44,6 +44,10 @@ object TransactionEntryKind {
     const val INSTALLMENT_CHARGE = "INSTALLMENT_CHARGE"
     /** Ajuste de arqueo o conciliación de saldo (actualiza saldo de cuenta sin inflar flujo del mes). */
     const val BALANCE_ADJUSTMENT = "BALANCE_ADJUSTMENT"
+    /** Comisión bancaria de una operación multicurrency; se conserva como cargo real separado. */
+    const val TRANSFER_FEE = "TRANSFER_FEE"
+    /** Diferencia cambiaria de una operación multicurrency; no es gasto presupuestario ordinario. */
+    const val TRANSFER_FX_DIFFERENCE = "TRANSFER_FX_DIFFERENCE"
 
     fun affectsBudget(entryKind: String): Boolean =
         entryKind.isBlank() || entryKind == STANDARD || entryKind == INSTALLMENT_CHARGE
