@@ -22,6 +22,7 @@ import com.example.data.model.effectiveAmountMinor
 import com.example.data.model.withExactAmountMinor
 import com.example.data.repository.AccountsRepository
 import com.example.data.repository.BudgetRepository
+import com.example.ui.components.cardPaymentCommitmentsForAccount
 import com.example.ui.components.findCardPaymentCommitment
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -646,13 +647,16 @@ class AccountsRepositoryIntegrationRobolectricTest {
         val cancelled = matching.copy(id = 3L, status = PaymentStatus.CANCELLED)
         val paid = matching.copy(id = 4L, isPaid = true)
         val ordinaryBill = matching.copy(id = 5L, commitmentKind = CommitmentKind.BILL)
+        val secondMatching = matching.copy(id = 6L, title = "Corte anterior")
+        val candidates = listOf(otherCard, cancelled, paid, ordinaryBill, matching, secondMatching)
 
         assertEquals(
             matching.id,
-            findCardPaymentCommitment(
-                listOf(otherCard, cancelled, paid, ordinaryBill, matching),
-                cardAccountId = 10L
-            )?.id
+            findCardPaymentCommitment(candidates, cardAccountId = 10L)?.id
+        )
+        assertEquals(
+            listOf(matching.id, secondMatching.id),
+            cardPaymentCommitmentsForAccount(candidates, cardAccountId = 10L).map { it.id }
         )
         assertNull(findCardPaymentCommitment(listOf(matching), cardAccountId = null))
     }
@@ -728,6 +732,70 @@ class AccountsRepositoryIntegrationRobolectricTest {
                 .filter { it.affectsBudgetTotals && it.type == TransactionType.EXPENSE }
                 .sumOf { it.effectiveAmountMinor }
         )
+    }
+
+    @Test
+    fun duplicateCardPayment_doesNotReportDifferentCommitmentAsSettled() = runBlocking {
+        val checking = accountsRepo.createAccount(
+            FinancialAccountEntity(
+                name = "Cuenta para reintento",
+                accountType = AccountType.BANK_CHECKING,
+                openingBalanceMinor = 1_000_00L
+            )
+        )
+        val card = accountsRepo.createAccount(
+            FinancialAccountEntity(
+                name = "Tarjeta para reintento",
+                accountType = AccountType.CREDIT_CARD,
+                openingBalanceMinor = 600_00L,
+                creditLimitMinor = 3_000_00L
+            )
+        )
+        fun statement(title: String, amountMinor: Long) = PaymentCommitmentEntity(
+            title = title,
+            beneficiaryName = "Banco emisor",
+            amount = MoneyMinorUnits.toDisplayDouble(amountMinor),
+            amountMinor = amountMinor,
+            dueDateMillis = System.currentTimeMillis(),
+            commitmentKind = CommitmentKind.CREDIT_CARD_STATEMENT,
+            creditCardAccountId = card.id,
+            paymentSourceAccountId = checking.id
+        )
+        val originalId = budgetRepo.createPaymentCommitment(statement("Corte actual", 200_00L))
+        val unrelatedId = budgetRepo.createPaymentCommitment(statement("Otro compromiso", 100_00L))
+        val firstPayment = accountsRepo.payCreditCard(
+            sourceAccountId = checking.id,
+            cardAccountId = card.id,
+            amountMinor = 200_00L,
+            linkedCommitmentId = originalId,
+            operationKey = "card_retry_consistency"
+        )
+        assertEquals(originalId, firstPayment.settledCommitmentId)
+        val transactionCountAfterFirstPayment = db.transactionDao().getAllTransactionsList().size
+
+        val wrongCommitmentReplay = accountsRepo.payCreditCard(
+            sourceAccountId = checking.id,
+            cardAccountId = card.id,
+            amountMinor = 200_00L,
+            linkedCommitmentId = unrelatedId,
+            operationKey = "card_retry_consistency"
+        )
+        assertTrue(wrongCommitmentReplay.wasDeduplicated)
+        assertNull(wrongCommitmentReplay.settledCommitmentId)
+        assertFalse(db.paymentCommitmentDao().getCommitmentById(unrelatedId)!!.isPaid)
+        assertEquals(transactionCountAfterFirstPayment, db.transactionDao().getAllTransactionsList().size)
+        assertEquals(800_00L, accountsRepo.getAccountSnapshot(checking.id).currentBalanceMinor)
+        assertEquals(400_00L, accountsRepo.getAccountSnapshot(card.id).revolvingDebtMinor)
+
+        val correctCommitmentReplay = accountsRepo.payCreditCard(
+            sourceAccountId = checking.id,
+            cardAccountId = card.id,
+            amountMinor = 200_00L,
+            linkedCommitmentId = originalId,
+            operationKey = "card_retry_consistency"
+        )
+        assertEquals(originalId, correctCommitmentReplay.settledCommitmentId)
+        assertTrue(correctCommitmentReplay.wasDeduplicated)
     }
 
     @Test

@@ -653,13 +653,29 @@ class AccountsRepository(
                 ) {
                     "El pago de tarjeta existente está incompleto o sus dos movimientos no coinciden."
                 }
+                val replayCommitment = linkedCommitmentId?.let { commitmentId ->
+                    paymentCommitmentDao?.getCommitmentById(commitmentId)
+                }
+                if (replayCommitment != null) {
+                    check(
+                        replayCommitment.commitmentKind == CommitmentKind.CREDIT_CARD_STATEMENT &&
+                            replayCommitment.creditCardAccountId == cardAccountId
+                    ) {
+                        "El compromiso #$linkedCommitmentId no corresponde a la tarjeta de este pago."
+                    }
+                }
+                val replaySettledCommitmentId = replayCommitment?.takeIf {
+                    it.isPaid &&
+                        it.status == PaymentStatus.PAID &&
+                        it.linkedTransactionId == existingIn.id
+                }?.id
                 return@runInTransaction CreditCardPaymentResult(
                     transferGroupId = groupId,
                     sourceOutflowTransactionId = existingOut.id,
                     cardPaymentTransactionId = existingIn.id,
                     amountMinor = existingOut.effectiveAmountMinor,
                     validation = CardPaymentValidation(isValid = true),
-                    settledCommitmentId = linkedCommitmentId,
+                    settledCommitmentId = replaySettledCommitmentId,
                     wasDeduplicated = true
                 )
             }

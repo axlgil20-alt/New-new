@@ -96,12 +96,12 @@ object AccountUiMeta {
     }
 }
 
-internal fun findCardPaymentCommitment(
+internal fun cardPaymentCommitmentsForAccount(
     pendingCommitments: List<PaymentCommitmentEntity>,
     cardAccountId: Long?
-): PaymentCommitmentEntity? {
-    if (cardAccountId == null) return null
-    return pendingCommitments.firstOrNull {
+): List<PaymentCommitmentEntity> {
+    if (cardAccountId == null) return emptyList()
+    return pendingCommitments.filter {
         it.commitmentKind == CommitmentKind.CREDIT_CARD_STATEMENT &&
             it.creditCardAccountId == cardAccountId &&
             !it.isPaid &&
@@ -109,6 +109,11 @@ internal fun findCardPaymentCommitment(
             it.status != PaymentStatus.CANCELLED
     }
 }
+
+internal fun findCardPaymentCommitment(
+    pendingCommitments: List<PaymentCommitmentEntity>,
+    cardAccountId: Long?
+): PaymentCommitmentEntity? = cardPaymentCommitmentsForAccount(pendingCommitments, cardAccountId).firstOrNull()
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -577,6 +582,14 @@ fun PayCreditCardDialog(
 ) {
     var selectedCard by remember { mutableStateOf(creditCards.firstOrNull { it.id == initialCardId } ?: creditCards.firstOrNull()) }
     var selectedSource by remember { mutableStateOf(liquidAccounts.firstOrNull { it.isDefault } ?: liquidAccounts.firstOrNull()) }
+    val eligibleCommitments = remember(pendingCommitments, selectedCard?.id) {
+        cardPaymentCommitmentsForAccount(pendingCommitments, selectedCard?.id)
+    }
+    val eligibleCommitmentIds = remember(eligibleCommitments) { eligibleCommitments.map { it.id } }
+    var selectedCommitmentId by remember(selectedCard?.id, eligibleCommitmentIds) {
+        mutableStateOf(eligibleCommitments.firstOrNull()?.id)
+    }
+    val selectedCommitment = eligibleCommitments.firstOrNull { it.id == selectedCommitmentId }
     val statementDueMinor = selectedCard?.let { statementsById[it.id]?.closedStatementRemainingDueMinor ?: 0L } ?: 0L
     val revolvingMinor = selectedCard?.let { (snapshotsById[it.id]?.revolvingDebtMinor ?: 0L).coerceAtLeast(0L) } ?: 0L
 
@@ -584,12 +597,10 @@ fun PayCreditCardDialog(
         val suggested = if (statementDueMinor > 0L) statementDueMinor else revolvingMinor
         mutableStateOf(if (suggested > 0L) MoneyMinorUnits.toBigDecimal(suggested).toPlainString() else "")
     }
-    var selectedCommitment by remember(selectedCard?.id) {
-        mutableStateOf(findCardPaymentCommitment(pendingCommitments, selectedCard?.id))
-    }
     var notes by remember { mutableStateOf("") }
     var expandCard by remember { mutableStateOf(false) }
     var expandSource by remember { mutableStateOf(false) }
+    var expandCommitment by remember { mutableStateOf(false) }
     var errorMsg by remember { mutableStateOf<String?>(null) }
 
     val dialogBg = if (isDarkTheme) Color(0xFF1E293B) else Color.White
@@ -676,6 +687,48 @@ fun PayCreditCardDialog(
                     modifier = Modifier.fillMaxWidth().testTag("pay_card_amount_input")
                 )
 
+                if (eligibleCommitments.isNotEmpty()) {
+                    ExposedDropdownMenuBox(
+                        expanded = expandCommitment,
+                        onExpandedChange = { expandCommitment = !expandCommitment }
+                    ) {
+                        OutlinedTextField(
+                            value = selectedCommitment?.title ?: "Sin vincular",
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Compromiso a liquidar (opcional)") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandCommitment) },
+                            modifier = Modifier.fillMaxWidth().menuAnchor()
+                        )
+                        ExposedDropdownMenu(
+                            expanded = expandCommitment,
+                            onDismissRequest = { expandCommitment = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Sin vincular") },
+                                onClick = {
+                                    selectedCommitmentId = null
+                                    expandCommitment = false
+                                }
+                            )
+                            eligibleCommitments.forEach { commitment ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            "${commitment.title} · ${FormatUtils.formatCurrency(MoneyMinorUnits.toDisplayDouble(commitment.amountMinor), currencySymbol, false)}",
+                                            maxLines = 1
+                                        )
+                                    },
+                                    onClick = {
+                                        selectedCommitmentId = commitment.id
+                                        expandCommitment = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
                 selectedCommitment?.let { commitment ->
                     Surface(
                         shape = RoundedCornerShape(10.dp),
@@ -683,7 +736,7 @@ fun PayCreditCardDialog(
                         border = BorderStroke(1.dp, EmeraldGreen)
                     ) {
                         Text(
-                            text = "También liquidará el compromiso «${commitment.title}» en Pagos si cubre el saldo.",
+                            text = "También actualizará «${commitment.title}» en Pagos; solo quedará pagado cuando cubras el saldo pendiente.",
                             style = MaterialTheme.typography.labelSmall,
                             color = if (isDarkTheme) Color(0xFFA7F3D0) else Color(0xFF065F46),
                             modifier = Modifier.padding(10.dp)
