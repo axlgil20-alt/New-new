@@ -428,7 +428,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             .fold(java.math.BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
             .toDouble()
         val allTimeExp = txList
-            .filter { it.type == TransactionType.EXPENSE && it.affectsBudgetTotals }
+            .filter { it.type == TransactionType.EXPENSE && it.affectsBudgetTotals && it.status != TransactionStatus.DISCARDED }
             .fold(java.math.BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
             .toDouble()
 
@@ -479,12 +479,11 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
 
         for (tx in periodTx) {
             if (!tx.affectsBudgetTotals) continue
-            val isTentative = tx.isTentative
             val decision = tx.tentativeDecision
             val txAmtBd = tx.effectiveAmountBigDecimal
 
             when {
-                isTentative && decision == "DISCARDED" -> {
+                decision.equals("DISCARDED", ignoreCase = true) -> {
                     if (tx.type == TransactionType.EXPENSE) discardedTentativeSavingsBd = discardedTentativeSavingsBd.add(txAmtBd)
                 }
                 tx.isIngresoSupuesto -> tentativeIncomePendingBd = tentativeIncomePendingBd.add(txAmtBd)
@@ -508,7 +507,6 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             .subtract(confirmedExpenseBd)
             .subtract(tentativeExpensePendingBd)
             .add(tentativeIncomePendingBd)
-            .add(discardedTentativeSavingsBd)
             .toDouble()
 
         val activeTotalExpenseBd = if (filters.includeTentative) {
@@ -518,7 +516,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         }
 
         val activeTotalIncomeBd = if (filters.includeTentative) {
-            confirmedIncomeBd.add(tentativeIncomePendingBd).add(discardedTentativeSavingsBd)
+            confirmedIncomeBd.add(tentativeIncomePendingBd)
         } else {
             confirmedIncomeBd
         }
@@ -553,7 +551,7 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
         val filtered = periodTx.filter { tx ->
             val matchesType = when (filters.type) {
                 null -> true
-                "TENTATIVE", "SUPUESTO" -> tx.isGastoSupuesto
+                "TENTATIVE", "SUPUESTO", "REVIEW" -> tx.isGastoSupuesto || tx.isIngresoSupuesto
                 "REAL_EXPENSE" -> tx.isGastoReal
                 TransactionType.EXPENSE -> tx.type == TransactionType.EXPENSE
                 TransactionType.INCOME -> tx.type == TransactionType.INCOME
@@ -565,7 +563,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
             }
             val matchesCategory = filters.category == null || tx.category.equals(filters.category, ignoreCase = true)
             val matchesMember = filters.member == null || tx.familyMember == filters.member || filters.member == "Todos"
-            val matchesSubCat = filters.subCategory == null || tx.familyMember.equals(filters.subCategory, ignoreCase = true) || tx.notes.contains(filters.subCategory, ignoreCase = true)
+            // TransactionEntity no tiene un campo de subcategoría. No se debe
+            // presentar familia/notas como si fueran una subcategoría real.
+            val matchesSubCat = filters.subCategory == null
             val matchesBeneficiary = filters.beneficiary.isNullOrBlank() || tx.title.contains(filters.beneficiary.trim(), ignoreCase = true)
             val matchesStatus = filters.status == null || tx.status == filters.status
             val matchesSource = filters.source == null || tx.source == filters.source
@@ -597,6 +597,9 @@ class BudgetViewModel(application: Application) : AndroidViewModel(application) 
                 tx.category.lowercase(Locale.ROOT).contains(q) ||
                 tx.notes.lowercase(Locale.ROOT).contains(q) ||
                 tx.familyMember.lowercase(Locale.ROOT).contains(q) ||
+                tx.accountId?.toString()?.contains(q) == true ||
+                tx.type.lowercase(Locale.ROOT).contains(q) ||
+                tx.status.lowercase(Locale.ROOT).contains(q) ||
                 matchesAmount ||
                 matchesDate
             }

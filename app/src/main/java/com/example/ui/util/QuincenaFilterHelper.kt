@@ -17,6 +17,7 @@ import java.time.YearMonth
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
+import java.util.Locale
 
 data class BudgetPeriod(val year: Int, val monthIndex: Int, val quincena: Int)
 
@@ -119,16 +120,39 @@ object QuincenaFilterHelper {
 
     fun findDuplicateTransactionIds(transactions: List<TransactionEntity>): Set<Long> {
         val ids = mutableSetOf<Long>()
-        transactions.forEachIndexed { i, a ->
-            if (a.isSuspectedDuplicate) ids += a.id
-            transactions.drop(i + 1).forEach { b ->
-                if (a.transferGroupId != null && a.transferGroupId == b.transferGroupId) return@forEach
-                if (a.accountId != null && b.accountId != null && a.accountId != b.accountId) return@forEach
-                if (a.type.equals(b.type, true) && a.entryKind.equals(b.entryKind, true) && a.effectiveAmountMinor == b.effectiveAmountMinor && isSameCalendarDay(a.dateMillis, b.dateMillis) && a.title.trim().equals(b.title.trim(), true)) ids += a.id.also { ids += b.id }
+        transactions.forEach { if (it.isSuspectedDuplicate) ids += it.id }
+
+        // Conserva exactamente los campos de igualdad anteriores, pero evita
+        // comparar cada movimiento contra toda la tabla.
+        val candidates = transactions.groupBy { tx ->
+            DuplicateKey(
+                type = tx.type.trim().uppercase(Locale.ROOT),
+                entryKind = tx.entryKind.trim().uppercase(Locale.ROOT),
+                amountMinor = tx.effectiveAmountMinor,
+                day = localDate(tx.dateMillis),
+                title = tx.title.trim().uppercase(Locale.ROOT)
+            )
+        }
+        candidates.values.forEach { group ->
+            group.forEachIndexed { i, a ->
+                group.drop(i + 1).forEach { b ->
+                    if (a.transferGroupId != null && a.transferGroupId == b.transferGroupId) return@forEach
+                    if (a.accountId != null && b.accountId != null && a.accountId != b.accountId) return@forEach
+                    ids += a.id
+                    ids += b.id
+                }
             }
         }
         return ids
     }
+
+    private data class DuplicateKey(
+        val type: String,
+        val entryKind: String,
+        val amountMinor: Long,
+        val day: LocalDate,
+        val title: String
+    )
 
     fun calculateQuincenaRollover(transactions: List<TransactionEntity>, targetYear: Int, targetMonthIndex: Int, targetQuincena: Int): Double {
         if (transactions.isEmpty()) return 0.0

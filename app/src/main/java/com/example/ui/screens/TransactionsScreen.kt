@@ -43,6 +43,7 @@ import androidx.compose.material.icons.filled.FormatColorFill
 import androidx.compose.material.icons.filled.HelpOutline
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.TableChart
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
@@ -123,10 +124,6 @@ import com.example.ui.theme.IvoryBorder
 import com.example.ui.theme.IvoryWarm
 import com.example.ui.theme.JadeGreen
 import com.example.ui.theme.JadeGreenLight
-import com.example.ui.theme.NazarenoPurple
-import com.example.ui.theme.NazarenoPurpleLight
-import com.example.ui.theme.TentativePurple
-import com.example.ui.theme.TentativePurpleLight
 import com.example.ui.theme.TurquoiseAccent
 import com.example.ui.theme.TurquoiseLight
 import com.example.ui.viewmodel.BudgetUiState
@@ -658,10 +655,10 @@ fun TransactionsScreen(
                                     amount = if (uiState.isDiscreetMode) "Q ****.**" else "${uiState.currencySymbol}${"%,.2f".format(uiState.filteredProjectedRemainingBalance)}",
                                     detail = "Si apruebas supuestos",
                                     icon = null,
-                                    accent = if (isDark) Color(0xFFDDD6FE) else Color(0xFF5B21B6),
-                                    container = if (isDark) Color(0xFF2E1D4A) else Color(0xFFEDE9FE),
-                                    border = if (isDark) Color(0xFFA78BFA).copy(alpha = 0.55f) else NazarenoPurple.copy(alpha = 0.65f),
-                                    detailColor = if (isDark) Color(0xFFEDE9FE) else Color(0xFF4C1D95)
+                                    accent = if (isDark) Color(0xFFFDE68A) else Color(0xFF92400E),
+                                    container = if (isDark) Color(0xFF3B2810) else Color(0xFFFEF3C7),
+                                    border = if (isDark) Color(0xFFFBBF24).copy(alpha = 0.55f) else GoldenYellow.copy(alpha = 0.65f),
+                                    detailColor = if (isDark) Color(0xFFFDE68A) else Color(0xFF78350F)
                                 )
                             }
 
@@ -969,7 +966,7 @@ fun TransactionsScreen(
                                 tint = if (supuestoSelected) Color.White else chipLabel
                             )
                         },
-                        label = { Text("Gastos Supuestos", fontWeight = FontWeight.SemiBold) },
+                        label = { Text("Supuestos", fontWeight = FontWeight.SemiBold) },
                         border = FilterChipDefaults.filterChipBorder(
                             enabled = true,
                             selected = supuestoSelected,
@@ -980,8 +977,32 @@ fun TransactionsScreen(
                         colors = FilterChipDefaults.filterChipColors(
                             containerColor = chipContainer,
                             labelColor = chipLabel,
-                            selectedContainerColor = NazarenoPurple,
+                            selectedContainerColor = GoldenYellow,
                             selectedLabelColor = Color.White
+                        )
+                    )
+
+                    // Por revisar: incluye ingresos y gastos supuestos pendientes.
+                    val reviewSelected = uiState.filterType == "REVIEW"
+                    FilterChip(
+                        selected = reviewSelected,
+                        onClick = { onFilterTypeChange(if (reviewSelected) null else "REVIEW") },
+                        leadingIcon = {
+                            Icon(
+                                imageVector = Icons.Default.Visibility,
+                                contentDescription = null,
+                                modifier = Modifier.size(15.dp),
+                                tint = if (reviewSelected) Color.White else chipLabel
+                            )
+                        },
+                        label = { Text("Por revisar", fontWeight = FontWeight.SemiBold) },
+                        border = FilterChipDefaults.filterChipBorder(
+                            enabled = true, selected = reviewSelected, borderColor = chipBorderColor,
+                            selectedBorderColor = Color.Transparent, borderWidth = 1.dp
+                        ),
+                        colors = FilterChipDefaults.filterChipColors(
+                            containerColor = chipContainer, labelColor = chipLabel,
+                            selectedContainerColor = GoldenYellow, selectedLabelColor = Color.White
                         )
                     )
 
@@ -1614,7 +1635,9 @@ private fun AdvancedFiltersSheetContent(
                 null to "Todos",
                 TransactionStatus.REAL to "Real",
                 TransactionStatus.PENDING to "Pendiente",
-                TransactionStatus.PROJECTED to "Proyectado"
+                TransactionStatus.PROJECTED to "Gasto supuesto",
+                TransactionStatus.SUPPOSED_INCOME to "Ingreso supuesto",
+                TransactionStatus.DISCARDED to "Descartado"
             ).forEach { (st, label) ->
                 FilterChip(
                     selected = uiState.filterStatus == st,

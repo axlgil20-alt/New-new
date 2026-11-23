@@ -322,6 +322,7 @@ object TransactionStatus {
     const val REAL = "REAL"
     const val PENDING = "PENDING"
     const val PROJECTED = "PROJECTED"
+    const val SUPPOSED_INCOME = "SUPPOSED_INCOME"
     const val DISCARDED = "DISCARDED"
 }
 
@@ -439,7 +440,8 @@ val TransactionEntity.isIngresoSupuesto: Boolean
 
 val TransactionEntity.status: String
     get() = when {
-        isTentative && tentativeDecision == "DISCARDED" -> TransactionStatus.DISCARDED
+        tentativeDecision.equals("DISCARDED", ignoreCase = true) -> TransactionStatus.DISCARDED
+        isIngresoSupuesto -> TransactionStatus.SUPPOSED_INCOME
         isGastoSupuesto -> TransactionStatus.PROJECTED
         else -> TransactionStatus.REAL
     }

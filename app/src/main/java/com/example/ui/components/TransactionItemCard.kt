@@ -76,12 +76,13 @@ import com.example.data.model.TransactionSource
 import com.example.data.model.TransactionStatus
 import com.example.data.model.TransactionType
 import com.example.data.model.isGastoSupuesto
+import com.example.data.model.isIngresoSupuesto
 import com.example.data.model.source
 import com.example.data.model.status
 import com.example.ui.theme.EmeraldGreen
 import com.example.ui.theme.ExpenseRed
 import com.example.ui.theme.IncomeGreen
-import com.example.ui.theme.TentativePurple
+import com.example.ui.theme.AmberGold
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -115,8 +116,8 @@ fun TransactionItemCard(
     val isIncome = transaction.type == TransactionType.INCOME
     val isTentative = transaction.isTentative
     val decision = transaction.tentativeDecision
-    val isDiscarded = isTentative && decision == "DISCARDED"
-    val isPendingTentative = transaction.isGastoSupuesto
+    val isDiscarded = decision.equals("DISCARDED", ignoreCase = true)
+    val isPendingTentative = transaction.isGastoSupuesto || transaction.isIngresoSupuesto
 
     // Superficie base 100% opaca con alternancia clara en filas (zebra striping)
     val opaqueFallbackBase = when {
@@ -128,14 +129,14 @@ fun TransactionItemCard(
 
     val baseCardColor = when {
         isDarkTheme && isSelected -> Color(0xFF1E3A4C)
-        isDarkTheme && isDiscarded -> Color(0xFF1B3328)
-        isDarkTheme && isPendingTentative -> Color(0xFF2B2040)
+        isDarkTheme && isDiscarded -> Color(0xFF27313A)
+        isDarkTheme && isPendingTentative -> Color(0xFF3B2810)
         isDarkTheme && transaction.isSuspectedDuplicate -> Color(0xFF3A2D16)
         isDarkTheme && transaction.highlightColorHex != 0L ->
             Color(transaction.highlightColorHex).copy(alpha = 0.28f).compositeOver(opaqueFallbackBase)
         isSelected -> Color(0xFFE0F2FE)
-        isDiscarded -> Color(0xFFECFDF5)
-        isPendingTentative -> Color(0xFFF5F3FF)
+        isDiscarded -> Color(0xFFE2E8F0)
+        isPendingTentative -> Color(0xFFFEF3C7)
         transaction.isSuspectedDuplicate -> Color(0xFFFEF3C7)
         transaction.highlightColorHex != 0L ->
             Color(transaction.highlightColorHex).copy(alpha = 0.30f).compositeOver(opaqueFallbackBase)
@@ -147,26 +148,26 @@ fun TransactionItemCard(
     val borderColor = when {
         isSelected -> Color(0xFF0284C7)
         transaction.isSuspectedDuplicate -> Color(0xFFD97706)
-        isDiscarded -> if (isDarkTheme) Color(0xFF34D399) else Color(0xFF10B981)
-        isPendingTentative -> if (isDarkTheme) Color(0xFFA78BFA) else TentativePurple
+        isDiscarded -> if (isDarkTheme) Color(0xFF94A3B8) else Color(0xFF64748B)
+        isPendingTentative -> if (isDarkTheme) Color(0xFFFBBF24) else AmberGold
         transaction.isVerified -> if (isDarkTheme) Color(0xFF60A5FA) else Color(0xFF2563EB)
         isDarkTheme -> if (rowIndex % 2 == 0) Color(0xFF2A3E39) else Color(0xFF354E48)
         else -> if (rowIndex % 2 == 0) Color(0xFFE2E8F0) else Color(0xFFD6CBB2)
     }
 
     val amountColor = when {
-        isDarkTheme && isDiscarded -> Color(0xFF6EE7B7)
-        isDarkTheme && isPendingTentative -> Color(0xFFD8B4FE)
+        isDarkTheme && isDiscarded -> Color(0xFFCBD5E1)
+        isDarkTheme && isPendingTentative -> Color(0xFFFCD34D)
         isDarkTheme && isIncome -> Color(0xFF6EE7B7)
         isDarkTheme -> Color(0xFFFCA5A5)
-        isDiscarded -> IncomeGreen
-        isPendingTentative -> TentativePurple
+        isDiscarded -> Color(0xFF64748B)
+        isPendingTentative -> AmberGold
         isIncome -> IncomeGreen
         else -> ExpenseRed
     }
 
     val amountPrefix = when {
-        isDiscarded -> "+$currencySymbol"
+        isDiscarded -> "$currencySymbol"
         isIncome -> "+$currencySymbol"
         else -> "-$currencySymbol"
     }
@@ -178,25 +179,25 @@ fun TransactionItemCard(
 
     val icon = CategoryIconHelper.getIconForCategory(transaction.category)
     val iconBoxBg = when {
-        isDarkTheme && isDiscarded -> Color(0xFF064E3B)
-        isDarkTheme && isPendingTentative -> Color(0xFF4C1D95)
+        isDarkTheme && isDiscarded -> Color(0xFF334155)
+        isDarkTheme && isPendingTentative -> Color(0xFF92400E)
         isDarkTheme && isIncome -> Color(0xFF065F46)
         isDarkTheme && transaction.isSuspectedDuplicate -> Color(0xFF78350F)
         isDarkTheme -> Color(0xFF7F1D1D)
-        isDiscarded -> Color(0xFFDCFCE7)
-        isPendingTentative -> Color(0xFFEDE9FE)
+        isDiscarded -> Color(0xFFE2E8F0)
+        isPendingTentative -> Color(0xFFFEF3C7)
         isIncome -> Color(0xFFD1FAE5)
         transaction.isSuspectedDuplicate -> Color(0xFFFEF3C7)
         else -> Color(0xFFFEE2E2)
     }
     val iconTint = when {
-        isDarkTheme && isDiscarded -> Color(0xFF6EE7B7)
-        isDarkTheme && isPendingTentative -> Color(0xFFDDD6FE)
+        isDarkTheme && isDiscarded -> Color(0xFFCBD5E1)
+        isDarkTheme && isPendingTentative -> Color(0xFFFDE68A)
         isDarkTheme && isIncome -> Color(0xFFA7F3D0)
         isDarkTheme && transaction.isSuspectedDuplicate -> Color(0xFFFDE68A)
         isDarkTheme -> Color(0xFFFECACA)
-        isDiscarded -> IncomeGreen
-        isPendingTentative -> TentativePurple
+        isDiscarded -> Color(0xFF64748B)
+        isPendingTentative -> AmberGold
         isIncome -> IncomeGreen
         transaction.isSuspectedDuplicate -> Color(0xFFB45309)
         else -> ExpenseRed
@@ -531,7 +532,7 @@ fun TransactionItemCard(
                             Text(
                                 text = "Gasto Supuesto",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (isDarkTheme) Color(0xFFD8B4FE) else TentativePurple,
+                                color = if (isDarkTheme) Color(0xFFFCD34D) else AmberGold,
                                 fontWeight = FontWeight.SemiBold
                             )
                         }
@@ -573,15 +574,15 @@ fun TransactionItemCard(
                     }
 
                     when (transaction.status) {
-                        TransactionStatus.PROJECTED -> {
+                        TransactionStatus.PROJECTED, TransactionStatus.SUPPOSED_INCOME -> {
                             Surface(
                                 shape = RoundedCornerShape(6.dp),
-                                color = if (isDarkTheme) Color(0xFF3B1D6A) else Color(0xFFEDE9FE)
+                                color = if (isDarkTheme) Color(0xFF3B2810) else Color(0xFFFEF3C7)
                             ) {
                                 Text(
-                                    text = "Proyectado",
+                                    text = if (transaction.status == TransactionStatus.SUPPOSED_INCOME) "Ingreso supuesto" else "Proyectado",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = if (isDarkTheme) Color(0xFFDDD6FE) else TentativePurple,
+                                    color = if (isDarkTheme) Color(0xFFFDE68A) else AmberGold,
                                     fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
                                 )
@@ -602,6 +603,21 @@ fun TransactionItemCard(
                             }
                         }
                         else -> {}
+                    }
+
+                    if (transaction.status == TransactionStatus.DISCARDED) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = if (isDarkTheme) Color(0xFF334155) else Color(0xFFE2E8F0)
+                        ) {
+                            Text(
+                                text = "Descartado",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isDarkTheme) Color(0xFFCBD5E1) else Color(0xFF475569),
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 7.dp, vertical = 3.dp)
+                            )
+                        }
                     }
 
                     if (transaction.isSuspectedDuplicate) {
@@ -822,7 +838,7 @@ private fun TransactionActionBar(
                     imageVector = if (isPendingTentative) Icons.Default.CheckCircle else Icons.Default.HelpOutline,
                     contentDescription = if (isPendingTentative) "Confirmar como real" else "Marcar como supuesto",
                     tint = if (isPendingTentative) {
-                        if (isDarkTheme) Color(0xFFC4B5FD) else TentativePurple
+                        if (isDarkTheme) Color(0xFFFCD34D) else AmberGold
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
@@ -982,8 +998,8 @@ private fun TentativeDecisionBanner(
 ) {
     Surface(
         shape = RoundedCornerShape(14.dp),
-        color = if (isDarkTheme) Color(0xFF2B1F3D) else Color(0xFFFAF5FF),
-        border = BorderStroke(1.dp, (if (isDarkTheme) Color(0xFFA78BFA) else TentativePurple).copy(alpha = 0.6f))
+        color = if (isDarkTheme) Color(0xFF3B2810) else Color(0xFFFFFBEB),
+        border = BorderStroke(1.dp, (if (isDarkTheme) Color(0xFFFBBF24) else AmberGold).copy(alpha = 0.6f))
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(
@@ -993,14 +1009,14 @@ private fun TentativeDecisionBanner(
                 Icon(
                     imageVector = Icons.Default.HelpOutline,
                     contentDescription = null,
-                    tint = if (isDarkTheme) Color(0xFFD2B6FF) else TentativePurple,
+                    tint = if (isDarkTheme) Color(0xFFFCD34D) else AmberGold,
                     modifier = Modifier.size(16.dp)
                 )
                 Text(
                     text = "Gasto Supuesto: ¿Aprobar débito de $currencySymbol${"%,.2f".format(amount)}?",
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold,
-                    color = if (isDarkTheme) Color(0xFFE9D5FF) else Color(0xFF581C87),
+                    color = if (isDarkTheme) Color(0xFFFDE68A) else Color(0xFF78350F),
                     maxLines = 2
                 )
             }
@@ -1052,4 +1068,3 @@ private fun TentativeDecisionBanner(
         }
     }
 }
-
