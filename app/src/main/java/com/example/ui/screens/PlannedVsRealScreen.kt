@@ -1,83 +1,67 @@
 package com.example.ui.screens
 
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.CalendarMonth
-import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Event
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.TrendingDown
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.example.R
+import com.example.data.model.PaymentCommitmentEntity
 import com.example.data.model.TransactionEntity
+import com.example.data.model.affectsBudgetTotals
+import com.example.data.model.isCancelled
+import com.example.data.model.isGastoReal
 import com.example.data.model.isGastoSupuesto
+import com.example.data.model.isIngresoReal
 import com.example.ui.components.TransactionItemCard
 import com.example.ui.util.FormatUtils
 import com.example.ui.util.QuincenaFilterHelper
 import com.example.ui.viewmodel.BudgetUiState
-import java.text.SimpleDateFormat
-import java.util.Calendar
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-private val LakeNavy = Color(0xFF073B5C)
-private val LakeBlue = Color(0xFF087EAA)
-private val LakeTurquoise = Color(0xFF0F9D9A)
-private val LakeJade = Color(0xFF087F68)
-private val LakePale = Color(0xFFEAF7F8)
-private val LakeText = Color(0xFF143449)
+private val Jade = Color(0xFF087F68)
+private val Emerald = Color(0xFF0F9D75)
+private val Deep = Color(0xFF0B1C26)
+private val GuatemalaDateFormatter = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale("es", "GT"))
 
 @Composable
 fun PlannedVsRealScreen(
@@ -91,456 +75,161 @@ fun PlannedVsRealScreen(
     onDecideTentative: (TransactionEntity, String) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var selectedCycleTab by remember { mutableIntStateOf(0) }
-    var searchQuery by remember { mutableStateOf("") }
-    val transactions = uiState.allTransactions
-    val quincenaData = remember(transactions, uiState.currentYear, uiState.currentMonthIndex) {
-        QuincenaFilterHelper.filterByQuincena(
-            transactions = transactions,
-            targetYear = uiState.currentYear,
-            targetMonthIndex = uiState.currentMonthIndex
-        )
+    val month = remember(uiState.currentYear, uiState.currentMonthIndex) { YearMonth.of(uiState.currentYear, uiState.currentMonthIndex + 1) }
+    var selectedDate by remember(month) {
+        mutableStateOf(LocalDate.now(QuincenaFilterHelper.FINANCIAL_ZONE).takeIf { it.year == month.year && it.monthValue == month.monthValue } ?: month.atDay(1))
     }
-    val q1Opening = remember(transactions, uiState.currentYear, uiState.currentMonthIndex) {
-        QuincenaFilterHelper.calculateQuincenaRollover(transactions, uiState.currentYear, uiState.currentMonthIndex, 1)
-    }
-    val q2Opening = remember(transactions, uiState.currentYear, uiState.currentMonthIndex) {
-        QuincenaFilterHelper.calculateQuincenaRollover(transactions, uiState.currentYear, uiState.currentMonthIndex, 2)
-    }
-    val q1Available = q1Opening + quincenaData.q1Income - quincenaData.q1Expense
-    val q2Available = q2Opening + quincenaData.q2Income - quincenaData.q2Expense
-    val q1Projected = q1Available - quincenaData.q1PendingExpense
-    val q2Projected = q2Available - quincenaData.q2PendingExpense
-    val monthCal = remember(uiState.currentYear, uiState.currentMonthIndex) {
-        Calendar.getInstance().apply {
-            clear()
-            set(Calendar.YEAR, uiState.currentYear)
-            set(Calendar.MONTH, uiState.currentMonthIndex)
-            set(Calendar.DAY_OF_MONTH, 1)
-        }
-    }
-    val monthLabel = remember(monthCal) {
-        SimpleDateFormat("MMMM yyyy", Locale("es", "ES")).format(monthCal.time).replaceFirstChar { it.uppercase() }
-    }
-    val rawCycleList = when (selectedCycleTab) {
-        1 -> quincenaData.q1Transactions
-        2 -> quincenaData.q2Transactions
-        else -> quincenaData.monthTransactions
-    }
-    val displayList = remember(rawCycleList, searchQuery) {
-        if (searchQuery.isBlank()) {
-            rawCycleList
-        } else {
-            val q = searchQuery.trim().lowercase(Locale.getDefault())
-            rawCycleList.filter { tx ->
-                tx.title.lowercase(Locale.getDefault()).contains(q) ||
-                tx.category.lowercase(Locale.getDefault()).contains(q) ||
-                tx.notes?.lowercase(Locale.getDefault())?.contains(q) == true ||
-                "%.2f".format(tx.amount).contains(q)
-            }
-        }
-    }
+    val transactions = uiState.allTransactions.filter { it.affectsBudgetTotals }
+    val commitments = uiState.paymentCommitments
+    val monthTransactions = transactions.filter { QuincenaFilterHelper.localDate(it.dateMillis).let { d -> d.year == month.year && d.monthValue == month.monthValue } }
+    val dayTransactions = monthTransactions.filter { QuincenaFilterHelper.localDate(it.dateMillis) == selectedDate }
+    val dayCommitments = commitments.filter { QuincenaFilterHelper.localDate(it.dueDateMillis) == selectedDate && !it.isCancelled }
+    val q = QuincenaFilterHelper.filterByQuincena(transactions, month.year, month.monthValue - 1)
+    val q1Rollover = QuincenaFilterHelper.calculateQuincenaRollover(transactions, month.year, month.monthValue - 1, 1)
+    val q2Rollover = QuincenaFilterHelper.calculateQuincenaRollover(transactions, month.year, month.monthValue - 1, 2)
+    val currentPeriod = QuincenaFilterHelper.getBudgetPeriod(QuincenaFilterHelper.atStartOfDay(LocalDate.now(QuincenaFilterHelper.FINANCIAL_ZONE)))
+    val today = LocalDate.now(QuincenaFilterHelper.FINANCIAL_ZONE)
+    val cyclePeriod = if (currentPeriod.year == month.year && currentPeriod.monthIndex == month.monthValue - 1) currentPeriod else com.example.ui.util.BudgetPeriod(month.year, month.monthValue - 1, 2)
+    val cycleRange = QuincenaFilterHelper.getBudgetPeriodRange(cyclePeriod.year, cyclePeriod.monthIndex, cyclePeriod.quincena)
+    val cycleIncome = if (cyclePeriod.quincena == 1) q.q1Income else q.q2Income
+    val cycleExpense = if (cyclePeriod.quincena == 1) q.q1Expense else q.q2Expense
+    val cycleRollover = if (cyclePeriod.quincena == 1) q1Rollover else q2Rollover
+    val cycleCommitments = commitments.filter { !it.isCancelled && !it.isPaid && it.dueDateMillis in cycleRange.first..cycleRange.second }
+    val pendingAmount = cycleCommitments.sumOf { it.amount }
+    val daysRemaining = if (currentPeriod.year == month.year && currentPeriod.monthIndex == month.monthValue - 1) {
+        Chronology.daysBetweenInclusive(today, QuincenaFilterHelper.localDate(cycleRange.second)).coerceAtLeast(0)
+    } else null
+    val realAvailable = cycleRollover + cycleIncome - cycleExpense
+    val projected = realAvailable - pendingAmount
+    val monthLabel = month.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale("es", "GT"))).replaceFirstChar { it.uppercase() }
     val isDark = uiState.isDarkTheme
-    val backgroundScrim = if (isDark) {
-        if (displayList.isEmpty()) Color(0x9909131C) else Color(0xB809131C)
-    } else {
-        if (displayList.isEmpty()) Color(0x6AF0F8FA) else Color(0x9EF0F8FA)
+    val card = if (isDark) Color(0xFF102832) else Color.White
+    val text = if (isDark) Color(0xFFF1F5F9) else Color(0xFF143449)
+    val muted = if (isDark) Color(0xFFB7CBD2) else Color(0xFF466773)
+
+    LazyColumn(modifier = modifier.fillMaxSize().background(if (isDark) Deep else Color(0xFFF2F8F6)).padding(bottom = 72.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp)) {
+                Text("QUINCENAS 2.0", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Black, color = if (isDark) Color(0xFF6EE7B7) else Jade)
+                Text("Tu dinero, claro en cada ciclo", color = muted)
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp), colors = CardDefaults.cardColors(card), shape = RoundedCornerShape(18.dp)) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("CENTRO DE CONTROL", color = Jade, fontWeight = FontWeight.ExtraBold)
+                    Text("Ciclo actual · ${cyclePeriod.quincena}.ª · ${cyclePeriod.year}-${cyclePeriod.monthIndex + 1}", color = text, fontWeight = FontWeight.Bold)
+                    Text(if (daysRemaining != null) "$daysRemaining días restantes en el ciclo" else "Consulta un mes para ver su ciclo", color = muted)
+                    MetricLine("Saldo disponible real", realAvailable, uiState, Emerald, Icons.Default.Payments, text)
+                    MetricLine("Ingresos confirmados", cycleIncome, uiState, Color(0xFF168AAD), Icons.Default.TrendingUp, text)
+                    MetricLine("Gastos reales", cycleExpense, uiState, Color(0xFFC2414B), Icons.Default.TrendingDown, text)
+                    MetricLine("Compromisos pendientes", pendingAmount, uiState, Color(0xFFB7791F), Icons.Default.Schedule, text)
+                    MetricLine("Rollover recibido", cycleRollover, uiState, Jade, Icons.Default.TrendingUp, text)
+                    Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp), color = Jade) {
+                        Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text("Proyección de cierre", color = Color.White, fontWeight = FontWeight.Bold)
+                            Text(FormatUtils.formatCurrency(projected, uiState.currencySymbol, uiState.isDiscreetMode), color = Color.White, fontWeight = FontWeight.Black)
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp), colors = CardDefaults.cardColors(card), shape = RoundedCornerShape(18.dp)) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                    IconButton(onClick = onPreviousMonth) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Mes anterior", tint = Jade) }
+                    Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.CalendarMonth, null, tint = Emerald); Spacer(Modifier.size(8.dp)); Text(monthLabel, color = text, fontWeight = FontWeight.Bold) }
+                    IconButton(onClick = onNextMonth) { Icon(Icons.AutoMirrored.Filled.ArrowForward, "Mes siguiente", tint = Jade) }
+                }
+            }
+        }
+        item {
+            MonthlyCalendar(month, monthTransactions, commitments, selectedDate, { selectedDate = it }, isDark)
+        }
+        item {
+            DailyDetail(selectedDate, dayTransactions, dayCommitments, uiState, text, muted, onEditTransaction, onDeleteTransaction, onHighlightTransaction, onToggleVerifyTransaction, onDecideTentative)
+        }
+        item { UpcomingAgenda(today, transactions, commitments, uiState, text, muted) }
+        item { Spacer(Modifier.height(24.dp)) }
     }
-    val cardContainer = if (isDark) Color(0xFF0E1F2A) else Color.White
-    val summaryContainer = if (isDark) Color(0xFF0B1C26) else Color(0xFFF8FEFF)
-    val cycleCardContainer = if (isDark) Color(0xFF0D212D) else Color(0xFFF4FBFC)
-    val cardBorder = if (isDark) Color(0xFF285970) else Color(0xFF9BD9E2)
-    val accentBorder = if (isDark) Color(0xFF38BDF8) else Color(0xFF62B9C8)
-    val titleColor = if (isDark) Color(0xFF7DD3FC) else LakeNavy
-    val primaryTextColor = if (isDark) Color(0xFFF1F5F9) else LakeText
-    val secondaryTextColor = if (isDark) Color(0xFFCBD5E1) else Color(0xFF31576A)
-    val iconNavColor = if (isDark) Color(0xFF38BDF8) else LakeBlue
+}
 
-    Box(modifier = modifier.fillMaxSize()) {
-        Image(
-            painter = painterResource(R.drawable.atitlan_quincenas_street),
-            contentDescription = null,
-            contentScale = ContentScale.Crop,
-            modifier = Modifier.fillMaxSize()
-        )
-        Box(modifier = Modifier.fillMaxSize().background(backgroundScrim))
-
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(bottom = 76.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            item {
-                Box(modifier = Modifier.fillMaxWidth().height(190.dp)) {
-                    Image(
-                        painter = painterResource(R.drawable.atitlan_quincenas_header),
-                        contentDescription = "Lago de Atitlán, volcanes y muelle",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                    Box(
-                        modifier = Modifier.fillMaxSize().background(
-                            Brush.verticalGradient(listOf(Color(0x33102F46), Color(0xCC07304B)))
-                        )
-                    )
-                    Column(
-                        modifier = Modifier.align(Alignment.BottomStart).padding(horizontal = 20.dp, vertical = 16.dp)
-                    ) {
-                        Text(
-                            text = "QUINCENAS",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Black,
-                            color = Color.White,
-                            letterSpacing = 1.2.sp
-                        )
-                        Text(
-                            text = "Tu dinero, claro en cada ciclo",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color(0xFFE0F7FA),
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-            }
-
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    shape = RoundedCornerShape(18.dp),
-                    colors = CardDefaults.cardColors(containerColor = cardContainer),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, cardBorder),
-                    elevation = CardDefaults.cardElevation(3.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        IconButton(onClick = onPreviousMonth, modifier = Modifier.size(48.dp)) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Mes anterior", tint = iconNavColor)
-                        }
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.weight(1f, fill = false)
-                        ) {
-                            Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = if (isDark) Color(0xFF34D399) else LakeJade)
-                            Text(monthLabel, fontWeight = FontWeight.Bold, color = primaryTextColor, maxLines = 2)
-                        }
-                        IconButton(onClick = onNextMonth, modifier = Modifier.size(48.dp)) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Mes siguiente", tint = iconNavColor)
-                        }
-                    }
-                }
-            }
-
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState())
-                        .padding(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    listOf("Mes completo", "1.ª · Fin mes–14", "2.ª · 15–Penúltimo").forEachIndexed { index, label ->
-                        FilterChip(
-                            selected = selectedCycleTab == index,
-                            onClick = { selectedCycleTab = index },
-                            label = { Text(label, fontWeight = FontWeight.Bold) },
-                            modifier = Modifier.heightIn(min = 48.dp),
-                            colors = FilterChipDefaults.filterChipColors(
-                                containerColor = cardContainer,
-                                labelColor = primaryTextColor,
-                                selectedContainerColor = LakeBlue,
-                                selectedLabelColor = Color.White
-                            ),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, if (selectedCycleTab == index) LakeTurquoise else cardBorder)
-                        )
-                    }
-                }
-            }
-
-            if (selectedCycleTab == 0) item {
-                val received = quincenaData.totalIncome
-                val actualExpenses = quincenaData.totalExpense
-                val pendingExpenses = quincenaData.totalPendingExpense
-                val available = q2Available
-                val projected = q2Projected
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = summaryContainer),
-                    border = androidx.compose.foundation.BorderStroke(1.2.dp, accentBorder),
-                    elevation = CardDefaults.cardElevation(3.dp)
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Text(
-                            text = "RESUMEN DEL MES · SALDO AL CIERRE DE LA 2.ª QUINCENA",
-                            color = titleColor,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.ExtraBold
-                        )
-                        if (q1Opening > 0) {
-                            FinanceLine("Saldo inicial · traspaso", q1Opening, uiState.currencySymbol, uiState.isDiscreetMode, if (isDark) Color(0xFF2DD4BF) else LakeTurquoise, Icons.Default.TrendingUp, primaryTextColor)
-                        }
-                        FinanceLine("Dinero recibido", received, uiState.currencySymbol, uiState.isDiscreetMode, if (isDark) Color(0xFF38BDF8) else LakeBlue, Icons.Default.Payments, primaryTextColor)
-                        FinanceLine("Gastos reales", actualExpenses, uiState.currencySymbol, uiState.isDiscreetMode, if (isDark) Color(0xFFFCA5A5) else Color(0xFFB42332), Icons.Default.TrendingDown, primaryTextColor)
-                        FinanceLine("Pendientes · proyección", pendingExpenses, uiState.currencySymbol, uiState.isDiscreetMode, if (isDark) Color(0xFFFCD34D) else Color(0xFF8A5A00), Icons.Default.Schedule, primaryTextColor)
-                        Spacer(Modifier.height(2.dp))
-                        Surface(shape = RoundedCornerShape(14.dp), color = LakeJade) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 11.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text("Disponible real", color = Color.White, fontWeight = FontWeight.Bold)
-                                    Text("Proyección tras pendientes", color = Color(0xFFD4F5EF), style = MaterialTheme.typography.labelSmall)
-                                }
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Text(FormatUtils.formatCurrency(available, uiState.currencySymbol, uiState.isDiscreetMode), color = Color.White, fontWeight = FontWeight.Black)
-                                    Text(FormatUtils.formatCurrency(projected, uiState.currencySymbol, uiState.isDiscreetMode), color = Color(0xFFD4F5EF), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+@Composable
+private fun MonthlyCalendar(month: YearMonth, transactions: List<TransactionEntity>, commitments: List<PaymentCommitmentEntity>, selected: LocalDate, onSelect: (LocalDate) -> Unit, isDark: Boolean) {
+    val days = (1..month.lengthOfMonth()).map { month.atDay(it) }
+    val leading = month.atDay(1).dayOfWeek.value - 1
+    val cells = List(leading) { null } + days
+    val bg = if (isDark) Color(0xFF102832) else Color.White
+    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp).testTag("quincenas_month_calendar"), colors = CardDefaults.cardColors(bg), shape = RoundedCornerShape(18.dp)) {
+        Column(Modifier.padding(12.dp)) {
+            Text("CALENDARIO FINANCIERO", color = Jade, fontWeight = FontWeight.ExtraBold)
+            Row(Modifier.fillMaxWidth()) { listOf("L","M","X","J","V","S","D").forEach { Text(it, Modifier.weight(1f).padding(vertical = 8.dp), color = Color.Gray, fontWeight = FontWeight.Bold) } }
+            cells.chunked(7).forEach { week ->
+                Row(Modifier.fillMaxWidth()) {
+                    week.forEach { date ->
+                        Box(Modifier.weight(1f).height(54.dp).padding(2.dp).clickable(enabled = date != null) { date?.let(onSelect) }.background(if (date == selected) Color(0xFFB7E4D5) else Color.Transparent, RoundedCornerShape(8.dp)), contentAlignment = Alignment.TopCenter) {
+                            if (date != null) {
+                                val txs = transactions.filter { QuincenaFilterHelper.localDate(it.dateMillis) == date }
+                                val pays = commitments.filter { !it.isCancelled && QuincenaFilterHelper.localDate(it.dueDateMillis) == date }
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text("${date.dayOfMonth}", color = if (date.dayOfMonth == 15 || date.dayOfMonth == month.lengthOfMonth()) Jade else Color.Unspecified, fontWeight = if (date.dayOfMonth == 15 || date.dayOfMonth == month.lengthOfMonth()) FontWeight.Black else FontWeight.Normal)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        if (txs.any { it.isIngresoReal }) Text("↑", color = Emerald)
+                                        if (txs.any { it.isGastoReal }) Text("↓", color = Color(0xFFC2414B))
+                                        if (txs.any { it.isGastoSupuesto }) Text("·", color = Color(0xFFB7791F))
+                                        if (pays.isNotEmpty()) Text("$", color = Color(0xFF8B5CF6))
+                                    }
                                 }
                             }
                         }
-                        Text(
-                            "El saldo que queda pasa al siguiente ciclo como saldo inicial; no se cuenta como ingreso nuevo.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = secondaryTextColor
-                        )
                     }
                 }
             }
-
-            if (selectedCycleTab == 1) {
-                item {
-                    CycleFinanceCard(
-                        title = "1.ª quincena · Fin del mes previo al día 14",
-                        fundedBy = "Financiada por el pago de fin del mes anterior",
-                        opening = q1Opening,
-                        received = quincenaData.q1Income,
-                        actualExpenses = quincenaData.q1Expense,
-                        pendingExpenses = quincenaData.q1PendingExpense,
-                        actualAvailable = q1Available,
-                        projected = q1Projected,
-                        uiState = uiState
-                    )
-                }
-            }
-            if (selectedCycleTab == 2) {
-                item {
-                    CycleFinanceCard(
-                        title = "2.ª quincena · Día 15 al penúltimo día",
-                        fundedBy = "Financiada por el pago recibido el día 15",
-                        opening = q2Opening,
-                        received = quincenaData.q2Income,
-                        actualExpenses = quincenaData.q2Expense,
-                        pendingExpenses = quincenaData.q2PendingExpense,
-                        actualAvailable = q2Available,
-                        projected = q2Projected,
-                        uiState = uiState
-                    )
-                }
-            }
-
-            // Barra de Búsqueda integrada dentro del ciclo seleccionado
-            item {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { searchQuery = it },
-                    placeholder = {
-                        Text(
-                            when (selectedCycleTab) {
-                                1 -> "Buscar en 1.ª quincena..."
-                                2 -> "Buscar en 2.ª quincena..."
-                                else -> "Buscar en el mes..."
-                            },
-                            color = secondaryTextColor,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    },
-                    leadingIcon = {
-                        Icon(Icons.Default.Search, contentDescription = "Buscar", tint = iconNavColor)
-                    },
-                    trailingIcon = {
-                        if (searchQuery.isNotBlank()) {
-                            IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(48.dp)) {
-                                Icon(Icons.Default.Clear, contentDescription = "Limpiar búsqueda", tint = secondaryTextColor)
-                            }
-                        }
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(16.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = cardContainer,
-                        unfocusedContainerColor = cardContainer,
-                        focusedBorderColor = iconNavColor,
-                        unfocusedBorderColor = cardBorder,
-                        focusedTextColor = primaryTextColor,
-                        unfocusedTextColor = primaryTextColor
-                    ),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 2.dp)
-                        .testTag("quincenas_search_bar")
-                )
-            }
-
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 2.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = cardContainer),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, cardBorder)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("Movimientos", color = titleColor, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text(
-                            "${displayList.size}",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.clip(CircleShape).background(LakeBlue).padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-            }
-
-            if (displayList.isEmpty()) {
-                item {
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        shape = RoundedCornerShape(18.dp),
-                        colors = CardDefaults.cardColors(containerColor = cardContainer),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, cardBorder)
-                    ) {
-                        Column(modifier = Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Default.AccountBalanceWallet, contentDescription = null, tint = if (isDark) Color(0xFF2DD4BF) else LakeTurquoise, modifier = Modifier.size(36.dp))
-                            Spacer(Modifier.height(8.dp))
-                            if (searchQuery.isNotBlank()) {
-                                Text("No se encontraron movimientos", color = primaryTextColor, fontWeight = FontWeight.Bold)
-                                Text("No hay coincidencias para \"$searchQuery\" en este ciclo.", color = secondaryTextColor, style = MaterialTheme.typography.bodySmall)
-                                Spacer(Modifier.height(10.dp))
-                                OutlinedButton(
-                                    onClick = { searchQuery = "" },
-                                    shape = RoundedCornerShape(10.dp),
-                                    border = androidx.compose.foundation.BorderStroke(1.dp, iconNavColor)
-                                ) {
-                                    Text("Limpiar búsqueda", color = iconNavColor, fontWeight = FontWeight.Bold)
-                                }
-                            } else {
-                                Text("Aún no hay movimientos en este ciclo", color = primaryTextColor, fontWeight = FontWeight.Bold)
-                                Text("Los registros nuevos aparecerán aquí automáticamente.", color = secondaryTextColor, style = MaterialTheme.typography.bodySmall)
-                            }
-                        }
-                    }
-                }
-            } else {
-                itemsIndexed(displayList, key = { _, it -> it.id }) { index, tx ->
-                    TransactionItemCard(
-                        transaction = tx,
-                        currencySymbol = uiState.currencySymbol,
-                        onEdit = { onEditTransaction(tx) },
-                        onDelete = { onDeleteTransaction(tx) },
-                        onHighlight = { hex -> onHighlightTransaction(tx, hex) },
-                        onToggleVerify = { onToggleVerifyTransaction(tx) },
-                        onDecideTentative = { decision -> onDecideTentative(tx, decision) },
-                        onToggleGastoSupuesto = {
-                            val nextDec = if (tx.isGastoSupuesto) "CONFIRM" else "PENDING"
-                            onDecideTentative(tx, nextDec)
-                        },
-                        isDiscreetMode = uiState.isDiscreetMode,
-                        isDarkTheme = isDark,
-                        rowIndex = index
-                    )
-                }
-            }
-            item { Spacer(modifier = Modifier.height(90.dp)) }
+            Spacer(Modifier.height(6.dp))
+            Text("↑ ingreso confirmado  ↓ gasto real  · supuesto  $ compromiso · 15 y último día inician ciclo", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
         }
     }
 }
 
 @Composable
-private fun CycleFinanceCard(
-    title: String,
-    fundedBy: String,
-    opening: Double,
-    received: Double,
-    actualExpenses: Double,
-    pendingExpenses: Double,
-    actualAvailable: Double,
-    projected: Double,
-    uiState: BudgetUiState
-) {
-    val isDark = uiState.isDarkTheme
-    val cardContainer = if (isDark) Color(0xFF0D212D) else Color(0xFFF4FBFC)
-    val cardBorder = if (isDark) Color(0xFF285970) else Color(0xFFB6DFE5)
-    val titleColor = if (isDark) Color(0xFF7DD3FC) else LakeNavy
-    val subtitleColor = if (isDark) Color(0xFFCBD5E1) else Color(0xFF31576A)
-    val primaryText = if (isDark) Color(0xFFF1F5F9) else LakeText
-
-    Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = cardContainer),
-        border = androidx.compose.foundation.BorderStroke(1.dp, cardBorder),
-        elevation = CardDefaults.cardElevation(2.dp)
-    ) {
-        Column(modifier = Modifier.padding(15.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-            Text(title, color = titleColor, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.ExtraBold)
-            Text(fundedBy, color = subtitleColor, style = MaterialTheme.typography.bodySmall)
-            FinanceLine("Saldo inicial · traspaso", opening, uiState.currencySymbol, uiState.isDiscreetMode, if (isDark) Color(0xFF2DD4BF) else LakeTurquoise, Icons.Default.TrendingUp, primaryText)
-            FinanceLine("Dinero recibido", received, uiState.currencySymbol, uiState.isDiscreetMode, if (isDark) Color(0xFF38BDF8) else LakeBlue, Icons.Default.Payments, primaryText)
-            FinanceLine("Gastos reales · una vez", actualExpenses, uiState.currencySymbol, uiState.isDiscreetMode, if (isDark) Color(0xFFFCA5A5) else Color(0xFFB42332), Icons.Default.TrendingDown, primaryText)
-            FinanceLine("Gastos pendientes", pendingExpenses, uiState.currencySymbol, uiState.isDiscreetMode, if (isDark) Color(0xFFFCD34D) else Color(0xFF8A5A00), Icons.Default.Schedule, primaryText)
-            Surface(shape = RoundedCornerShape(12.dp), color = LakeJade) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 9.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Disponible real", color = Color.White, fontWeight = FontWeight.Bold)
-                        Text("Proyectado", color = Color(0xFFD4F5EF), style = MaterialTheme.typography.labelSmall)
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(FormatUtils.formatCurrency(actualAvailable, uiState.currencySymbol, uiState.isDiscreetMode), color = Color.White, fontWeight = FontWeight.Black)
-                        Text(FormatUtils.formatCurrency(projected, uiState.currencySymbol, uiState.isDiscreetMode), color = Color(0xFFD4F5EF), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
+private fun DailyDetail(date: LocalDate, transactions: List<TransactionEntity>, commitments: List<PaymentCommitmentEntity>, uiState: BudgetUiState, text: Color, muted: Color, onEdit: (TransactionEntity) -> Unit, onDelete: (TransactionEntity) -> Unit, onHighlight: (TransactionEntity, Long) -> Unit, onVerify: (TransactionEntity) -> Unit, onDecide: (TransactionEntity, String) -> Unit) {
+    val income = transactions.filter { it.isIngresoReal }.sumOf { it.amount }
+    val expenses = transactions.filter { it.isGastoReal }.sumOf { it.amount }
+    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp), colors = CardDefaults.cardColors(if (uiState.isDarkTheme) Color(0xFF102832) else Color.White), shape = RoundedCornerShape(18.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("DETALLE DEL DÍA", color = Jade, fontWeight = FontWeight.ExtraBold)
+            Text(date.format(GuatemalaDateFormatter).replaceFirstChar { it.uppercase() }, color = text, fontWeight = FontWeight.Bold)
+            Text("Ingresos ${FormatUtils.formatCurrency(income, uiState.currencySymbol, uiState.isDiscreetMode)} · Gastos ${FormatUtils.formatCurrency(expenses, uiState.currencySymbol, uiState.isDiscreetMode)} · Compromisos ${commitments.size}", color = muted)
+            transactions.forEachIndexed { index, tx -> TransactionItemCard(tx, uiState.currencySymbol, onEdit = { onEdit(tx) }, onDelete = { onDelete(tx) }, onHighlight = { onHighlight(tx, it) }, onToggleVerify = { onVerify(tx) }, onDecideTentative = { onDecide(tx, it) }, onToggleGastoSupuesto = { onDecide(tx, if (tx.isGastoSupuesto) "CONFIRM" else "PENDING") }, isDiscreetMode = uiState.isDiscreetMode, isDarkTheme = uiState.isDarkTheme, rowIndex = index) }
+            commitments.forEach { Text("Pago pendiente · ${it.title} · ${FormatUtils.formatCurrency(it.amount, uiState.currencySymbol, uiState.isDiscreetMode)}", color = Color(0xFF8B5CF6)) }
+            if (transactions.isEmpty() && commitments.isEmpty()) Text("No hay movimientos ni compromisos registrados para este día.", color = muted)
         }
     }
 }
 
 @Composable
-private fun FinanceLine(
-    label: String,
-    amount: Double,
-    currencySymbol: String,
-    discreetMode: Boolean,
-    color: Color,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    labelColor: Color = LakeText
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
-            Text(label, color = labelColor, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+private fun UpcomingAgenda(today: LocalDate, transactions: List<TransactionEntity>, commitments: List<PaymentCommitmentEntity>, uiState: BudgetUiState, text: Color, muted: Color) {
+    val end = today.plusDays(6)
+    val tx = transactions.filter { val d = QuincenaFilterHelper.localDate(it.dateMillis); d in today..end }
+    val pay = commitments.filter { !it.isCancelled && !it.isPaid && QuincenaFilterHelper.localDate(it.dueDateMillis) in today..end }
+    Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp), colors = CardDefaults.cardColors(if (uiState.isDarkTheme) Color(0xFF102832) else Color.White), shape = RoundedCornerShape(18.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Event, null, tint = Jade); Spacer(Modifier.size(8.dp)); Text("AGENDA · PRÓXIMOS SIETE DÍAS", color = Jade, fontWeight = FontWeight.ExtraBold) }
+            pay.sortedBy { it.dueDateMillis }.forEach { Text("Pago · ${it.title} · ${QuincenaFilterHelper.localDate(it.dueDateMillis).format(GuatemalaDateFormatter)}", color = text) }
+            tx.sortedBy { it.dateMillis }.forEach { Text("${if (it.isIngresoReal) "Ingreso confirmado" else if (it.isGastoSupuesto) "Supuesto" else "Movimiento"} · ${it.title} · ${QuincenaFilterHelper.localDate(it.dateMillis).format(GuatemalaDateFormatter)}", color = text) }
+            if (pay.isEmpty() && tx.isEmpty()) Text("No hay eventos registrados para los próximos siete días.", color = muted)
         }
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            FormatUtils.formatCurrency(amount, currencySymbol, discreetMode),
-            color = color,
-            fontWeight = FontWeight.Bold,
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 2
-        )
     }
+}
+
+@Composable
+private fun MetricLine(label: String, amount: Double, state: BudgetUiState, color: Color, icon: androidx.compose.ui.graphics.vector.ImageVector, text: Color) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) { Icon(icon, null, tint = color, modifier = Modifier.size(18.dp)); Spacer(Modifier.size(8.dp)); Text(label, color = text) }
+        Text(FormatUtils.formatCurrency(amount, state.currencySymbol, state.isDiscreetMode), color = color, fontWeight = FontWeight.Bold)
+    }
+}
+
+private object Chronology {
+    fun daysBetweenInclusive(start: LocalDate, end: LocalDate): Int = if (end.isBefore(start)) 0 else java.time.temporal.ChronoUnit.DAYS.between(start, end).toInt() + 1
 }
