@@ -1,21 +1,20 @@
 package com.example.ui.util
 
 import com.example.data.model.TransactionEntity
-import com.example.data.model.TransactionType
 import com.example.data.model.affectsBudgetTotals
 import com.example.data.model.effectiveAmountBigDecimal
-import com.example.data.model.effectiveAmountMinor
 import com.example.data.model.isGastoReal
 import com.example.data.model.isGastoSupuesto
 import com.example.data.model.isIngresoReal
 import java.math.BigDecimal
-import java.util.Calendar
+import java.time.Instant
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.temporal.ChronoUnit
 
-data class BudgetPeriod(
-    val year: Int,
-    val monthIndex: Int, // 0..11
-    val quincena: Int     // 1 or 2
-)
+data class BudgetPeriod(val year: Int, val monthIndex: Int, val quincena: Int)
 
 data class QuincenaFilteredData(
     val q1Transactions: List<TransactionEntity>,
@@ -35,331 +34,110 @@ data class QuincenaFilteredData(
     val totalNet: Double
 )
 
+/** Motor de fechas oficial de Quincenas 2.0. Todas las fechas financieras son locales de Guatemala. */
 object QuincenaFilterHelper {
+    val FINANCIAL_ZONE: ZoneId = ZoneId.of("America/Guatemala")
 
-    /**
-     * Determina el ciclo financiado por una fecha. Gastos del 1 al 15 pertenecen a Q1;
-     * los del 16 al fin pertenecen a Q2. Un pago el 15 financia Q2, y un pago de fin
-     * de mes financia Q1 del mes siguiente. Sin tipo, se asume gasto.
-     */
+    /** El tipo del movimiento nunca modifica el ciclo financiero. */
+    fun localDate(timeMillis: Long): LocalDate = Instant.ofEpochMilli(timeMillis).atZone(FINANCIAL_ZONE).toLocalDate()
+
+    fun atStartOfDay(date: LocalDate): Long = date.atStartOfDay(FINANCIAL_ZONE).toInstant().toEpochMilli()
+
+    fun atEndOfDay(date: LocalDate): Long = date.plusDays(1).atStartOfDay(FINANCIAL_ZONE).toInstant().toEpochMilli() - 1L
+
     fun getBudgetPeriod(timeMillis: Long, transactionType: String? = null): BudgetPeriod {
-        val cal = Calendar.getInstance().apply { this.timeInMillis = timeMillis }
-        val y = cal.get(Calendar.YEAR)
-        val m = cal.get(Calendar.MONTH)
-        val d = cal.get(Calendar.DAY_OF_MONTH)
-        val maxDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-
-        return if (transactionType == TransactionType.INCOME && d == maxDay) {
-            // El pago de fin de mes financia del 1 al 15 del mes siguiente
-            val nextMonth = if (m == 11) 0 else m + 1
-            val nextYear = if (m == 11) y + 1 else y
-            BudgetPeriod(year = nextYear, monthIndex = nextMonth, quincena = 1)
-        } else if (transactionType == TransactionType.INCOME && d == 15) {
-            // El pago del 15 financia del 16 al último día del mes
-            BudgetPeriod(year = y, monthIndex = m, quincena = 2)
-        } else if (d in 1..15) {
-            BudgetPeriod(year = y, monthIndex = m, quincena = 1)
-        } else {
-            BudgetPeriod(year = y, monthIndex = m, quincena = 2)
+        val date = localDate(timeMillis)
+        val month = YearMonth.from(date)
+        return when {
+            date.dayOfMonth == month.lengthOfMonth() -> {
+                val next = month.plusMonths(1)
+                BudgetPeriod(next.year, next.monthValue - 1, 1)
+            }
+            date.dayOfMonth <= 14 -> BudgetPeriod(date.year, date.monthValue - 1, 1)
+            else -> BudgetPeriod(date.year, date.monthValue - 1, 2)
         }
     }
 
-    /**
-     * Obtiene el rango de timestamps exactos (inicio 00:00:00.000 a fin 23:59:59.999) para el periodo presupuestario:
-     * Rango inclusivo de fechas que puede contener el ciclo, incluyendo la fecha del pago:
-     * Q1 incluye el pago de fin de mes anterior y gastos del 1 al 15;
-     * Q2 incluye el pago del 15 y gastos del 16 al fin de mes.
-     */
+    /** Q1: último día del mes anterior al día 14; Q2: día 15 al penúltimo día. */
     fun getBudgetPeriodRange(year: Int, monthIndex: Int, quincena: Int): Pair<Long, Long> {
-        val cal = Calendar.getInstance()
-
-        val startMillis: Long = if (quincena == 2) {
-            cal.clear()
-            cal.set(Calendar.YEAR, year)
-            cal.set(Calendar.MONTH, monthIndex)
-            cal.set(Calendar.DAY_OF_MONTH, 15)
-            cal.set(Calendar.HOUR_OF_DAY, 0)
-            cal.set(Calendar.MINUTE, 0)
-            cal.set(Calendar.SECOND, 0)
-            cal.set(Calendar.MILLISECOND, 0)
-            cal.timeInMillis
-        } else {
-            cal.clear()
-            val prevMonth = if (monthIndex == 0) 11 else monthIndex - 1
-            val prevYear = if (monthIndex == 0) year - 1 else year
-            cal.set(Calendar.YEAR, prevYear)
-            cal.set(Calendar.MONTH, prevMonth)
-            val prevMaxDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-            cal.set(Calendar.DAY_OF_MONTH, prevMaxDay)
-            cal.set(Calendar.HOUR_OF_DAY, 0)
-            cal.set(Calendar.MINUTE, 0)
-            cal.set(Calendar.SECOND, 0)
-            cal.set(Calendar.MILLISECOND, 0)
-            cal.timeInMillis
-        }
-
-        val endMillis: Long = if (quincena == 1) {
-            cal.clear()
-            cal.set(Calendar.YEAR, year)
-            cal.set(Calendar.MONTH, monthIndex)
-            cal.set(Calendar.DAY_OF_MONTH, 15)
-            cal.set(Calendar.HOUR_OF_DAY, 23)
-            cal.set(Calendar.MINUTE, 59)
-            cal.set(Calendar.SECOND, 59)
-            cal.set(Calendar.MILLISECOND, 999)
-            cal.timeInMillis
-        } else {
-            cal.clear()
-            cal.set(Calendar.YEAR, year)
-            cal.set(Calendar.MONTH, monthIndex)
-            val curMaxDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
-            cal.set(Calendar.DAY_OF_MONTH, curMaxDay)
-            cal.set(Calendar.HOUR_OF_DAY, 23)
-            cal.set(Calendar.MINUTE, 59)
-            cal.set(Calendar.SECOND, 59)
-            cal.set(Calendar.MILLISECOND, 999)
-            cal.timeInMillis
-        }
-
-        return Pair(startMillis, endMillis)
+        val month = YearMonth.of(year, monthIndex + 1)
+        val start = if (quincena == 2) month.atDay(15) else month.minusMonths(1).atEndOfMonth()
+        val end = if (quincena == 2) month.atEndOfMonth().minusDays(1) else month.atDay(14)
+        return atStartOfDay(start) to atEndOfDay(end)
     }
 
-    /**
-     * Verifica si una transacción pertenece al mes presupuestario indicado.
-     */
     fun isDateInBudgetMonth(dateMillis: Long, targetYear: Int, targetMonthIndex: Int, transactionType: String? = null): Boolean {
-        val bp = getBudgetPeriod(dateMillis, transactionType)
-        return bp.year == targetYear && bp.monthIndex == targetMonthIndex
+        val period = getBudgetPeriod(dateMillis, transactionType)
+        return period.year == targetYear && period.monthIndex == targetMonthIndex
     }
 
-    /**
-     * Verifica si la fecha dada corresponde a la quincena indicada:
-     * - 1: Gasto del 1 al 15; pago de fin de mes anterior.
-     * - 2: Gasto del 16 al fin; pago del día 15.
-     * - <= 0: Todas.
-     */
-    fun isDateInQuincena(dateMillis: Long, quincenaNumber: Int, transactionType: String? = null): Boolean {
-        if (quincenaNumber <= 0) return true
-        val bp = getBudgetPeriod(dateMillis, transactionType)
-        return bp.quincena == quincenaNumber
-    }
+    fun isDateInQuincena(dateMillis: Long, quincenaNumber: Int, transactionType: String? = null): Boolean =
+        quincenaNumber <= 0 || getBudgetPeriod(dateMillis, transactionType).quincena == quincenaNumber
 
-    /**
-     * Filtra rigurosamente las transacciones para la vista de Quincenas:
-     * - Mes y año: Exclusivamente transacciones cuyo ciclo presupuestario pertenezca a targetYear y targetMonthIndex.
-     * - Q1: Pago de fin del mes anterior y gastos del día 1 al 15.
-     * - Q2: Pago del día 15 y gastos del día 16 al último día del mes.
-     * - Totales calculados estrictamente sobre las listas filtradas.
-     */
-    fun filterByQuincena(
-        transactions: List<TransactionEntity>,
-        targetYear: Int,
-        targetMonthIndex: Int
-    ): QuincenaFilteredData {
+    fun filterByQuincena(transactions: List<TransactionEntity>, targetYear: Int, targetMonthIndex: Int): QuincenaFilteredData {
         val q1 = mutableListOf<TransactionEntity>()
         val q2 = mutableListOf<TransactionEntity>()
         val monthList = mutableListOf<TransactionEntity>()
-
-        for (tx in transactions) {
-            if (!tx.affectsBudgetTotals) continue
-            val bp = getBudgetPeriod(tx.dateMillis, tx.type)
-            if (bp.year == targetYear && bp.monthIndex == targetMonthIndex) {
-                monthList.add(tx)
-                if (bp.quincena == 1) {
-                    q1.add(tx)
-                } else if (bp.quincena == 2) {
-                    q2.add(tx)
-                }
+        transactions.filter { it.affectsBudgetTotals }.forEach { tx ->
+            val period = getBudgetPeriod(tx.dateMillis, tx.type)
+            if (period.year == targetYear && period.monthIndex == targetMonthIndex) {
+                monthList += tx
+                if (period.quincena == 1) q1 += tx else q2 += tx
             }
         }
-
-        val q1IncBd = q1.filter { it.isIngresoReal }.fold(BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
-        val q1ExpBd = q1.filter { it.isGastoReal }.fold(BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
-        val q1PendingBd = q1.filter { it.isGastoSupuesto && it.tentativeDecision != "DISCARDED" }.fold(BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
-        val q2IncBd = q2.filter { it.isIngresoReal }.fold(BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
-        val q2ExpBd = q2.filter { it.isGastoReal }.fold(BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
-        val q2PendingBd = q2.filter { it.isGastoSupuesto && it.tentativeDecision != "DISCARDED" }.fold(BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
-        val totIncBd = monthList.filter { it.isIngresoReal }.fold(BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
-        val totExpBd = monthList.filter { it.isGastoReal }.fold(BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
-        val totPendingBd = monthList.filter { it.isGastoSupuesto && it.tentativeDecision != "DISCARDED" }.fold(BigDecimal.ZERO) { acc, tx -> acc.add(tx.effectiveAmountBigDecimal) }
-
-        return QuincenaFilteredData(
-            q1Transactions = q1,
-            q2Transactions = q2,
-            monthTransactions = monthList,
-            q1Income = q1IncBd.toDouble(),
-            q1Expense = q1ExpBd.toDouble(),
-            q1PendingExpense = q1PendingBd.toDouble(),
-            q1Net = q1IncBd.subtract(q1ExpBd).toDouble(),
-            q2Income = q2IncBd.toDouble(),
-            q2Expense = q2ExpBd.toDouble(),
-            q2PendingExpense = q2PendingBd.toDouble(),
-            q2Net = q2IncBd.subtract(q2ExpBd).toDouble(),
-            totalIncome = totIncBd.toDouble(),
-            totalExpense = totExpBd.toDouble(),
-            totalPendingExpense = totPendingBd.toDouble(),
-            totalNet = totIncBd.subtract(totExpBd).toDouble()
-        )
+        fun income(list: List<TransactionEntity>) = list.filter { it.isIngresoReal }.fold(BigDecimal.ZERO) { a, tx -> a.add(tx.effectiveAmountBigDecimal) }
+        fun expense(list: List<TransactionEntity>) = list.filter { it.isGastoReal }.fold(BigDecimal.ZERO) { a, tx -> a.add(tx.effectiveAmountBigDecimal) }
+        fun pending(list: List<TransactionEntity>) = list.filter { it.isGastoSupuesto && it.tentativeDecision != "DISCARDED" }.fold(BigDecimal.ZERO) { a, tx -> a.add(tx.effectiveAmountBigDecimal) }
+        val q1i = income(q1); val q1e = expense(q1); val q1p = pending(q1)
+        val q2i = income(q2); val q2e = expense(q2); val q2p = pending(q2)
+        val ti = income(monthList); val te = expense(monthList); val tp = pending(monthList)
+        return QuincenaFilteredData(q1, q2, monthList, q1i.toDouble(), q1e.toDouble(), q1p.toDouble(), q1i.subtract(q1e).toDouble(), q2i.toDouble(), q2e.toDouble(), q2p.toDouble(), q2i.subtract(q2e).toDouble(), ti.toDouble(), te.toDouble(), tp.toDouble(), ti.subtract(te).toDouble())
     }
 
-    /**
-     * Verifica si dos timestamps corresponden exactamente al mismo día calendario local.
-     */
-    fun isSameCalendarDay(time1: Long, time2: Long): Boolean {
-        val cal1 = Calendar.getInstance().apply { timeInMillis = time1 }
-        val cal2 = Calendar.getInstance().apply { timeInMillis = time2 }
-        return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
-                cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
-    }
+    fun isSameCalendarDay(time1: Long, time2: Long): Boolean = localDate(time1) == localDate(time2)
 
-    /**
-     * Obtiene los límites de inicio y fin en milisegundos para el día calendario dado.
-     */
     fun getDayRange(timeMillis: Long): Pair<Long, Long> {
-        val cal = Calendar.getInstance().apply { timeInMillis = timeMillis }
-        cal.set(Calendar.HOUR_OF_DAY, 0)
-        cal.set(Calendar.MINUTE, 0)
-        cal.set(Calendar.SECOND, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-        val start = cal.timeInMillis
-        cal.set(Calendar.HOUR_OF_DAY, 23)
-        cal.set(Calendar.MINUTE, 59)
-        cal.set(Calendar.SECOND, 59)
-        cal.set(Calendar.MILLISECOND, 999)
-        val end = cal.timeInMillis
-        return Pair(start, end)
+        val day = localDate(timeMillis)
+        return atStartOfDay(day) to atEndOfDay(day)
     }
 
-    /**
-     * Obtiene los límites de inicio y fin para la semana (lunes a domingo) de la fecha dada.
-     */
     fun getWeekRange(timeMillis: Long): Pair<Long, Long> {
-        val cal = Calendar.getInstance().apply {
-            firstDayOfWeek = Calendar.MONDAY
-            timeInMillis = timeMillis
-        }
-        cal.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
-        cal.set(Calendar.HOUR_OF_DAY, 0)
-        cal.set(Calendar.MINUTE, 0)
-        cal.set(Calendar.SECOND, 0)
-        cal.set(Calendar.MILLISECOND, 0)
-        val start = cal.timeInMillis
-
-        cal.add(Calendar.DAY_OF_WEEK, 6)
-        cal.set(Calendar.HOUR_OF_DAY, 23)
-        cal.set(Calendar.MINUTE, 59)
-        cal.set(Calendar.SECOND, 59)
-        cal.set(Calendar.MILLISECOND, 999)
-        val end = cal.timeInMillis
-        return Pair(start, end)
+        val date = localDate(timeMillis)
+        val start = date.minusDays((date.dayOfWeek.value - 1).toLong())
+        return atStartOfDay(start) to atEndOfDay(start.plusDays(6))
     }
 
-    /**
-     * Obtiene los límites de inicio y fin para el año dado.
-     */
-    fun getYearRange(year: Int): Pair<Long, Long> {
-        val cal = Calendar.getInstance()
-        cal.clear()
-        cal.set(Calendar.YEAR, year)
-        cal.set(Calendar.MONTH, Calendar.JANUARY)
-        cal.set(Calendar.DAY_OF_MONTH, 1)
-        val start = cal.timeInMillis
+    fun getYearRange(year: Int): Pair<Long, Long> = atStartOfDay(LocalDate.of(year, 1, 1)) to atEndOfDay(LocalDate.of(year, 12, 31))
 
-        cal.set(Calendar.MONTH, Calendar.DECEMBER)
-        cal.set(Calendar.DAY_OF_MONTH, 31)
-        cal.set(Calendar.HOUR_OF_DAY, 23)
-        cal.set(Calendar.MINUTE, 59)
-        cal.set(Calendar.SECOND, 59)
-        cal.set(Calendar.MILLISECOND, 999)
-        val end = cal.timeInMillis
-        return Pair(start, end)
-    }
-
-    /**
-     * Identifica los IDs de transacciones que son sospechosas de duplicado en la lista:
-     * - Aquellas con isSuspectedDuplicate == true
-     * - O transacciones que comparten mismo tipo, monto, mismo día calendario y mismo concepto/comercio
-     */
     fun findDuplicateTransactionIds(transactions: List<TransactionEntity>): Set<Long> {
-        val duplicateIds = mutableSetOf<Long>()
-        val n = transactions.size
-
-        for (i in 0 until n) {
-            val tx1 = transactions[i]
-            if (tx1.isSuspectedDuplicate) {
-                duplicateIds.add(tx1.id)
-            }
-            for (j in i + 1 until n) {
-                val tx2 = transactions[j]
-                if (tx1.transferGroupId != null && tx1.transferGroupId == tx2.transferGroupId) continue
-                if (tx1.accountId != null && tx2.accountId != null && tx1.accountId != tx2.accountId) continue
-                val sameType = tx1.type.equals(tx2.type, ignoreCase = true)
-                val sameKind = tx1.entryKind.equals(tx2.entryKind, ignoreCase = true)
-                val sameAmount = tx1.effectiveAmountMinor == tx2.effectiveAmountMinor
-                val sameDay = isSameCalendarDay(tx1.dateMillis, tx2.dateMillis)
-                val sameTitle = tx1.title.trim().equals(tx2.title.trim(), ignoreCase = true)
-
-                if (sameType && sameKind && sameAmount && sameDay && sameTitle) {
-                    duplicateIds.add(tx1.id)
-                    duplicateIds.add(tx2.id)
-                }
+        val ids = mutableSetOf<Long>()
+        transactions.forEachIndexed { i, a ->
+            if (a.isSuspectedDuplicate) ids += a.id
+            transactions.drop(i + 1).forEach { b ->
+                if (a.transferGroupId != null && a.transferGroupId == b.transferGroupId) return@forEach
+                if (a.accountId != null && b.accountId != null && a.accountId != b.accountId) return@forEach
+                if (a.type.equals(b.type, true) && a.entryKind.equals(b.entryKind, true) && a.effectiveAmountMinor == b.effectiveAmountMinor && isSameCalendarDay(a.dateMillis, b.dateMillis) && a.title.trim().equals(b.title.trim(), true)) ids += a.id.also { ids += b.id }
             }
         }
-        return duplicateIds
+        return ids
     }
 
-    /**
-     * Calcula dinámicamente el salario roll-over acumulado de periodos quincenales anteriores.
-     * Si la quincena anterior cerró con superávit (Ingresos + Rollover previo - Gastos > 0),
-     * ese dinero sobrante se traslada a la quincena actual como "Salario Roll-Over".
-     */
-    fun calculateQuincenaRollover(
-        transactions: List<TransactionEntity>,
-        targetYear: Int,
-        targetMonthIndex: Int,
-        targetQuincena: Int
-    ): Double {
+    fun calculateQuincenaRollover(transactions: List<TransactionEntity>, targetYear: Int, targetMonthIndex: Int, targetQuincena: Int): Double {
         if (transactions.isEmpty()) return 0.0
-
-        // Clave única entera para cada quincena: año * 24 + mes * 2 + (quincena - 1)
-        fun periodKey(year: Int, month: Int, quincena: Int): Int {
-            return year * 24 + month * 2 + (quincena - 1)
+        fun key(year: Int, month: Int, q: Int) = year * 24 + month * 2 + q - 1
+        val target = key(targetYear, targetMonthIndex, if (targetQuincena in 1..2) targetQuincena else 1)
+        val inc = mutableMapOf<Int, BigDecimal>(); val exp = mutableMapOf<Int, BigDecimal>()
+        transactions.filter { it.affectsBudgetTotals }.forEach { tx ->
+            val p = getBudgetPeriod(tx.dateMillis, tx.type); val k = key(p.year, p.monthIndex, p.quincena)
+            if (tx.isIngresoReal) inc[k] = (inc[k] ?: BigDecimal.ZERO).add(tx.effectiveAmountBigDecimal)
+            else if (tx.isGastoReal) exp[k] = (exp[k] ?: BigDecimal.ZERO).add(tx.effectiveAmountBigDecimal)
         }
-
-        val targetQ = if (targetQuincena in 1..2) targetQuincena else 1
-        val targetKey = periodKey(targetYear, targetMonthIndex, targetQ)
-
-        // Agrupar ingresos y gastos por periodKey según su BudgetPeriod usando BigDecimal exacto
-        val periodIncomeMap = mutableMapOf<Int, BigDecimal>()
-        val periodExpenseMap = mutableMapOf<Int, BigDecimal>()
-
-        for (tx in transactions) {
-            if (!tx.affectsBudgetTotals) continue
-            val bp = getBudgetPeriod(tx.dateMillis, tx.type)
-            val key = periodKey(bp.year, bp.monthIndex, bp.quincena)
-
-            if (tx.isIngresoReal) {
-                periodIncomeMap[key] = (periodIncomeMap[key] ?: BigDecimal.ZERO).add(tx.effectiveAmountBigDecimal)
-            } else if (tx.isGastoReal) {
-                periodExpenseMap[key] = (periodExpenseMap[key] ?: BigDecimal.ZERO).add(tx.effectiveAmountBigDecimal)
-            }
+        val first = (inc.keys + exp.keys).filter { it < target }.minOrNull() ?: return 0.0
+        var rollover = BigDecimal.ZERO
+        for (k in first until target) {
+            val closing = (inc[k] ?: BigDecimal.ZERO).add(rollover).subtract(exp[k] ?: BigDecimal.ZERO)
+            rollover = if (closing.signum() > 0) closing else BigDecimal.ZERO
         }
-
-        // Obtener todos los periodos previos ordenados cronológicamente
-        val allKeys = (periodIncomeMap.keys + periodExpenseMap.keys).distinct().filter { it < targetKey }.sorted()
-        if (allKeys.isEmpty()) return 0.0
-
-        var currentRollover = BigDecimal.ZERO
-        val minKey = allKeys.first()
-
-        // Iterar periodo a periodo de forma secuencial encadenada
-        for (k in minKey until targetKey) {
-            val inc = periodIncomeMap[k] ?: BigDecimal.ZERO
-            val exp = periodExpenseMap[k] ?: BigDecimal.ZERO
-            val net = inc.add(currentRollover).subtract(exp)
-            currentRollover = if (net.signum() > 0) net else BigDecimal.ZERO
-        }
-
-        return currentRollover.toDouble()
+        return rollover.toDouble()
     }
 }

@@ -446,7 +446,7 @@ val TransactionEntity.quincenaNumber: Int
     get() = com.example.ui.util.QuincenaFilterHelper.getBudgetPeriod(dateMillis, type).quincena
 
 val TransactionEntity.quincenaLabel: String
-    get() = if (quincenaNumber == 1) "1ra Quincena (1 - 15)" else "2da Quincena (16 - fin de mes)"
+    get() = if (quincenaNumber == 1) "1ra Quincena (fin de mes anterior - 14)" else "2da Quincena (15 - penúltimo día)"
 
 val PaymentCommitmentEntity.isCancelled: Boolean
     get() = status == PaymentStatus.CANCELLED
