@@ -95,7 +95,7 @@ fun PlannedVsRealScreen(
     val today = LocalDate.now(QuincenaFilterHelper.FINANCIAL_ZONE)
     val cyclePeriod = com.example.ui.util.BudgetPeriod(month.year, month.monthValue - 1, selectedCycle)
     val cycleTransactions = if (selectedCycle == 1) q.q1Transactions else q.q2Transactions
-    val dayTransactions = cycleTransactions.filter { QuincenaFilterHelper.localDate(it.dateMillis) == selectedDate }
+    val dayTransactions = monthTransactions.filter { QuincenaFilterHelper.localDate(it.dateMillis) == selectedDate }
     val dayCommitments = commitments.filter { QuincenaFilterHelper.localDate(it.dueDateMillis) == selectedDate && !it.isCancelled }
     val searchedTransactions = cycleTransactions.filter { tx ->
         val query = searchQuery.trim()
@@ -103,6 +103,7 @@ fun PlannedVsRealScreen(
     }
     val cycleRange = QuincenaFilterHelper.getBudgetPeriodRange(cyclePeriod.year, cyclePeriod.monthIndex, cyclePeriod.quincena)
     val cycleIncome = if (cyclePeriod.quincena == 1) q.q1Income else q.q2Income
+    val cyclePendingIncome = if (cyclePeriod.quincena == 1) q.q1PendingIncome else q.q2PendingIncome
     val cycleExpense = if (cyclePeriod.quincena == 1) q.q1Expense else q.q2Expense
     val cycleRollover = if (cyclePeriod.quincena == 1) q1Rollover else q2Rollover
     val cycleCommitments = commitments.filter { !it.isCancelled && !it.isPaid && it.status != com.example.data.model.PaymentStatus.PAID && it.dueDateMillis in cycleRange.first..cycleRange.second }
@@ -112,7 +113,7 @@ fun PlannedVsRealScreen(
         Chronology.daysBetweenInclusive(today, QuincenaFilterHelper.localDate(cycleRange.second)).coerceAtLeast(0)
     } else null
     val realAvailable = cycleRollover + cycleIncome - cycleExpense
-    val projected = realAvailable - pendingAmount
+    val projected = realAvailable + cyclePendingIncome - pendingAmount
     val monthLabel = month.format(DateTimeFormatter.ofPattern("MMMM yyyy", Locale("es", "GT"))).replaceFirstChar { it.uppercase() }
     val isDark = uiState.isDarkTheme
     val card = if (isDark) Color(0xFF102832) else Color.White
@@ -142,6 +143,7 @@ fun PlannedVsRealScreen(
                     Text(if (daysRemaining != null) "$daysRemaining días restantes en el ciclo" else "Consulta un mes para ver su ciclo", color = muted)
                     MetricLine("Saldo disponible real", realAvailable, uiState, Emerald, Icons.Default.Payments, text)
                     MetricLine("Ingresos confirmados", cycleIncome, uiState, Color(0xFF168AAD), Icons.Default.TrendingUp, text)
+                    if (cyclePendingIncome > 0.0) MetricLine("Ingresos supuestos · proyección", cyclePendingIncome, uiState, Color(0xFF8B5CF6), Icons.Default.Schedule, text)
                     MetricLine("Gastos reales", cycleExpense, uiState, Color(0xFFC2414B), Icons.Default.TrendingDown, text)
                     MetricLine("Compromisos pendientes", pendingAmount, uiState, Color(0xFFB7791F), Icons.Default.Schedule, text)
                     MetricLine("Rollover recibido", cycleRollover, uiState, Jade, Icons.Default.TrendingUp, text)
@@ -166,10 +168,15 @@ fun PlannedVsRealScreen(
         if (selectedCycle == 1) item {
             val previousDay = month.minusMonths(1).atEndOfMonth()
             val previousDayTransactions = transactions.filter { QuincenaFilterHelper.localDate(it.dateMillis) == previousDay }
-            PreviousCycleDayCard(previousDay, previousDayTransactions.size, uiState, muted)
+            val previousIncome = previousDayTransactions.filter { it.isIngresoReal }.sumOf { it.amount }
+            val previousExpense = previousDayTransactions.filter { it.isGastoReal }.sumOf { it.amount }
+            PreviousCycleDayCard(previousDay, previousDayTransactions.size, previousIncome, previousExpense, uiState, muted)
         }
         item {
-            MonthlyCalendar(month, monthTransactions, commitments, selectedDate, { selectedDate = it }, isDark)
+            MonthlyCalendar(month, monthTransactions, commitments, selectedDate, {
+                selectedDate = it
+                selectedCycle = QuincenaFilterHelper.getBudgetPeriod(QuincenaFilterHelper.atStartOfDay(it)).quincena
+            }, isDark)
         }
         item {
             DailyDetail(selectedDate, dayTransactions, dayCommitments, uiState, text, muted, onEditTransaction, onDeleteTransaction, onHighlightTransaction, onToggleVerifyTransaction, onDecideTentative)
@@ -183,11 +190,14 @@ fun PlannedVsRealScreen(
 }
 
 @Composable
-private fun PreviousCycleDayCard(date: LocalDate, movementCount: Int, uiState: BudgetUiState, muted: Color) {
+private fun PreviousCycleDayCard(date: LocalDate, movementCount: Int, income: Double, expense: Double, uiState: BudgetUiState, muted: Color) {
     Card(Modifier.fillMaxWidth().padding(horizontal = 16.dp), colors = CardDefaults.cardColors(if (uiState.isDarkTheme) Color(0xFF102832) else Color.White), shape = RoundedCornerShape(14.dp)) {
         Column(Modifier.padding(14.dp)) {
             Text("INICIO DEL CICLO 1", color = Jade, fontWeight = FontWeight.ExtraBold)
             Text("${date.format(GuatemalaDateFormatter).replaceFirstChar { it.uppercase() }} · $movementCount movimientos registrados", color = muted)
+            Text("Ingresos confirmados: ${FormatUtils.formatCurrency(income, uiState.currencySymbol, uiState.isDiscreetMode)}", color = Emerald)
+            Text("Gastos reales: ${FormatUtils.formatCurrency(expense, uiState.currencySymbol, uiState.isDiscreetMode)}", color = Color(0xFFC2414B))
+            Text("Balance neto: ${FormatUtils.formatCurrency(income - expense, uiState.currencySymbol, uiState.isDiscreetMode)}", color = Jade, fontWeight = FontWeight.Bold)
         }
     }
 }
