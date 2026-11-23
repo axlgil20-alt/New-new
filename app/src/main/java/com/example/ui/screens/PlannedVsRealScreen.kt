@@ -132,11 +132,12 @@ fun PlannedVsRealScreen(
         item {
             Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(1, 2).forEach { cycle ->
-                    val range = QuincenaFilterHelper.getBudgetPeriodRange(month.year, month.monthValue - 1, cycle)
+                    val chipRange = QuincenaFilterHelper.getBudgetPeriodRange(selectedPeriod.year, selectedPeriod.monthIndex, cycle)
                     FilterChip(selected = selectedCycle == cycle, onClick = {
                         selectedCycle = cycle
-                        selectedDate = if (cycle == 1) month.atDay(1) else month.atDay(15)
-                    }, label = { Text("Ciclo $cycle: ${shortDate(range.first)} - ${shortDate(range.second)}") }, colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Jade, selectedLabelColor = Color.White), modifier = Modifier.weight(1f))
+                        val periodMonth = YearMonth.of(selectedPeriod.year, selectedPeriod.monthIndex + 1)
+                        selectedDate = if (cycle == 1) periodMonth.atDay(1) else periodMonth.atDay(15)
+                    }, label = { Text("Ciclo $cycle de ${periodMonthLabel(selectedPeriod)}: ${shortDate(chipRange.first)} - ${shortDate(chipRange.second)}") }, colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Jade, selectedLabelColor = Color.White), modifier = Modifier.weight(1f))
                 }
             }
         }
@@ -307,6 +308,11 @@ private fun MetricLine(label: String, amount: Double, state: BudgetUiState, colo
 
 private fun shortDate(timeMillis: Long): String =
     QuincenaFilterHelper.localDate(timeMillis).format(DateTimeFormatter.ofPattern("d MMM", Locale("es", "GT")))
+
+private fun periodMonthLabel(period: com.example.ui.util.BudgetPeriod): String =
+    YearMonth.of(period.year, period.monthIndex + 1)
+        .format(DateTimeFormatter.ofPattern("MMMM", Locale("es", "GT")))
+        .replaceFirstChar { it.uppercase() }
 
 private object Chronology {
     fun daysBetweenInclusive(start: LocalDate, end: LocalDate): Int = if (end.isBefore(start)) 0 else java.time.temporal.ChronoUnit.DAYS.between(start, end).toInt() + 1

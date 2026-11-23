@@ -151,4 +151,20 @@ class Quincenas20RulesTest {
         assertEquals(BudgetPeriod(2027, 0, 1), QuincenaFilterHelper.getBudgetPeriod(date(2026, 12, 31)))
         assertEquals(BudgetPeriod(2027, 0, 2), QuincenaFilterHelper.getBudgetPeriod(date(2027, 1, 15)))
     }
+
+    @Test fun fechaSeleccionadaDefinePeriodoYLosRangosDeSusDosChips() {
+        val selectedDate = date(2026, 2, 28)
+        val selectedPeriod = QuincenaFilterHelper.getBudgetPeriod(selectedDate)
+
+        assertEquals(BudgetPeriod(2026, 2, 1), selectedPeriod)
+        assertEquals(LocalDate.of(2026, 2, 28), QuincenaFilterHelper.localDate(QuincenaFilterHelper.getBudgetPeriodRange(selectedPeriod.year, selectedPeriod.monthIndex, 1).first))
+        assertEquals(LocalDate.of(2026, 3, 15), QuincenaFilterHelper.localDate(QuincenaFilterHelper.getBudgetPeriodRange(selectedPeriod.year, selectedPeriod.monthIndex, 2).first))
+    }
+
+    @Test fun dias14Y15MantienenCiclosDistintosEnFebreroBisiestoYNoBisiesto() {
+        assertEquals(1, QuincenaFilterHelper.getBudgetPeriod(date(2024, 2, 14)).quincena)
+        assertEquals(2, QuincenaFilterHelper.getBudgetPeriod(date(2024, 2, 15)).quincena)
+        assertEquals(1, QuincenaFilterHelper.getBudgetPeriod(date(2025, 2, 14)).quincena)
+        assertEquals(2, QuincenaFilterHelper.getBudgetPeriod(date(2025, 2, 15)).quincena)
+    }
 }
