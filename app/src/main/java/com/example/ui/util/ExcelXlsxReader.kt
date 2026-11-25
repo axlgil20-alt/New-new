@@ -42,6 +42,11 @@ private data class SheetMeta(
 
 object ExcelXlsxReader {
 
+    private const val MAX_INPUT_BYTES = 25 * 1024 * 1024
+    private const val MAX_ZIP_ENTRIES = 512
+    private const val MAX_ZIP_ENTRY_BYTES = 12 * 1024 * 1024
+    private const val MAX_OUTPUT_ROWS = 100_000
+
     private val DATE_FORMATS = listOf(
         SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US),
         SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US),
@@ -115,7 +120,7 @@ object ExcelXlsxReader {
      */
     fun readUriContentAsCsv(context: Context, uri: Uri): String {
         val stream = context.contentResolver.openInputStream(uri) ?: return ""
-        return readStreamContentAsCsv(stream)
+        return stream.use { readStreamContentAsCsv(it) }
     }
 
     /**
@@ -123,7 +128,16 @@ object ExcelXlsxReader {
      * De lo contrario, lo lee directamente como texto plano UTF-8 (CSV/TSV).
      */
     fun readStreamContentAsCsv(stream: InputStream): String {
-        val bytes = stream.use { it.readBytes() }
+        val bytes = stream.use { readBytesLimited(it) }
+        // Formato Compound File Binary de Excel antiguo (.xls); no interpretarlo como UTF-8.
+        if (bytes.size >= 8 &&
+            bytes[0] == 0xD0.toByte() && bytes[1] == 0xCF.toByte() &&
+            bytes[2] == 0x11.toByte() && bytes[3] == 0xE0.toByte() &&
+            bytes[4] == 0xA1.toByte() && bytes[5] == 0xB1.toByte() &&
+            bytes[6] == 0x1A.toByte() && bytes[7] == 0xE1.toByte()
+        ) {
+            throw IllegalArgumentException("Los archivos .xls binarios no están soportados; guárdalo como .xlsx o .csv.")
+        }
         // Detección mágica de encabezado ZIP: PK\u0003\u0004
         if (bytes.size >= 4 &&
             bytes[0] == 0x50.toByte() &&
@@ -141,6 +155,34 @@ object ExcelXlsxReader {
         return String(bytes, Charsets.UTF_8)
     }
 
+    private fun readBytesLimited(stream: InputStream): ByteArray {
+        val output = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        var total = 0
+        while (true) {
+            val read = stream.read(buffer)
+            if (read < 0) break
+            total += read
+            if (total > MAX_INPUT_BYTES) {
+                throw IllegalArgumentException("El archivo supera el límite de ${MAX_INPUT_BYTES / (1024 * 1024)} MB.")
+            }
+            output.write(buffer, 0, read)
+        }
+        return output.toByteArray()
+    }
+
+    private fun validateZipEntry(entry: java.util.zip.ZipEntry, count: Int) {
+        if (count > MAX_ZIP_ENTRIES) {
+            throw IllegalArgumentException("El archivo XLSX contiene demasiadas entradas ZIP.")
+        }
+        if (entry.name.length > 512 || entry.name.contains("..")) {
+            throw IllegalArgumentException("El archivo XLSX contiene una ruta ZIP no válida.")
+        }
+        if (entry.size > MAX_ZIP_ENTRY_BYTES) {
+            throw IllegalArgumentException("Una entrada del archivo XLSX supera el límite permitido.")
+        }
+    }
+
     /**
      * Parsea un archivo .xlsx desde memoria:
      * 1. Extrae sharedStrings.
@@ -155,7 +197,9 @@ object ExcelXlsxReader {
         try {
             ZipInputStream(ByteArrayInputStream(bytes)).use { zip ->
                 var entry = zip.nextEntry
+                var entryCount = 0
                 while (entry != null) {
+                    validateZipEntry(entry, ++entryCount)
                     if (entry.name.equals("xl/sharedStrings.xml", ignoreCase = true)) {
                         parseSharedStrings(zip, sharedStrings)
                         break
@@ -171,7 +215,9 @@ object ExcelXlsxReader {
         try {
             ZipInputStream(ByteArrayInputStream(bytes)).use { zip ->
                 var entry = zip.nextEntry
+                var entryCount = 0
                 while (entry != null) {
+                    validateZipEntry(entry, ++entryCount)
                     val entryName = entry.name.lowercase(Locale.ROOT)
                     if (entryName == "xl/workbook.xml") {
                         sheetList.addAll(parseWorkbookSheets(zip))
@@ -216,7 +262,9 @@ object ExcelXlsxReader {
         try {
             ZipInputStream(ByteArrayInputStream(bytes)).use { zip ->
                 var entry = zip.nextEntry
+                var entryCount = 0
                 while (entry != null) {
+                    validateZipEntry(entry, ++entryCount)
                     val name = entry.name.lowercase(Locale.ROOT)
                     if (name.startsWith("xl/worksheets/sheet") && name.endsWith(".xml")) {
                         val fileName = name.substringAfterLast("/")
@@ -225,7 +273,7 @@ object ExcelXlsxReader {
                         } else {
                             true
                         }
-                        if (shouldParse) {
+                        if (shouldParse && rows.size < MAX_OUTPUT_ROWS) {
                             parseSheet(zip, sharedStrings, rows)
                         }
                     }
@@ -240,7 +288,7 @@ object ExcelXlsxReader {
         val sb = StringBuilder()
         val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.US)
 
-        for (row in rows) {
+        for (row in rows.take(MAX_OUTPUT_ROWS)) {
             if (row.all { it.isBlank() }) continue
 
             val formattedRow = row.mapIndexed { colIdx, rawVal ->

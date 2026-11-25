@@ -613,7 +613,7 @@ class AccountsRepository(
             else -> null
         }
 
-        fun makeSeparateCharge(
+        suspend fun makeSeparateCharge(
             amountMinor: Long,
             currencyCode: String?,
             entryKind: String,

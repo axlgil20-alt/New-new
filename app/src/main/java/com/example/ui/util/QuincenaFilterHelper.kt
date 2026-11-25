@@ -5,6 +5,7 @@ import com.example.data.model.PaymentCommitmentEntity
 import com.example.data.model.PaymentStatus
 import com.example.data.model.affectsBudgetTotals
 import com.example.data.model.effectiveAmountBigDecimal
+import com.example.data.model.effectiveAmountMinor
 import com.example.data.model.isGastoReal
 import com.example.data.model.isGastoSupuesto
 import com.example.data.model.isIngresoReal
@@ -186,7 +187,7 @@ object QuincenaFilterHelper {
         }
         val linkedExpenseIds = pendingCommitments.mapNotNull { it.linkedTransactionId }.toSet()
         val commitmentsTotal = pendingCommitments.fold(BigDecimal.ZERO) { total, commitment ->
-            total.add(commitment.effectiveAmountBigDecimal)
+            total.add(com.example.data.model.MoneyMinorUnits.toBigDecimal(commitment.effectiveAmountMinor))
         }
         val unlinkedExpensesTotal = pendingExpenses
             .filter {

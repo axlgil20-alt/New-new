@@ -178,7 +178,7 @@ fun CompactAccountsSummaryCard(
                         valueColor = primaryText,
                         modifier = Modifier.weight(1f)
                     )
-                )
+                }
             }
 
             accountsState.consolidatedPortfolio?.takeIf { it.isPartial }?.let { portfolio ->
