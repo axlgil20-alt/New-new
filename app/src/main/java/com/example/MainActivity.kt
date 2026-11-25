@@ -220,7 +220,6 @@ class MainActivity : ComponentActivity() {
             }
 
             var pendingTargetPage by remember { mutableStateOf<Int?>(null) }
-            var wasPrimaryTab by remember { mutableStateOf(true) }
 
             LaunchedEffect(selectedTab) {
                 val targetPage = PrimaryTabPagerLogic.pageIndexForTab(selectedTab)
@@ -228,18 +227,14 @@ class MainActivity : ComponentActivity() {
                     if (pagerState.currentPage != targetPage) {
                         pendingTargetPage = targetPage
                         try {
-                            if (!wasPrimaryTab) {
-                                pagerState.scrollToPage(targetPage)
-                            } else {
-                                pagerState.animateScrollToPage(targetPage)
-                            }
+                            // La navegación principal no debe arrastrar toda la interfaz
+                            // lateralmente. Los desplazamientos horizontales quedan
+                            // reservados para controles internos que los necesitan.
+                            pagerState.scrollToPage(targetPage)
                         } finally {
                             pendingTargetPage = null
                         }
                     }
-                    wasPrimaryTab = true
-                } else {
-                    wasPrimaryTab = false
                 }
             }
 
@@ -657,6 +652,7 @@ class MainActivity : ComponentActivity() {
                             HorizontalPager(
                                 state = pagerState,
                                 beyondViewportPageCount = 0,
+                                userScrollEnabled = false,
                                 key = { PrimaryTabPagerLogic.tabForPageIndex(it) },
                                 modifier = Modifier
                                     .fillMaxSize()
